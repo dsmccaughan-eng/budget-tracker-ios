@@ -8,7 +8,6 @@ workflows:
     instance_type: mac_mini_m2
     environment:
       groups:
-        - optimized_secrets
         - budgettracker_secrets
       vars:
         XCODE_SCHEME: BudgetTracker
