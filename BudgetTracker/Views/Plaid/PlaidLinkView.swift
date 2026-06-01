@@ -60,8 +60,11 @@ struct PlaidLinkView: View {
             }
             return detail
         }
-        if exit.metadata.status == .requiresCredentials {
+        switch exit.metadata.status {
+        case .requiresCredentials:
             return "Bank linking was cancelled."
+        default:
+            break
         }
         return nil
     }

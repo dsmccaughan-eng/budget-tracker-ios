@@ -32,14 +32,10 @@ final class PlaidLinkCoordinator: NSObject, ObservableObject {
         }
     }
 
-    /// Call from `.onOpenURL` when returning from an OAuth institution.
+    /// LinkKit 5+ resumes OAuth automatically when the handler is retained; keep for logging.
     func continueLink(from url: URL) -> Bool {
-        guard let handler = linkHandler else { return false }
-        if let error = handler.continue(from: url) {
-            linkHandler = nil
-            NSLog("Plaid OAuth continue failed: \(error)")
-            return false
-        }
+        guard linkHandler != nil else { return false }
+        NSLog("Plaid OAuth return URL: %@", url.absoluteString)
         return true
     }
 
