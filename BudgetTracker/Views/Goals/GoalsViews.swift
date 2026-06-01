@@ -190,7 +190,7 @@ struct CashFlowCalendarView: View {
                         Text(day.date)
                         Spacer()
                         Text(FinanceFormatting.currency(day.net))
-                            .foregroundStyle(day.net >= 0 ? .green : .red)
+                            .foregroundStyle(day.net >= 0 ? Color.green : Color.red)
                     }
                     .font(.caption)
                 }

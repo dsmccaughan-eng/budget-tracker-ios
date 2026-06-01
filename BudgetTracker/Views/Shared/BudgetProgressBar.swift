@@ -45,7 +45,9 @@ struct BudgetProgressBar: View {
             if !progress.isFixed {
                 Text("Typical: \(FinanceFormatting.currency(progress.projectedSpend))")
                     .font(.caption2)
-                    .foregroundStyle(progress.projectedSpend > progress.monthlyLimit ? .red : .secondary)
+                    .foregroundStyle(
+                        progress.projectedSpend > progress.monthlyLimit ? Color.red : Color.secondary
+                    )
             }
         }
         .padding(.vertical, 4)

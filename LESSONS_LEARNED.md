@@ -114,4 +114,10 @@ Entry format
 - **Fix:** Migration `20260602120000_account_balance_snapshots.sql`; record snapshots on `plaid-get-accounts` / link / app reload; `AccountBalanceHistoryEngine` reconstructs daily balances from current balance + settled transactions; `AccountDetailView` with scrubbing chart (1M–ALL).
 - **Verification:** Tap account on Accounts or Net Worth → chart scrubs; label shows “Estimated from activity” vs saved snapshot; deploy migration + edge functions; sync transactions for full year.
 
+### 2026-06-02 - Codemagic archive: ShapeStyle ternary compile error
+- **Symptom:** Build IPA failed (exit 65) on `BudgetCategorySpendRow` / `BudgetProgressBar` — cannot mix `.secondary` (HierarchicalShapeStyle) and `.red` (Color) in one ternary for `foregroundStyle`.
+- **Root cause:** Swift requires a single concrete `ShapeStyle` type in ternary branches; semantic `.secondary` vs `.red` differ.
+- **Fix:** Use `Color.secondary` / `Color.red` (and `plotAreaFrame` not `plotFrame` on chart overlay). Rebuild with bumped `CURRENT_PROJECT_VERSION`.
+- **Verification:** Codemagic unit-test step + archive succeed.
+
 <!-- Append new entries above this line -->
