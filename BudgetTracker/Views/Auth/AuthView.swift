@@ -16,7 +16,7 @@ struct AuthView: View {
     var body: some View {
         NavigationStack {
             Form {
-                if !SupabaseConfig.isConfigured || showBackendSetup {
+                if showBackendSetup {
                     backendSection
                 }
 
@@ -35,10 +35,7 @@ struct AuthView: View {
             }
             .navigationTitle("Budget Tracker")
             .onAppear {
-                showBackendSetup = !SupabaseConfig.isConfigured
-                if supabaseAnonKey.isEmpty, APIKeys.hasValidSupabaseConfig {
-                    supabaseAnonKey = APIKeys.supabaseAnonKey
-                }
+                showBackendSetup = false
             }
         }
     }

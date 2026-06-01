@@ -1,8 +1,11 @@
 import Foundation
 
 struct APIKeys {
-    /// Public project URL (safe to ship in the client; anon key still required separately).
+    /// Public project URL (safe to ship in the client).
     static let defaultSupabaseURL = "https://dldbcbituquxedlkeefu.supabase.co"
+    /// Anon public key for this project (safe in client; protected by RLS). Used when xcconfig/Settings are empty.
+    static let defaultSupabaseAnonKey =
+        "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRsZGJjYml0dXF1eGVkbGtlZWZ1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk2OTgxNDYsImV4cCI6MjA5NTI3NDE0Nn0.ZEKbCfVCOPd_tII-7dokUNDllqi1PGTLMxH5GCOV0d0"
 
     private static let geminiUserProvidedFlag = "gemini_api_key_user_provided"
     private static let supabaseUserProvidedFlag = "supabase_keys_user_provided"
@@ -138,6 +141,9 @@ struct APIKeys {
 
         if infoPlistKey == "SUPABASE_URL", isUsableKey(defaultSupabaseURL) {
             return defaultSupabaseURL
+        }
+        if infoPlistKey == "SUPABASE_ANON_KEY", isUsableKey(defaultSupabaseAnonKey) {
+            return defaultSupabaseAnonKey
         }
 
         return ""
