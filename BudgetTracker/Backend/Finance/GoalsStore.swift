@@ -131,7 +131,11 @@ final class NetWorthStore: ObservableObject {
         }
     }
 
-    func captureSnapshot(client: SupabaseClient, accounts: [Account]) async {
+    func captureSnapshot(
+        client: SupabaseClient,
+        accounts: [Account],
+        accountBalances: AccountBalanceStore? = nil
+    ) async {
         let totals = NetWorthCalculator.totals(from: accounts)
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyy-MM-dd"
@@ -149,6 +153,9 @@ final class NetWorthStore: ObservableObject {
             currentAssets = totals.assets
             currentLiabilities = totals.liabilities
             currentNetWorth = totals.net
+            if let accountBalances {
+                await accountBalances.recordTodaySnapshots(accounts: accounts, client: client)
+            }
         } catch {
             errorMessage = error.localizedDescription
         }

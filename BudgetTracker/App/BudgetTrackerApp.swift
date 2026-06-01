@@ -8,6 +8,7 @@ struct BudgetTrackerApp: App {
     @StateObject private var budgetStore = BudgetStore()
     @StateObject private var goalsStore = GoalsStore()
     @StateObject private var netWorthStore = NetWorthStore()
+    @StateObject private var accountBalanceStore = AccountBalanceStore()
     @StateObject private var merchantRulesStore = MerchantRulesStore()
     @StateObject private var priceHistoryStore = PriceHistoryStore()
     @StateObject private var insightsStore = InsightsStore()
@@ -31,6 +32,7 @@ struct BudgetTrackerApp: App {
                 .environmentObject(budgetStore)
                 .environmentObject(goalsStore)
                 .environmentObject(netWorthStore)
+                .environmentObject(accountBalanceStore)
                 .environmentObject(merchantRulesStore)
                 .environmentObject(priceHistoryStore)
                 .environmentObject(insightsStore)
@@ -72,6 +74,11 @@ struct BudgetTrackerApp: App {
         await budgetStore.reload(client: client, transactions: transactionStore.transactions)
         await goalsStore.reload(client: client, transactions: transactionStore.transactions)
         await netWorthStore.reload(client: client, accounts: transactionStore.accounts)
+        await accountBalanceStore.reload(client: client)
+        await accountBalanceStore.recordTodaySnapshots(
+            accounts: transactionStore.accounts,
+            client: client
+        )
         await merchantRulesStore.reload(client: client)
         await priceHistoryStore.reload(client: client)
         insightsStore.refreshLocal(transactions: transactionStore.transactions)

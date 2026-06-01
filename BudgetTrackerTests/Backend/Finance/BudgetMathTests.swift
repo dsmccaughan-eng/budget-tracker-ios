@@ -68,7 +68,24 @@ final class BudgetMathTests: XCTestCase {
         XCTAssertEqual(projected, 300, accuracy: 0.01)
     }
 
-    func testProgressRowsMarksFixedBudgetProjectedAsSpent() {
+    func testAverageMonthlySpendUsesLastSixMonths() {
+        let txns = [
+            txn(category: "Groceries", amount: 60, date: "2026-05-10"),
+            txn(category: "Groceries", amount: 40, date: "2026-04-10"),
+            txn(category: "Groceries", amount: 100, date: "2026-03-10"),
+            txn(category: "Groceries", amount: 20, date: "2026-02-10")
+        ]
+        let average = BudgetMath.averageMonthlySpend(
+            transactions: txns,
+            category: "Groceries",
+            referenceDate: referenceDate,
+            monthCount: 6,
+            calendar: calendar
+        )
+        XCTAssertEqual(average, 220.0 / 6.0, accuracy: 0.01)
+    }
+
+    func testProgressRowsUsesSixMonthAverageForProjection() {
         let budgets = [
             Budget(
                 id: UUID(),
@@ -77,19 +94,12 @@ final class BudgetMathTests: XCTestCase {
                 color: "#22c55e",
                 isRollover: false,
                 isFixed: false
-            ),
-            Budget(
-                id: UUID(),
-                category: "Housing & Utilities",
-                monthlyLimit: 1500,
-                color: "#3b82f6",
-                isRollover: false,
-                isFixed: true
             )
         ]
         let txns = [
             txn(category: "Groceries", amount: 100, date: "2026-05-01"),
-            txn(category: "Housing & Utilities", amount: 1500, date: "2026-05-01")
+            txn(category: "Groceries", amount: 200, date: "2026-04-01"),
+            txn(category: "Groceries", amount: 300, date: "2026-03-01")
         ]
         let rows = BudgetMath.progressRows(
             budgets: budgets,
@@ -98,9 +108,7 @@ final class BudgetMathTests: XCTestCase {
             calendar: calendar
         )
         let groceries = rows.first { $0.category == "Groceries" }
-        let housing = rows.first { $0.category == "Housing & Utilities" }
         XCTAssertEqual(groceries?.spent, 100, accuracy: 0.01)
-        XCTAssertGreaterThan(groceries?.projectedSpend ?? 0, 100)
-        XCTAssertEqual(housing?.projectedSpend, housing?.spent)
+        XCTAssertEqual(groceries?.projectedSpend, 100, accuracy: 0.01)
     }
 }

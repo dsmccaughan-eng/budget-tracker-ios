@@ -26,6 +26,13 @@ struct BudgetCategorySpendRow: View {
             VStack(alignment: .trailing, spacing: 4) {
                 Text(FinanceFormatting.currency(progress.spent))
                     .font(.subheadline.weight(.semibold))
+                if progress.projectedSpend > 0 {
+                    Text("Typical \(FinanceFormatting.currency(progress.projectedSpend))")
+                        .font(.caption2)
+                        .foregroundStyle(
+                            progress.projectedSpend > progress.monthlyLimit ? Color.orange : Color.secondary
+                        )
+                }
                 Text(remainingLabel)
                     .font(.caption)
                     .foregroundStyle(progress.remaining >= 0 ? Color.secondary : Color.red)

@@ -47,6 +47,9 @@ enum BudgetMath {
             .reduce(0) { $0 + abs($1.amount) }
     }
 
+    static let projectionMonthCount = 6
+
+    /// Linear pace projection for the current month (legacy; prefer `averageMonthlySpend` in UI).
     static func projectedMonthlySpend(
         spent: Double,
         referenceDate: Date = Date(),
@@ -56,6 +59,40 @@ enum BudgetMath {
         let daysInMonth = calendar.range(of: .day, in: .month, for: referenceDate)?.count ?? 30
         guard day > 0 else { return spent }
         return spent / Double(day) * Double(daysInMonth)
+    }
+
+    static func startOfMonth(
+        _ date: Date,
+        calendar: Calendar = .current
+    ) -> Date {
+        let parts = calendar.dateComponents([.year, .month], from: date)
+        return calendar.date(from: parts) ?? date
+    }
+
+    /// Mean category spend across the last `monthCount` calendar months ending at `referenceDate`.
+    static func averageMonthlySpend(
+        transactions: [Transaction],
+        category: String,
+        referenceDate: Date = Date(),
+        monthCount: Int = projectionMonthCount,
+        calendar: Calendar = .current
+    ) -> Double {
+        guard monthCount > 0 else { return 0 }
+        let anchor = startOfMonth(referenceDate, calendar: calendar)
+        var monthlyTotals: [Double] = []
+        for offset in 0..<monthCount {
+            guard let month = calendar.date(byAdding: .month, value: -offset, to: anchor) else { continue }
+            monthlyTotals.append(
+                spentAmount(
+                    transactions: transactions,
+                    category: category,
+                    referenceDate: month,
+                    calendar: calendar
+                )
+            )
+        }
+        guard !monthlyTotals.isEmpty else { return 0 }
+        return monthlyTotals.reduce(0, +) / Double(monthlyTotals.count)
     }
 
     static func progressRows(
@@ -71,9 +108,12 @@ enum BudgetMath {
                 referenceDate: referenceDate,
                 calendar: calendar
             )
-            let projected = budget.isFixed
-                ? spent
-                : projectedMonthlySpend(spent: spent, referenceDate: referenceDate, calendar: calendar)
+            let projected = averageMonthlySpend(
+                transactions: transactions,
+                category: budget.category,
+                referenceDate: referenceDate,
+                calendar: calendar
+            )
             return BudgetProgress(
                 category: budget.category,
                 monthlyLimit: budget.monthlyLimit,

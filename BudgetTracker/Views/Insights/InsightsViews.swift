@@ -307,21 +307,83 @@ struct InsightsView: View {
 
 struct BudgetHistoryView: View {
     @EnvironmentObject private var budgets: BudgetStore
+    @EnvironmentObject private var transactions: TransactionStore
+
+    private var monthGroups: [TransactionMonthGroup] {
+        TransactionMonthGrouping.groups(from: transactions.transactions)
+    }
 
     var body: some View {
-        List(budgets.progress) { row in
-            VStack(alignment: .leading, spacing: 4) {
-                Text(row.category).font(.headline)
-                Text("Spent \(FinanceFormatting.currency(row.spent)) of \(FinanceFormatting.currency(row.monthlyLimit))")
-                    .font(.caption)
-                if row.isOverBudget {
-                    Text("Over budget")
-                        .font(.caption2)
-                        .foregroundStyle(.red)
+        List {
+            if budgets.budgets.isEmpty {
+                ContentUnavailableView(
+                    "No budgets",
+                    systemImage: "dollarsign.circle",
+                    description: Text("Add budgets to see monthly spending history.")
+                )
+            } else if monthGroups.isEmpty {
+                ContentUnavailableView(
+                    "No transactions yet",
+                    systemImage: "arrow.triangle.2.circlepath",
+                    description: Text("Sync transactions to build monthly history.")
+                )
+            } else {
+                ForEach(monthGroups) { group in
+                    Section(group.title) {
+                        let rows = progress(for: group)
+                        if rows.allSatisfy({ $0.spent == 0 }) {
+                            Text("No spending recorded")
+                                .foregroundStyle(.secondary)
+                        } else {
+                            ForEach(rows.filter { $0.spent > 0 }) { row in
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text(row.category)
+                                        .font(.subheadline.weight(.semibold))
+                                    HStack {
+                                        Text("Spent \(FinanceFormatting.currency(row.spent))")
+                                        Text("of \(FinanceFormatting.currency(row.monthlyLimit))")
+                                            .foregroundStyle(.secondary)
+                                    }
+                                    .font(.caption)
+                                    if row.isOverBudget {
+                                        Text("Over budget")
+                                            .font(.caption2)
+                                            .foregroundStyle(.red)
+                                    }
+                                }
+                                .padding(.vertical, 2)
+                            }
+                        }
+                        HStack {
+                            Text("Month total")
+                                .font(.subheadline.weight(.semibold))
+                            Spacer()
+                            Text(FinanceFormatting.currency(rows.reduce(0) { $0 + $1.spent }))
+                                .font(.subheadline.weight(.semibold))
+                        }
+                    }
                 }
             }
         }
         .navigationTitle("Budget History")
+    }
+
+    private func progress(for group: TransactionMonthGroup) -> [BudgetProgress] {
+        guard let reference = monthReferenceDate(group.monthKey) else { return [] }
+        return BudgetMath.progressRows(
+            budgets: budgets.budgets,
+            transactions: transactions.transactions,
+            referenceDate: reference
+        )
+    }
+
+    private func monthReferenceDate(_ monthKey: String) -> Date? {
+        let formatter = DateFormatter()
+        formatter.calendar = Calendar.current
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "yyyy-MM"
+        guard let date = formatter.date(from: monthKey) else { return nil }
+        return BudgetMath.startOfMonth(date)
     }
 }
 

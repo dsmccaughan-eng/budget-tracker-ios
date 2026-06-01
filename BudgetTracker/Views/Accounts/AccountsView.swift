@@ -3,6 +3,7 @@ import SwiftUI
 struct AccountsView: View {
     @EnvironmentObject private var auth: AuthStore
     @EnvironmentObject private var transactions: TransactionStore
+    @EnvironmentObject private var accountBalances: AccountBalanceStore
     @State private var itemPendingRemoval: PlaidItem?
 
     var body: some View {
@@ -24,18 +25,30 @@ struct AccountsView: View {
                     )
                 } else {
                     ForEach(transactions.accounts) { account in
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(FinanceFormatting.accountLabel(account))
-                                .font(.headline)
-                            Text(account.type.capitalized)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                            if let balance = account.currentBalance {
-                                Text(FinanceFormatting.currency(balance))
+                        NavigationLink {
+                            AccountDetailView(account: account)
+                        } label: {
+                            HStack {
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text(FinanceFormatting.accountLabel(account))
+                                        .font(.headline)
+                                    Text(account.type.capitalized)
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                                Spacer()
+                                if let balance = account.currentBalance {
+                                    Text(FinanceFormatting.currency(
+                                        AccountBalanceHistoryEngine.displayBalance(
+                                            balance,
+                                            accountType: account.type
+                                        )
+                                    ))
                                     .font(.subheadline.weight(.semibold))
+                                }
                             }
+                            .padding(.vertical, 4)
                         }
-                        .padding(.vertical, 4)
                     }
                 }
             }
@@ -55,7 +68,10 @@ struct AccountsView: View {
             }
         }
         .refreshable {
-            await transactions.loadAll(client: auth.supabaseClient)
+            await reloadAccounts()
+        }
+        .task {
+            await reloadAccounts()
         }
         .confirmationDialog(
             "Disconnect this bank?",
@@ -78,6 +94,13 @@ struct AccountsView: View {
         } message: {
             Text("This removes linked accounts and synced transactions for that bank from Budget Tracker. Your bank login is revoked with Plaid.")
         }
+    }
+
+    private func reloadAccounts() async {
+        guard let client = auth.activeSupabaseClient else { return }
+        await transactions.loadAll(client: client)
+        await accountBalances.reload(client: client)
+        await accountBalances.recordTodaySnapshots(accounts: transactions.accounts, client: client)
     }
 
     @ViewBuilder

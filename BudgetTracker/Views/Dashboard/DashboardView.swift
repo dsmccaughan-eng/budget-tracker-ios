@@ -27,9 +27,16 @@ struct DashboardView: View {
                 }
 
                 Section("Net worth") {
-                    LabeledContent("Today", value: FinanceFormatting.currency(netWorth.currentNetWorth))
-                    NavigationLink("Net worth details") {
+                    NavigationLink {
                         NetWorthView()
+                    } label: {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(FinanceFormatting.currency(netWorth.currentNetWorth))
+                                .font(.title2.weight(.bold))
+                            Text("View trend chart and accounts")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
                     }
                 }
 
@@ -100,7 +107,11 @@ struct DashboardView: View {
                         NavigationLink {
                             BudgetView()
                         } label: {
-                            BudgetSpendPieChart(progress: budgets.progress, referenceDate: Date())
+                            BudgetSpendPieChart(
+                                progress: budgets.progress,
+                                referenceDate: Date(),
+                                hasTransactions: !transactions.transactions.isEmpty
+                            )
                         }
                         .buttonStyle(.plain)
                         .listRowInsets(EdgeInsets())

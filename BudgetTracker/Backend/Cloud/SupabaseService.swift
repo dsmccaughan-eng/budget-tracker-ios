@@ -52,17 +52,32 @@ actor SupabaseService {
         return rows
     }
 
-    func fetchTransactions(client: SupabaseClient, limit: Int = 100) async throws -> [Transaction] {
+    func fetchTransactions(
+        client: SupabaseClient,
+        since: String? = nil,
+        limit: Int = 5000
+    ) async throws -> [Transaction] {
         let session = try await client.auth.session
-        let rows: [Transaction] = try await client
+        var query = client
             .from("transactions")
             .select()
             .eq("user_id", value: session.user.id.uuidString)
             .order("date", ascending: false)
             .limit(limit)
-            .execute()
-            .value
+        if let since {
+            query = query.gte("date", value: since)
+        }
+        let rows: [Transaction] = try await query.execute().value
         return rows
+    }
+
+    static func transactionHistorySinceDate(calendar: Calendar = .current) -> String {
+        let formatter = DateFormatter()
+        formatter.calendar = calendar
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "yyyy-MM-dd"
+        let start = calendar.date(byAdding: .month, value: -AccountBalanceHistoryEngine.historyMonthCount, to: Date()) ?? Date()
+        return formatter.string(from: start)
     }
 
     func fetchBudgets(client: SupabaseClient) async throws -> [Budget] {

@@ -117,50 +117,6 @@ struct AddSavingsGoalView: View {
     }
 }
 
-struct NetWorthView: View {
-    @EnvironmentObject private var auth: AuthStore
-    @EnvironmentObject private var netWorth: NetWorthStore
-    @EnvironmentObject private var transactions: TransactionStore
-
-    var body: some View {
-        List {
-            Section("Current") {
-                LabeledContent("Assets", value: FinanceFormatting.currency(netWorth.currentAssets))
-                LabeledContent("Liabilities", value: FinanceFormatting.currency(netWorth.currentLiabilities))
-                LabeledContent("Net worth", value: FinanceFormatting.currency(netWorth.currentNetWorth))
-            }
-            Section("History") {
-                if netWorth.snapshots.isEmpty {
-                    Text("Capture a snapshot to track trends.")
-                        .foregroundStyle(.secondary)
-                } else {
-                    ForEach(netWorth.snapshots) { snap in
-                        HStack {
-                            Text(snap.date)
-                            Spacer()
-                            Text(FinanceFormatting.currency(snap.netWorth))
-                        }
-                    }
-                }
-            }
-        }
-        .navigationTitle("Net Worth")
-        .toolbar {
-            Button("Capture snapshot") {
-                Task {
-                    await netWorth.captureSnapshot(
-                        client: auth.supabaseClient,
-                        accounts: transactions.accounts
-                    )
-                }
-            }
-        }
-        .task {
-            await netWorth.reload(client: auth.supabaseClient, accounts: transactions.accounts)
-        }
-    }
-}
-
 struct DebtPayoffView: View {
     @EnvironmentObject private var goals: GoalsStore
 

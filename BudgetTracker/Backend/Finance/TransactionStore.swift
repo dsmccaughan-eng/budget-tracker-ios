@@ -19,7 +19,11 @@ final class TransactionStore: ObservableObject {
         do {
             async let accountRows = SupabaseService.shared.fetchAccounts(client: client)
             async let plaidItemRows = SupabaseService.shared.fetchPlaidItems(client: client)
-            async let transactionRows = SupabaseService.shared.fetchTransactions(client: client)
+            let since = SupabaseService.transactionHistorySinceDate()
+            async let transactionRows = SupabaseService.shared.fetchTransactions(
+                client: client,
+                since: since
+            )
             accounts = try await accountRows
             plaidItems = try await plaidItemRows
             transactions = try await transactionRows

@@ -2,6 +2,7 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 
 import { AuthError, requireUser } from "../_shared/auth.ts";
 import { handleOptions, jsonResponse } from "../_shared/cors.ts";
+import { recordAccountBalanceSnapshots } from "../_shared/account-balance-snapshots.ts";
 import { plaidRequest, PlaidAccount } from "../_shared/plaid.ts";
 import {
   assertPlaidItemOwnership,
@@ -89,6 +90,11 @@ Deno.serve(async (req) => {
           await admin.from("accounts").upsert(accountRows, {
             onConflict: "plaid_account_id",
           });
+          await recordAccountBalanceSnapshots(
+            admin,
+            user.id,
+            accountRows.map((row) => row.plaid_account_id),
+          );
         }
       } catch (error) {
         console.error("plaid_get_accounts_failed", item.plaid_item_id, error);

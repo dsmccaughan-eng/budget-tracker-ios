@@ -102,4 +102,16 @@ Entry format
 - **Fix:** Migration `20260601120000_budgets_fixed_rollover.sql`; delay auto Face ID 500ms after active; lock only on `.background`; friendly message for error 6 without counting as failure.
 - **Verification:** `supabase db push`; save budget with Fixed expense toggle; cold open → Face ID auto-prompt without error 6.
 
+### 2026-06-01 - Budgets pie: sync message with $0 spend; projections always zero
+- **Symptom:** TestFlight Budgets tab showed “Spending will appear when transactions sync” despite synced transactions; category projections were $0; no month navigation or edit/delete affordances.
+- **Root cause:** Pie chart treated `totalSpent == 0` as “not synced”; projections used in-month pace (`spent / day * daysInMonth`) so zero current-month spend yielded zero projection; UI only had swipe-delete.
+- **Fix:** Show sync hint only when no transactions are loaded; show “No spending this month yet” when synced but empty; use `BudgetMath.averageMonthlySpend` (6-month mean per category) for `projectedSpend`; month chevrons + `EditBudgetView` + context menu delete; refreshed pie legend/styling.
+- **Verification:** Budgets with synced txns and $0 this month → no sync message, typical $/mo on rows; past months via chevrons; tap row → edit limit/color/delete; `BudgetMathTests` average/projection cases pass.
+
+### 2026-06-02 - Per-account balance history (1 year)
+- **Symptom:** User wanted each account’s value at different times over the last year; Plaid only returns current balance on refresh.
+- **Root cause:** No `account_balance_snapshots` table; transaction fetch capped at 100 rows (insufficient for reconstruction).
+- **Fix:** Migration `20260602120000_account_balance_snapshots.sql`; record snapshots on `plaid-get-accounts` / link / app reload; `AccountBalanceHistoryEngine` reconstructs daily balances from current balance + settled transactions; `AccountDetailView` with scrubbing chart (1M–ALL).
+- **Verification:** Tap account on Accounts or Net Worth → chart scrubs; label shows “Estimated from activity” vs saved snapshot; deploy migration + edge functions; sync transactions for full year.
+
 <!-- Append new entries above this line -->

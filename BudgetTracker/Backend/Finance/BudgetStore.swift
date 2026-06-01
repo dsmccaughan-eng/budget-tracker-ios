@@ -48,6 +48,23 @@ final class BudgetStore: ObservableObject {
         }
     }
 
+    func updateBudget(
+        _ budget: Budget,
+        client: SupabaseClient,
+        transactions: [Transaction]
+    ) async {
+        errorMessage = nil
+        do {
+            let saved = try await SupabaseService.shared.updateBudget(budget, client: client)
+            if let index = budgets.firstIndex(where: { $0.id == budget.id }) {
+                budgets[index] = saved
+            }
+            recomputeProgress(transactions: transactions)
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
     func deleteBudget(_ budget: Budget, client: SupabaseClient, transactions: [Transaction]) async {
         errorMessage = nil
         do {

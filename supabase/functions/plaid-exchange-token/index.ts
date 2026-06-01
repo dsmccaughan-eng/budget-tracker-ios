@@ -2,6 +2,7 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 
 import { AuthError, requireUser } from "../_shared/auth.ts";
 import { handleOptions, jsonResponse } from "../_shared/cors.ts";
+import { recordAccountBalanceSnapshots } from "../_shared/account-balance-snapshots.ts";
 import { plaidRequest, PlaidAccount } from "../_shared/plaid.ts";
 import {
   checkRateLimit,
@@ -108,6 +109,11 @@ Deno.serve(async (req) => {
       if (accountsError) {
         throw new Error(`Failed to save accounts: ${accountsError.message}`);
       }
+      await recordAccountBalanceSnapshots(
+        admin,
+        user.id,
+        accountRows.map((row) => row.plaid_account_id),
+      );
     }
 
     await writeAuditLog(admin, {

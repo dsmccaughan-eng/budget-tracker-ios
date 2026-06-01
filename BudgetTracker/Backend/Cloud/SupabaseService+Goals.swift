@@ -50,7 +50,7 @@ extension SupabaseService {
             .select()
             .eq("user_id", value: session.user.id.uuidString)
             .order("date", ascending: false)
-            .limit(24)
+            .limit(500)
             .execute()
             .value
     }
