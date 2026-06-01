@@ -143,8 +143,9 @@ struct DashboardView: View {
                                             .foregroundStyle(.secondary)
                                     }
                                     Spacer()
-                                    Text(FinanceFormatting.currency(abs(transaction.amount)))
+                                    Text(TransactionFormatting.formattedAmount(transaction.amount))
                                         .font(.subheadline.weight(.semibold))
+                                        .foregroundStyle(TransactionFormatting.amountColor(transaction.amount))
                                 }
                             }
                         }

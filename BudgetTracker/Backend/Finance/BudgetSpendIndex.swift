@@ -27,7 +27,7 @@ struct BudgetSpendIndex {
         for txn in transactions {
             guard !BudgetMath.excludedCategories.contains(txn.category) else { continue }
             let monthKey = Self.monthKey(from: txn.date)
-            spent[txn.category, default: [:]][monthKey, default: 0] += abs(txn.amount)
+            spent[txn.category, default: [:]][monthKey, default: 0] += txn.amount
             let name = FinanceFormatting.displayName(for: txn)
             recent[txn.category, default: [:]][monthKey, default: []].append((txn.date, name))
         }

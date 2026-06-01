@@ -38,6 +38,8 @@ final class CategorizationEngineTests: XCTestCase {
     func testBudgetCategoriesContainsLockedSet() {
         XCTAssertTrue(BudgetCategories.all.contains("Groceries"))
         XCTAssertTrue(BudgetCategories.all.contains("Transfers"))
-        XCTAssertEqual(BudgetCategories.all.count, 17)
+        XCTAssertEqual(BudgetCategories.all.count, 19)
+        XCTAssertTrue(BudgetCategories.all.contains("Insurance"))
+        XCTAssertTrue(BudgetCategories.all.contains("Investments"))
     }
 }

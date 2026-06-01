@@ -21,6 +21,12 @@ private struct NewBudgetRow: Encodable {
 private struct TransactionCategoryPatch: Encodable {
     let category: String
     let subcategory: String?
+    let categorySource: String
+
+    enum CodingKeys: String, CodingKey {
+        case category, subcategory
+        case categorySource = "category_source"
+    }
 }
 
 extension SupabaseService {
@@ -171,9 +177,14 @@ extension SupabaseService {
         id: UUID,
         category: String,
         subcategory: String?,
+        categorySource: String = CategorySource.user.rawValue,
         client: SupabaseClient
     ) async throws {
-        let patch = TransactionCategoryPatch(category: category, subcategory: subcategory)
+        let patch = TransactionCategoryPatch(
+            category: category,
+            subcategory: subcategory,
+            categorySource: categorySource
+        )
         try await client
             .from("transactions")
             .update(patch)

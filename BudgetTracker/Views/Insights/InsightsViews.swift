@@ -124,6 +124,12 @@ struct CategoryRulesView: View {
 
     var body: some View {
         Form {
+            Section {
+                Text("Saved merchant patterns apply before AI or bank categories on every sync.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
+
             Section("New rule") {
                 TextField("Merchant contains", text: $draft.merchantContains)
                 Picker("Category", selection: $draft.category) {
@@ -134,7 +140,7 @@ struct CategoryRulesView: View {
                     draft.merchantContains = ""
                 }
             }
-            Section("Your rules") {
+            Section("Your rules library") {
                 if rules.rules.isEmpty {
                     Text("No custom rules yet.")
                         .foregroundStyle(.secondary)
@@ -156,7 +162,10 @@ struct CategoryRulesView: View {
             }
         }
         .navigationTitle("Category Rules")
-        .task { await rules.reload(client: auth.supabaseClient) }
+        .task {
+            guard let client = auth.activeSupabaseClient else { return }
+            await rules.reload(client: client)
+        }
     }
 }
 

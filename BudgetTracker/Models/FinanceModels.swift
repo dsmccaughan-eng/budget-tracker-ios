@@ -13,6 +13,7 @@ struct Transaction: Codable, Identifiable, Hashable {
     var pending: Bool
     var isManual: Bool
     var splitItems: [SplitItem]?
+    var categorySource: String? = nil
 
     enum CodingKeys: String, CodingKey {
         case id
@@ -22,6 +23,7 @@ struct Transaction: Codable, Identifiable, Hashable {
         case merchantName = "merchant_name"
         case isManual = "is_manual"
         case splitItems = "split_items"
+        case categorySource = "category_source"
     }
 }
 

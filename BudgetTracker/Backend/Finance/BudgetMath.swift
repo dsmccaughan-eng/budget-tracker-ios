@@ -171,7 +171,7 @@ enum BudgetMath {
                 isInMonth(dateString: $0.date, referenceDate: referenceDate, calendar: calendar) &&
                 !excludedCategories.contains($0.category)
             }
-            .reduce(0) { $0 + abs($1.amount) }
+            .reduce(0) { $0 + $1.amount }
     }
 
     static let projectionMonthCount = 6
@@ -242,6 +242,25 @@ enum BudgetMath {
         let spent = rows.reduce(0) { $0 + $1.spent }
         guard limit > 0 else { return 0 }
         return min(spent / limit, 1.0)
+    }
+
+    static func transactionsForCategory(
+        transactions: [Transaction],
+        category: String,
+        referenceDate: Date = Date(),
+        calendar: Calendar = .current
+    ) -> [Transaction] {
+        transactions
+            .filter {
+                $0.category == category &&
+                isInMonth(dateString: $0.date, referenceDate: referenceDate, calendar: calendar)
+            }
+            .sorted { lhs, rhs in
+                if lhs.date == rhs.date {
+                    return lhs.amount > rhs.amount
+                }
+                return lhs.date > rhs.date
+            }
     }
 
     static func totalSpent(_ rows: [BudgetProgress]) -> Double {

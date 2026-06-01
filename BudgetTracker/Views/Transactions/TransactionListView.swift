@@ -93,39 +93,3 @@ struct TransactionListView: View {
         TransactionMonthGrouping.groups(from: filtered)
     }
 }
-
-private struct TransactionRowView: View {
-    let transaction: Transaction
-    let account: Account?
-
-    var body: some View {
-        HStack {
-            VStack(alignment: .leading, spacing: 4) {
-                Text(FinanceFormatting.displayName(for: transaction))
-                    .font(.headline)
-                Text(transaction.category)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                if let account {
-                    Text(FinanceFormatting.accountLabel(account))
-                        .font(.caption2)
-                        .foregroundStyle(.tertiary)
-                }
-            }
-            Spacer()
-            VStack(alignment: .trailing, spacing: 4) {
-                Text(FinanceFormatting.currency(abs(transaction.amount)))
-                    .font(.subheadline.weight(.semibold))
-                Text(transaction.date)
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-                if transaction.pending {
-                    Text("Pending")
-                        .font(.caption2)
-                        .foregroundStyle(.orange)
-                }
-            }
-        }
-        .padding(.vertical, 2)
-    }
-}

@@ -107,12 +107,15 @@ export async function syncPlaidItemsForUser(
 
           const { data: existing } = await admin
             .from("transactions")
-            .select("category")
+            .select("category, category_source")
             .eq("plaid_transaction_id", txn.transaction_id)
             .maybeSingle();
 
+          let categorySource: string | null = null;
+
           if (existing?.category && existing.category !== "Other") {
             category = existing.category;
+            categorySource = existing.category_source ?? null;
           } else {
             const result = await categorizeTransaction(
               admin,
@@ -124,6 +127,7 @@ export async function syncPlaidItemsForUser(
             );
             category = result.category;
             subcategory = result.subcategory;
+            categorySource = result.source;
             if (result.source !== "plaid") categorized += 1;
           }
 
@@ -137,6 +141,7 @@ export async function syncPlaidItemsForUser(
             name: txn.name,
             category,
             subcategory,
+            category_source: categorySource,
             pending: txn.pending,
             is_manual: false,
           });

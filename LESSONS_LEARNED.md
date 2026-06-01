@@ -132,6 +132,11 @@ Entry format
 - **Fix:** User completes [TestFlight Test Information](https://appstoreconnect.apple.com/apps/6775334574/testflight/test-info); install build from TestFlight → iOS builds. Set `submit_to_testflight: false` in `codemagic.yaml` until metadata exists so CI does not fail post-upload.
 - **Verification:** ASC shows processed build; internal testers can install after test info + tester group.
 
+### 2026-06-03 - Refunds shown as credits; category drill-down; merchant rules on edit
+- **Symptom:** All transactions displayed as expenses (`abs(amount)`); budget rows not drillable; no persistent merchant tag on category change; no AI attribution.
+- **Fix:** `TransactionFormatting` inverts Plaid sign (credits green, expenses negative display); net budget spend subtracts refunds; tap budget category → `CategoryTransactionsView`; save category toggle creates/updates merchant rule; `category_source` column + Gemini badge on list/detail.
+- **Verification:** `TransactionFormattingTests`, `BudgetMathRefundTests`; redeploy edge functions + migration `20260603120000_transaction_category_source.sql`.
+
 <!-- Append new entries above this line -->
 
 ### 2026-06-02 - Budget tab lag (repeated transaction scans)

@@ -69,17 +69,17 @@ struct BudgetView: View {
 
                     Section(monthSectionTitle) {
                         ForEach(monthRows) { row in
-                            Button {
-                                if let budget = budgets.budgets.first(where: { $0.category == row.progress.category }) {
-                                    budgetToEdit = budget
-                                }
+                            NavigationLink {
+                                CategoryTransactionsView(
+                                    category: row.progress.category,
+                                    referenceMonth: selectedMonth
+                                )
                             } label: {
                                 BudgetCategorySpendRow(
                                     progress: row.progress,
                                     recentSummary: row.recentSummary
                                 )
                             }
-                            .buttonStyle(.plain)
                             .contextMenu {
                                 if let budget = budgets.budgets.first(where: { $0.category == row.progress.category }) {
                                     Button("Edit budget", systemImage: "pencil") {

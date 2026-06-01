@@ -91,6 +91,26 @@ extension SupabaseService {
             .value
     }
 
+    func updateMerchantRule(_ rule: MerchantRule, client: SupabaseClient) async throws -> MerchantRule {
+        struct Patch: Encodable {
+            let category: String
+            let subcategory: String?
+
+            enum CodingKeys: String, CodingKey {
+                case category, subcategory
+            }
+        }
+        let patch = Patch(category: rule.category, subcategory: rule.subcategory)
+        return try await client
+            .from("merchant_rules")
+            .update(patch)
+            .eq("id", value: rule.id.uuidString)
+            .select()
+            .single()
+            .execute()
+            .value
+    }
+
     func deleteMerchantRule(id: UUID, client: SupabaseClient) async throws {
         try await client.from("merchant_rules").delete().eq("id", value: id.uuidString).execute()
     }

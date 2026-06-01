@@ -15,6 +15,8 @@ enum BudgetCategories {
         "Education",
         "Pets",
         "Gifts & Donations",
+        "Insurance",
+        "Investments",
         "Business",
         "Income",
         "Transfers",

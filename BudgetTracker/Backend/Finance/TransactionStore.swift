@@ -78,6 +78,8 @@ final class TransactionStore: ObservableObject {
     func updateCategory(
         transaction: Transaction,
         category: String,
+        saveMerchantRule: Bool = false,
+        merchantRules: MerchantRulesStore? = nil,
         client: SupabaseClient
     ) async {
         errorMessage = nil
@@ -90,6 +92,10 @@ final class TransactionStore: ObservableObject {
             )
             if let index = transactions.firstIndex(where: { $0.id == transaction.id }) {
                 transactions[index].category = category
+                transactions[index].categorySource = CategorySource.user.rawValue
+            }
+            if saveMerchantRule, let merchantRules {
+                try await merchantRules.upsertRule(for: transaction, category: category, client: client)
             }
         } catch {
             errorMessage = error.localizedDescription

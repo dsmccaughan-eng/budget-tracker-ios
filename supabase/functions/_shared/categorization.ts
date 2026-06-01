@@ -12,6 +12,8 @@ export const VALID_CATEGORIES = [
   "Education",
   "Pets",
   "Gifts & Donations",
+  "Insurance",
+  "Investments",
   "Business",
   "Income",
   "Transfers",
@@ -39,6 +41,8 @@ const PLAID_PRIMARY_MAP: Record<string, Category> = {
   PERSONAL_CARE: "Personal Care",
   EDUCATION: "Education",
   GOVERNMENT_AND_NON_PROFIT: "Gifts & Donations",
+  INSURANCE: "Insurance",
+  INVESTMENTS: "Investments",
   INCOME: "Income",
   TRANSFER_IN: "Transfers",
   TRANSFER_OUT: "Transfers",
@@ -144,7 +148,7 @@ async function categorizeWithGemini(
   if (!apiKey) return null;
 
   const systemPrompt =
-    "You are a transaction categorizer. Return ONLY valid JSON with 'category' and 'subcategory' fields. Category must be one of: [Housing & Utilities, Groceries, Dining & Bars, Transport, Shopping, Health & Wellness, Travel, Entertainment, Subscriptions, Personal Care, Education, Pets, Gifts & Donations, Business, Income, Transfers, Other]";
+    "You are a transaction categorizer. Return ONLY valid JSON with 'category' and 'subcategory' fields. Category must be one of: [Housing & Utilities, Groceries, Dining & Bars, Transport, Shopping, Health & Wellness, Travel, Entertainment, Subscriptions, Personal Care, Education, Pets, Gifts & Donations, Insurance, Investments, Business, Income, Transfers, Other]";
   const userPrompt =
     `Merchant: ${name}, Amount: $${amount}, Raw category: ${plaidCategory ?? "unknown"}`;
 
