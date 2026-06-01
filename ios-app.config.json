@@ -20,7 +20,7 @@
                       "appId":  "6a1cf17dfb8d45d293dc0a2c",
                       "workflowId":  "budgettracker-testflight",
                       "workflowName":  "Budget Tracker TestFlight",
-                      "secretsGroup":  "optimized_secrets",
+                      "secretsGroup":  "budgettracker_secrets",
                       "groupId":  "6a1cf18b4220c3f8931d8a38"
                   },
     "profiles":  [

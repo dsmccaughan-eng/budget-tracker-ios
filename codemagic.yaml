@@ -32,7 +32,7 @@ workflows:
           scripts/ci-step-timeout.sh "$CM_PRE_IPA_STEP_TIMEOUT_SEC" "Set up manual code signing" sh -c '
             for v in CM_CERTIFICATE CM_CERTIFICATE_PASSWORD CM_PROVISIONING_PROFILE_BUDGET; do
               if [ -z "${!v:-}" ]; then
-                echo "Missing $v in optimized_secrets or app variables. Set CM_PROVISIONING_PROFILE_BUDGET for this app."
+                echo "Missing $v in budgettracker_secrets. Set CM_PROVISIONING_PROFILE_BUDGET for this app."
                 exit 1
               fi
             done

@@ -40,11 +40,11 @@ const headers = {
   'x-auth-token': token,
 };
 
+// Secrets group is declared in codemagic.yaml (budgettracker_secrets). Do not override via API.
 const body = {
   appId: APP_ID,
   workflowId: WORKFLOW_ID,
   branch: process.env.CM_BRANCH || 'main',
-  environment: { groups: [GROUP] },
 };
 
 const res = await fetch('https://api.codemagic.io/builds', {

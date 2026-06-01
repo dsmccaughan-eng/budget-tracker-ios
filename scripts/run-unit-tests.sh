@@ -7,7 +7,18 @@ cd "$ROOT"
 
 SCHEME="${XCODE_SCHEME:-BudgetTracker}"
 PROJECT="${XCODE_PROJECT:-BudgetTracker.xcodeproj}"
-DESTINATION="${CM_TEST_DESTINATION:-platform=iOS Simulator,name=iPhone 16,OS=latest}"
+if [[ -z "${CM_TEST_DESTINATION:-}" ]]; then
+  CM_TEST_DESTINATION=$(
+    xcodebuild -project "$PROJECT" -scheme "$SCHEME" -showdestinations 2>/dev/null \
+      | grep -m1 "platform:iOS Simulator" \
+      | sed -n 's/.*id:\([^,}]*\).*/\1/p' \
+      | tr -d ' '
+  )
+fi
+DESTINATION="${CM_TEST_DESTINATION:-generic/platform=iOS Simulator}"
+if [[ "$DESTINATION" != generic/* ]]; then
+  DESTINATION="platform=iOS Simulator,id=$DESTINATION"
+fi
 
 echo "Running unit tests: scheme=$SCHEME destination=$DESTINATION"
 

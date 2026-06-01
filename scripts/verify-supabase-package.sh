@@ -37,9 +37,11 @@ with open(path, encoding="utf-8") as f:
 pins = data.get("pins", [])
 found = None
 for pin in pins:
-    identity = pin.get("identity") or pin.get("package", "")
-    if "supabase" in identity.lower():
-        found = pin.get("state", {}).get("version") or pin.get("version")
+    identity = (pin.get("identity") or pin.get("package") or "").lower()
+    location = str(pin.get("location") or pin.get("state", {}).get("location") or "").lower()
+    if "supabase" in identity or "supabase-swift" in location:
+        state = pin.get("state") or {}
+        found = state.get("version") or pin.get("version")
         break
 
 if not found:
