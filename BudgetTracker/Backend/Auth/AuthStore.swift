@@ -38,7 +38,7 @@ final class AuthStore: ObservableObject {
         if let client { return client }
 
         guard let url = SupabaseConfig.url, SupabaseConfig.isConfigured else {
-            throw BudgetTrackerError.server(missingBackendMessage)
+            throw BudgetTrackerError.server(Self.missingBackendMessage)
         }
 
         let created = try SupabaseClientFactory.makeClient(url: url, anonKey: SupabaseConfig.anonKey)
