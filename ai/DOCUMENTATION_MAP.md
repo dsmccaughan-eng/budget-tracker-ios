@@ -21,7 +21,7 @@
 
 | File | Apply when you touch |
 |------|----------------------|
-| `ai/features/auth-and-privacy.md` | `Views/Auth/`, `Backend/Auth/`, `BiometricGate`, OTP functions |
+| `ai/features/auth-and-privacy.md` | `Views/Auth/`, `Backend/Auth/`, App lock (`AppLockStore`), OTP functions |
 | `ai/features/plaid-and-sync.md` | `Views/Plaid/`, `Backend/Plaid/`, `TransactionStore`, `supabase/functions/plaid-*` |
 | `ai/features/categorization.md` | `CategorizationEngine`, `GeminiService`, merchant rules, category UI |
 | `ai/features/budgets-and-goals.md` | `BudgetStore`, `GoalsStore`, `BudgetMath`, Budgets/Goals views |

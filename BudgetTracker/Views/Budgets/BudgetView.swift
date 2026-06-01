@@ -28,6 +28,30 @@ struct BudgetView: View {
                     .listRowInsets(EdgeInsets())
                     .listRowBackground(Color.clear)
 
+                    if !fixedBills.isEmpty {
+                        Section("Bills this month") {
+                            NavigationLink {
+                                BillsListView()
+                            } label: {
+                                Label(billsSummaryLabel, systemImage: "calendar")
+                            }
+                            ForEach(fixedBills.prefix(3)) { bill in
+                                HStack {
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(bill.name)
+                                            .font(.subheadline.weight(.semibold))
+                                        Text(bill.displayDue)
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                    }
+                                    Spacer()
+                                    Text(FinanceFormatting.currency(bill.amount))
+                                        .font(.subheadline.weight(.semibold))
+                                }
+                            }
+                        }
+                    }
+
                     Section("This month") {
                         ForEach(budgets.budgets) { budget in
                             if let row = budgets.progress.first(where: { $0.category == budget.category }) {
@@ -44,9 +68,10 @@ struct BudgetView: View {
                             Task {
                                 for index in indexSet {
                                     let budget = budgets.budgets[index]
+                                    guard let client = auth.activeSupabaseClient else { return }
                                     await budgets.deleteBudget(
                                         budget,
-                                        client: auth.supabaseClient,
+                                        client: client,
                                         transactions: transactions.transactions
                                     )
                                 }
@@ -75,13 +100,33 @@ struct BudgetView: View {
                 }
             }
             .refreshable {
-                await transactions.loadAll(client: auth.supabaseClient)
-                await budgets.reload(client: auth.supabaseClient, transactions: transactions.transactions)
+                await reloadBudgetsTab()
             }
             .task {
-                await budgets.reload(client: auth.supabaseClient, transactions: transactions.transactions)
+                await reloadBudgetsTab()
             }
         }
+    }
+
+    private var fixedBills: [BillItem] {
+        BillsEngine.bills(
+            budgets: budgets.budgets,
+            transactions: transactions.transactions
+        )
+    }
+
+    private var billsSummaryLabel: String {
+        let dueCount = fixedBills.filter { !$0.isPaid }.count
+        if dueCount == 0 {
+            return "View all bills"
+        }
+        return "\(dueCount) bill\(dueCount == 1 ? "" : "s") due"
+    }
+
+    private func reloadBudgetsTab() async {
+        guard let client = auth.activeSupabaseClient else { return }
+        await transactions.loadAll(client: client)
+        await budgets.reload(client: client, transactions: transactions.transactions)
     }
 }
 
@@ -135,6 +180,13 @@ struct AddBudgetView: View {
                 }
                 .padding(.vertical, 4)
             }
+
+            if let errorMessage = budgets.errorMessage {
+                Section {
+                    Text(errorMessage)
+                        .foregroundStyle(.red)
+                }
+            }
         }
         .navigationTitle("Add Budget")
         .toolbar {
@@ -151,9 +203,13 @@ struct AddBudgetView: View {
     }
 
     private func save() async {
+        guard let client = auth.activeSupabaseClient else {
+            budgets.setClientError("Sign in again to save budgets.")
+            return
+        }
         isSaving = true
         defer { isSaving = false }
-        await budgets.addBudget(draft, client: auth.supabaseClient, transactions: transactions.transactions)
+        await budgets.addBudget(draft, client: client, transactions: transactions.transactions)
         if budgets.errorMessage == nil { dismiss() }
     }
 }

@@ -7,6 +7,9 @@ struct DashboardView: View {
     @EnvironmentObject private var netWorth: NetWorthStore
     @EnvironmentObject private var notifications: NotificationSettingsStore
 
+    @State private var showAddBudget = false
+    @State private var showSettings = false
+
     var body: some View {
         NavigationStack {
             List {
@@ -64,13 +67,22 @@ struct DashboardView: View {
                     if budgets.progress.isEmpty {
                         Text("Set monthly limits per category to track spending.")
                             .foregroundStyle(.secondary)
-                        NavigationLink {
-                            AddBudgetView()
+                        Button {
+                            showAddBudget = true
                         } label: {
                             Label("Set up budgets", systemImage: "plus.circle.fill")
                         }
+                        .buttonStyle(.borderedProminent)
                     } else {
-                        BudgetRingSummary(percentUsed: BudgetMath.totalBudgetUsedPercent(budgets.progress))
+                        NavigationLink {
+                            BudgetView()
+                        } label: {
+                            BudgetSpendPieChart(progress: budgets.progress, referenceDate: Date())
+                        }
+                        .buttonStyle(.plain)
+                        .listRowInsets(EdgeInsets())
+                        .listRowBackground(Color.clear)
+
                         ForEach(budgets.progress.prefix(3)) { row in
                             BudgetProgressBar(progress: row)
                         }
@@ -119,11 +131,31 @@ struct DashboardView: View {
                 }
             }
             .navigationTitle("Dashboard")
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        showSettings = true
+                    } label: {
+                        Image(systemName: "gearshape")
+                    }
+                    .accessibilityLabel("Settings")
+                }
+            }
+            .sheet(isPresented: $showAddBudget) {
+                NavigationStack {
+                    AddBudgetView()
+                }
+            }
+            .sheet(isPresented: $showSettings) {
+                NavigationStack {
+                    SettingsView()
+                }
+            }
             .refreshable {
                 await reloadAll()
             }
             .task {
-                await netWorth.reload(client: auth.supabaseClient, accounts: transactions.accounts)
+                await reloadDashboardData()
             }
         }
     }
@@ -147,42 +179,19 @@ struct DashboardView: View {
         return "\(dueCount) bill\(dueCount == 1 ? "" : "s") due this month"
     }
 
+    private func reloadDashboardData() async {
+        guard let client = auth.activeSupabaseClient else { return }
+        await transactions.loadAll(client: client)
+        await budgets.reload(client: client, transactions: transactions.transactions)
+        await netWorth.reload(client: client, accounts: transactions.accounts)
+    }
+
     private func reloadAll() async {
-        await transactions.loadAll(client: auth.supabaseClient)
-        await budgets.reload(client: auth.supabaseClient, transactions: transactions.transactions)
-        await netWorth.reload(client: auth.supabaseClient, accounts: transactions.accounts)
+        await reloadDashboardData()
         let alerts = BudgetAlertEngine.alerts(
             progress: budgets.progress,
             threshold: notifications.alertThreshold
         )
         notifications.scheduleBudgetAlerts(messages: alerts)
-    }
-}
-
-private struct BudgetRingSummary: View {
-    let percentUsed: Double
-
-    var body: some View {
-        HStack(spacing: 16) {
-            ZStack {
-                Circle()
-                    .stroke(Color(.systemGray5), lineWidth: 10)
-                Circle()
-                    .trim(from: 0, to: percentUsed)
-                    .stroke(percentUsed > 1 ? Color.red : Color.blue, style: StrokeStyle(lineWidth: 10, lineCap: .round))
-                    .rotationEffect(.degrees(-90))
-                Text("\(Int(percentUsed * 100))%")
-                    .font(.title3.bold())
-            }
-            .frame(width: 72, height: 72)
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Monthly budget used")
-                    .font(.headline)
-                Text(percentUsed > 1 ? "Over budget" : "On track")
-                    .font(.caption)
-                    .foregroundStyle(percentUsed > 1 ? .red : .secondary)
-            }
-        }
-        .padding(.vertical, 4)
     }
 }

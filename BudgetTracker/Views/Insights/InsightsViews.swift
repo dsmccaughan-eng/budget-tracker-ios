@@ -327,9 +327,24 @@ struct BudgetHistoryView: View {
 
 struct SettingsView: View {
     @EnvironmentObject private var auth: AuthStore
+    @EnvironmentObject private var appLock: AppLockStore
 
     var body: some View {
         List {
+            Section {
+                if appLock.biometricsAvailable {
+                    Toggle("Use Face ID / Touch ID", isOn: $appLock.biometricsEnabled)
+                }
+                NavigationLink {
+                    ChangePINView(lock: appLock)
+                } label: {
+                    Label("Change PIN", systemImage: "lock.rotation")
+                }
+            } header: {
+                Text("Security")
+            } footer: {
+                Text("Face ID or Touch ID runs when you return to the app. After several failed attempts, your 6-digit PIN is required. Change your PIN here anytime.")
+            }
             Section("Account") {
                 Button("Sign Out", role: .destructive) {
                     Task { await auth.signOut() }

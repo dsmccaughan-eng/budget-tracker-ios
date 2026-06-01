@@ -12,11 +12,13 @@ struct BudgetTrackerApp: App {
     @StateObject private var priceHistoryStore = PriceHistoryStore()
     @StateObject private var insightsStore = InsightsStore()
     @StateObject private var notificationSettingsStore = NotificationSettingsStore()
+    @StateObject private var appLockStore = AppLockStore()
 
     var body: some Scene {
         WindowGroup {
             RootView()
                 .environmentObject(authStore)
+                .environmentObject(appLockStore)
                 .environmentObject(plaidLinkCoordinator)
                 .environmentObject(transactionStore)
                 .onOpenURL { url in
@@ -36,11 +38,22 @@ struct BudgetTrackerApp: App {
                 .task {
                     APIKeys.syncToUserDefaultsIfNeeded()
                 }
-                .task(id: authStore.state) {
-                    guard authStore.state == .authenticated else { return }
+                .task(id: financialDataTaskID) {
+                    guard authStore.state == .authenticated,
+                          appLockStore.hasPIN,
+                          appLockStore.isUnlocked else { return }
                     await reloadFinancialData()
                 }
+                .onChange(of: authStore.state) { _, newState in
+                    if newState != .authenticated {
+                        appLockStore.lock()
+                    }
+                }
         }
+    }
+
+    private var financialDataTaskID: String {
+        "\(authStore.state)-\(appLockStore.hasPIN)-\(appLockStore.isUnlocked)"
     }
 
     @MainActor

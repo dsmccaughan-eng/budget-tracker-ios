@@ -4,8 +4,11 @@
 
 ## Behavior
 
-- Face ID / Touch ID before any financial screen (cold start and return from background)
-- `BiometricGate` on app lifecycle
+- Face ID / Touch ID before any financial screen (cold start and return from background or app switcher)
+- Auto-prompt biometrics on unlock; after 3 failed attempts (or user chooses PIN), require 6-digit app PIN
+- PIN verifier stored in Keychain (`kSecAttrAccessibleWhenUnlockedThisDeviceOnly`) as PBKDF2-HMAC-SHA256 (120k iterations) — never plaintext
+- First authenticated session: user must create PIN before financial UI
+- Financial Supabase loads only when authenticated, PIN configured, and app unlocked
 - `NSAllowsArbitraryLoads` = false
 
 ## Code map
@@ -13,9 +16,12 @@
 | Area | Path |
 |------|------|
 | Auth UI | `BudgetTracker/Views/Auth/AuthView.swift` |
+| App lock UI | `BudgetTracker/Views/Auth/AppLockViews.swift` |
 | Session store | `BudgetTracker/Backend/Auth/AuthStore.swift` |
+| App lock store | `BudgetTracker/Backend/Auth/AppLockStore.swift` |
+| PIN Keychain | `BudgetTracker/Backend/Auth/PINKeychainStore.swift` |
+| PIN hashing | `BudgetTracker/Backend/Auth/PINHasher.swift` |
 | OTP bridge | `BudgetTracker/Backend/Auth/AuthOTPBridge.swift` |
-| Biometric gate | `BudgetTracker/App/BiometricGate.swift` |
 | Root routing | `BudgetTracker/App/RootView.swift` |
 | OTP Edge Functions | `supabase/functions/request-login-otp/`, `send-auth-email/` |
 

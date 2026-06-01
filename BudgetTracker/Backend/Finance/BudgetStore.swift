@@ -6,7 +6,11 @@ final class BudgetStore: ObservableObject {
     @Published private(set) var budgets: [Budget] = []
     @Published private(set) var progress: [BudgetProgress] = []
     @Published private(set) var isLoading = false
-    @Published var errorMessage: String?
+    @Published private(set) var errorMessage: String?
+
+    func setClientError(_ message: String) {
+        errorMessage = message
+    }
 
     func reload(client: SupabaseClient, transactions: [Transaction]) async {
         isLoading = true

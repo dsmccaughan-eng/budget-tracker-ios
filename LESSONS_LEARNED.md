@@ -84,4 +84,10 @@ Entry format
 - **Guardrails:** Do not set `isPresentingLink = false` on OAuth handoff `onExit`; do not call `endSession()` from sheet `onDismiss` while `isOAuthHandoff`.
 - **Verification:** Link Robinhood → leave for bank → return → success within seconds; accounts appear; transactions sync without blocking button.
 
+### 2026-06-01 - Dashboard “Set up budgets” and missing pie/bills UI
+- **Symptom:** TestFlight build lacked budget donut, bills list, or month-grouped transactions; Dashboard “Set up budgets” did nothing.
+- **Root cause:** `RootView` wrapped `MainTabView` in an extra `NavigationStack`, breaking pushes from tab `NavigationLink`s; pie chart only drew slices with `spent > 0`, so new budgets looked empty.
+- **Fix pattern:** One navigation stack per tab; present `AddBudgetView` in a sheet from Dashboard; pie uses monthly limits until spending exists; reload budgets on Dashboard `.task`; build number 6.
+- **Verification:** Set up budgets sheet saves; Budgets tab shows donut + category rows; Dashboard preview pie + bills section; Transactions grouped by month.
+
 <!-- Append new entries above this line -->

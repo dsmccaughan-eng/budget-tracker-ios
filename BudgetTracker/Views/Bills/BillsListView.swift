@@ -6,6 +6,7 @@ struct BillsListView: View {
     @EnvironmentObject private var budgets: BudgetStore
 
     @State private var selectedDay: Int?
+    @State private var showAddBudget = false
 
     private var bills: [BillItem] {
         BillsEngine.bills(
@@ -30,8 +31,8 @@ struct BillsListView: View {
                 } description: {
                     Text("Turn on “Fixed expense” when adding a budget to track rent, utilities, and other monthly bills with due dates.")
                 } actions: {
-                    NavigationLink("Add budget") {
-                        AddBudgetView()
+                    Button("Add budget") {
+                        showAddBudget = true
                     }
                     .buttonStyle(.borderedProminent)
                 }
@@ -60,9 +61,15 @@ struct BillsListView: View {
             }
         }
         .navigationTitle("Bills")
+        .sheet(isPresented: $showAddBudget) {
+            NavigationStack {
+                AddBudgetView()
+            }
+        }
         .refreshable {
-            await transactions.loadAll(client: auth.supabaseClient)
-            await budgets.reload(client: auth.supabaseClient, transactions: transactions.transactions)
+            guard let client = auth.activeSupabaseClient else { return }
+            await transactions.loadAll(client: client)
+            await budgets.reload(client: client, transactions: transactions.transactions)
         }
         .onAppear {
             if selectedDay == nil {

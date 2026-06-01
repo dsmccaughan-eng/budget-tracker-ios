@@ -77,7 +77,8 @@ Core Product Rules
 - Edge Functions: 7 total — link, update-link, exchange, accounts, sync, remove-item, webhook (webhook uses Plaid JWT verification, not Supabase JWT).
 
 2) Auth and privacy
-- Face ID / Touch ID required before any financial screen (cold open and return from background).
+- Face ID / Touch ID required before any financial screen (cold open and return from background or app switcher).
+- 6-digit app PIN required on first use; after 3 biometric failures (or user choice), PIN unlock. Verifier in Keychain (PBKDF2), never plaintext PIN.
 - `NSAllowsArbitraryLoads` = false in Info.plist.
 
 3) Categorization priority (locked)
@@ -176,6 +177,7 @@ Update Log
 - 2026-05-31: **GitHub backup only**; TestFlight via **Codemagic** (see `docs/CODEMAGIC.md`, synced from `../ios-build/`).
 - 2026-06-01: Pre-ship TDD gate — `BudgetTrackerTests` launch guards, `scripts/pre-ship-gate.ps1`, Codemagic unit-test + Supabase 2.44.0 verify; `docs/TDD_AND_CRASHES.md`.
 - 2026-06-01: **Canvas before upload** — §2c requires `budget-tracker-preview.canvas.tsx` updated and shown before TestFlight; Budgets pie + categories, Dashboard/BillsListView bills, Transactions by month.
+- 2026-06-01: **App lock** — Face ID/Touch ID on every return to foreground; 6-digit PIN fallback after 3 biometric failures; PBKDF2 verifier in Keychain; financial data loads only when unlocked.
 - 2026-05-31: Plaid hardening — webhooks with JWT verification, update mode, item removal, audit log, rate limits; see `docs/PLAID_PRODUCTION_CHECKLIST.md`.
 
 Security — credential rotation (required if secrets were ever committed or pasted in chat)

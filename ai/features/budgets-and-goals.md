@@ -4,6 +4,10 @@
 
 ## Behavior
 
+- **Budgets tab:** Donut chart (spending or planned allocation) + category rows; add via toolbar sheet
+- **Dashboard:** Pie preview when budgets exist; **Set up budgets** opens add-budget sheet (not nested navigation)
+- **Bills:** Fixed-expense budgets → `BillsListView` (calendar strip + dated list); linked from Dashboard and Budgets tab
+- **Transactions:** Grouped by month via `TransactionMonthGrouping`
 - Budget math and alerts are deterministic (`BudgetMath`, `BudgetAlertEngine`)
 - Debt payoff (avalanche/snowball) stays client-side — no third-party debt payloads
 - Tabs: Dashboard, Transactions, Budgets, Goals, Insights

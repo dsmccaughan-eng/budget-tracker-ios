@@ -2,6 +2,7 @@ import SwiftUI
 
 struct RootView: View {
     @EnvironmentObject private var auth: AuthStore
+    @EnvironmentObject private var appLock: AppLockStore
 
     var body: some View {
         Group {
@@ -11,22 +12,29 @@ struct RootView: View {
             case .unauthenticated:
                 AuthView()
             case .authenticated:
-                NavigationStack {
-                    MainTabView()
-                        .toolbar {
-                            ToolbarItem(placement: .topBarTrailing) {
-                                NavigationLink {
-                                    SettingsView()
-                                } label: {
-                                    Image(systemName: "gearshape")
-                                }
-                            }
-                        }
-                }
+                authenticatedShell
             }
         }
         .task {
             await auth.bootstrap()
         }
+        .onAppear {
+            appLock.refreshConfiguration()
+        }
+    }
+
+    @ViewBuilder
+    private var authenticatedShell: some View {
+        if appLock.hasPIN {
+            AppLockGateView(lock: appLock) {
+                financialNavigation
+            }
+        } else {
+            SetPINView(lock: appLock) {}
+        }
+    }
+
+    private var financialNavigation: some View {
+        MainTabView()
     }
 }
