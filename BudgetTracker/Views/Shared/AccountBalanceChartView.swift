@@ -199,7 +199,8 @@ struct AccountBalanceChartView: View {
         proxy: ChartProxy,
         geometry: GeometryProxy
     ) {
-        let origin = geometry[proxy.plotFrame].origin
+        guard let plotFrame = proxy.plotFrame else { return }
+        let origin = geometry[plotFrame].origin
         let x = location.x - origin.x
         guard let date: Date = proxy.value(atX: x) else { return }
         selectedPoint = nearestPoint(to: date)
