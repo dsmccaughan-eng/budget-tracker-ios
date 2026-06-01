@@ -96,4 +96,10 @@ Entry format
 - **Fix pattern:** Visible `PINEntryField` with focus; explicit Set PIN steps; reload financial data on unlock/PIN; budget save alerts and duplicate-category guard; TestFlight build 7.
 - **Verification:** Fresh install → email sign-in → “Secure your budget” screen → enter/confirm PIN → Face ID on reopen; Set up budgets saves and pie appears.
 
+### 2026-06-01 - Budget save: missing is_fixed column; Face ID error 6 on reopen
+- **Symptom:** Add budget failed with schema cache error for `budgets.is_fixed`; pie empty; Face ID worked after force-quit but on normal reopen showed LocalAuthentication error 6 and required manual retry.
+- **Root cause:** Remote `budgets` table lacked `is_fixed` / `is_rollover` columns; biometric prompt ran in `.task` before `scenePhase == .active` (biometryNotAvailable).
+- **Fix:** Migration `20260601120000_budgets_fixed_rollover.sql`; delay auto Face ID 500ms after active; lock only on `.background`; friendly message for error 6 without counting as failure.
+- **Verification:** `supabase db push`; save budget with Fixed expense toggle; cold open → Face ID auto-prompt without error 6.
+
 <!-- Append new entries above this line -->

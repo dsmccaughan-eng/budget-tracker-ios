@@ -18,7 +18,7 @@ struct AppLockGateView<Content: View>: View {
             }
         }
         .onChange(of: scenePhase) { _, newPhase in
-            if newPhase == .background || newPhase == .inactive {
+            if newPhase == .background {
                 lock.lock()
             }
         }
@@ -35,6 +35,7 @@ private struct AppLockPrivacyShieldView: View {
 
 struct AppLockUnlockView: View {
     @ObservedObject var lock: AppLockStore
+    @Environment(\.scenePhase) private var scenePhase
     @State private var pin = ""
     @State private var didAutoPrompt = false
 
@@ -100,13 +101,19 @@ struct AppLockUnlockView: View {
                 submitPIN()
             }
         }
-        .task(id: lockUnlockTaskID) {
+        .task(id: autoUnlockTaskID) {
             await promptUnlockIfNeeded()
+        }
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active, !lock.isUnlocked, !lock.requiresPINEntry {
+                didAutoPrompt = false
+                Task { await promptUnlockIfNeeded() }
+            }
         }
     }
 
-    private var lockUnlockTaskID: String {
-        "\(lock.isUnlocked)-\(lock.requiresPINEntry)-\(lock.biometricFailureCount)"
+    private var autoUnlockTaskID: String {
+        "\(scenePhase)-\(lock.isUnlocked)-\(lock.requiresPINEntry)-\(lock.biometricFailureCount)"
     }
 
     private var lockIconName: String {
@@ -134,9 +141,13 @@ struct AppLockUnlockView: View {
     }
 
     private func promptUnlockIfNeeded() async {
+        guard scenePhase == .active else { return }
         guard !lock.isUnlocked, lock.currentChallenge.mode == .biometric else { return }
         guard !didAutoPrompt else { return }
         didAutoPrompt = true
+        // Face ID fails with LAError 6 if prompted before the app is fully active.
+        try? await Task.sleep(nanoseconds: 500_000_000)
+        guard scenePhase == .active, !lock.isUnlocked else { return }
         await lock.authenticateWithBiometrics()
     }
 }

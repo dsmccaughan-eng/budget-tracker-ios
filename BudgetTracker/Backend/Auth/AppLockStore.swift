@@ -123,7 +123,11 @@ final class AppLockStore: ObservableObject {
         var error: NSError?
 
         guard context.canEvaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, error: &error) else {
-            lastError = error?.localizedDescription ?? "Biometrics unavailable."
+            if let laError = error as? LAError, laError.code == .biometryNotAvailable {
+                lastError = "Face ID is not ready yet. Wait a moment, then tap Try Face ID Again."
+            } else {
+                lastError = error?.localizedDescription ?? "Biometrics unavailable."
+            }
             return
         }
 
@@ -183,6 +187,8 @@ final class AppLockStore: ObservableObject {
         case .biometryLockout:
             biometricFailureCount = AppLockPolicy.maxBiometricFailures
             lastError = "Biometrics locked. Enter your PIN."
+        case .biometryNotAvailable:
+            lastError = "Face ID is not ready yet. Wait a moment, then tap Try Face ID Again."
         default:
             lastError = error.localizedDescription
             if AppLockPolicyEngine.shouldCountBiometricFailure(error) {
