@@ -34,6 +34,8 @@ targets:
         product: Supabase
       - package: LinkKit
         product: LinkKit
+    entitlements:
+      path: BudgetTracker/BudgetTracker.entitlements
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.optimized.budgettracker
@@ -44,7 +46,7 @@ targets:
         GENERATE_INFOPLIST_FILE: YES
         INFOPLIST_FILE: BudgetTracker/Info.plist
         MARKETING_VERSION: "1.0"
-        CURRENT_PROJECT_VERSION: "4"
+        CURRENT_PROJECT_VERSION: "5"
         INFOPLIST_KEY_CFBundleDisplayName: Budget Tracker
         INFOPLIST_KEY_CFBundleIconName: AppIcon
         INFOPLIST_KEY_NSCameraUsageDescription: "Budget Tracker uses the camera to scan receipts."

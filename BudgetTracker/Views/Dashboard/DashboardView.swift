@@ -35,8 +35,13 @@ struct DashboardView: View {
 
                 Section("Budget overview") {
                     if budgets.progress.isEmpty {
-                        Text("Add budgets to see your spending ring.")
+                        Text("Set monthly limits per category to track spending.")
                             .foregroundStyle(.secondary)
+                        NavigationLink {
+                            AddBudgetView()
+                        } label: {
+                            Label("Set up budgets", systemImage: "plus.circle.fill")
+                        }
                     } else {
                         BudgetRingSummary(percentUsed: BudgetMath.totalBudgetUsedPercent(budgets.progress))
                         ForEach(budgets.progress.prefix(3)) { row in

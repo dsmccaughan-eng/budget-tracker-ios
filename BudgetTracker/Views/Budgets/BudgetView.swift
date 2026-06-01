@@ -5,15 +5,22 @@ struct BudgetView: View {
     @EnvironmentObject private var transactions: TransactionStore
     @EnvironmentObject private var budgets: BudgetStore
 
+    @State private var showAddBudget = false
+
     var body: some View {
         NavigationStack {
             List {
                 if budgets.progress.isEmpty {
-                    ContentUnavailableView(
-                        "No budgets yet",
-                        systemImage: "dollarsign.circle",
-                        description: Text("Add monthly limits to track spending by category.")
-                    )
+                    ContentUnavailableView {
+                        Label("No budgets yet", systemImage: "dollarsign.circle")
+                    } description: {
+                        Text("Set a monthly spending limit for each category (Groceries, Dining, etc.) to track progress.")
+                    } actions: {
+                        Button("Add monthly budget") {
+                            showAddBudget = true
+                        }
+                        .buttonStyle(.borderedProminent)
+                    }
                 } else {
                     Section("This month") {
                         ForEach(budgets.budgets) { budget in
@@ -45,11 +52,14 @@ struct BudgetView: View {
             .navigationTitle("Budgets")
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
-                    NavigationLink {
-                        AddBudgetView()
-                    } label: {
-                        Image(systemName: "plus")
+                    Button("Add", systemImage: "plus") {
+                        showAddBudget = true
                     }
+                }
+            }
+            .sheet(isPresented: $showAddBudget) {
+                NavigationStack {
+                    AddBudgetView()
                 }
             }
             .refreshable {
@@ -74,6 +84,12 @@ struct AddBudgetView: View {
 
     var body: some View {
         Form {
+            Section {
+                Text("Choose a category and monthly limit. Spending from synced transactions counts toward each budget.")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+
             Section("Category") {
                 Picker("Category", selection: $draft.category) {
                     ForEach(BudgetCategories.all, id: \.self) { category in
@@ -110,6 +126,9 @@ struct AddBudgetView: View {
         }
         .navigationTitle("Add Budget")
         .toolbar {
+            ToolbarItem(placement: .cancellationAction) {
+                Button("Cancel") { dismiss() }
+            }
             ToolbarItem(placement: .confirmationAction) {
                 Button(isSaving ? "Saving…" : "Save") {
                     Task { await save() }

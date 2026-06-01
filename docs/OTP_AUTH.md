@@ -1,32 +1,25 @@
 # Email OTP sign-in (no passwords)
 
-Budget Tracker uses **email one-time codes**. Users never set or store a password in the app.
+Budget Tracker uses **email one-time codes**, same pattern as the Optimized fitness app.
 
 ## Flow
 
 1. Enter email → **Send sign-in code**
-2. Enter the 6-digit code (email or in-app fallback) → signed in
-3. Session persists via Supabase (refresh token on device)
+2. Check your **email** for the 6-digit code (inbox and spam)
+3. Enter the code → signed in
 
-## Backend keys (no in-app setup)
+## In-app code (emergency only)
 
-Supabase URL and **anon public key** are baked into the app (`Info.plist`, `APIKeys`, bundled `Config/LocalAPIKeys.plist`). Users are **never** asked to paste keys.
+If Supabase **cannot send email** (SMTP/Resend not configured), allowlisted addresses may receive a code in the app. This is a **fallback**, not the normal path.
 
-Codemagic `budgettracker_secrets` should still set `SUPABASE_ANON_KEY` and `SUPABASE_URL` for Release archives when using `pkg.xcconfig`.
-
-## In-app code fallback
-
-If Supabase email is slow or rate-limited, allowlisted addresses get a code on the next screen via `request-login-otp`:
-
-- Default allowlist includes `dsmccaughan@gmail.com`
-- Add more: `OTP_ALLOWLIST=you@example.com,friend@example.com` in Supabase Edge Function secrets
-
-Deploy:
+Configure real email delivery:
 
 ```powershell
-.\scripts\deploy-backend.ps1
+# After adding RESEND_API_KEY to Config/SECRETS.local.md:
+node scripts/fix-supabase-auth-email.mjs
+.\scripts\deploy-backend.ps1   # deploys send-auth-email
 ```
 
-## Enable email auth in Supabase
+## Enable email in Supabase
 
-Dashboard → Authentication → Providers → **Email** → enable Email OTP / magic link.
+Dashboard → Authentication → Providers → **Email** → enable Email OTP.

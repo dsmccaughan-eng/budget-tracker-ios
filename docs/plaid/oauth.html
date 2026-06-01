@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Return to Budget Tracker</title>
+</head>
+<body>
+  <p>Returning to Budget Tracker…</p>
+  <script>
+    (function () {
+      var target = 'com.optimized.budgettracker://plaid/oauth' + (window.location.search || '') + (window.location.hash || '');
+      window.location.replace(target);
+      setTimeout(function () {
+        document.body.innerHTML = '<p>If the app did not open automatically, switch back to Budget Tracker and try linking your account again.</p>';
+      }, 2500);
+    })();
+  </script>
+</body>
+</html>

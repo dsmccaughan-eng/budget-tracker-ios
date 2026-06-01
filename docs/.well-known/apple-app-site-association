@@ -1,0 +1,11 @@
+{
+  "applinks": {
+    "apps": [],
+    "details": [
+      {
+        "appIDs": ["CHHWVGCKG4.com.optimized.budgettracker"],
+        "paths": ["/budget-tracker-ios/plaid/*"]
+      }
+    ]
+  }
+}

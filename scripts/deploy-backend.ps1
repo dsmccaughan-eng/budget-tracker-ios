@@ -55,6 +55,7 @@ if ($redirectUri) {
 
 Write-Host "==> Deploying Edge Functions"
 $functions = @(
+  "send-auth-email",
   "request-login-otp",
   "plaid-create-link-token",
   "plaid-create-update-link-token",
@@ -65,7 +66,7 @@ $functions = @(
   "plaid-webhook"
 )
 foreach ($fn in $functions) {
-  if ($fn -eq "plaid-webhook" -or $fn -eq "request-login-otp") {
+  if ($fn -eq "plaid-webhook" -or $fn -eq "request-login-otp" -or $fn -eq "send-auth-email") {
     supabase functions deploy $fn --no-verify-jwt
   } else {
     supabase functions deploy $fn

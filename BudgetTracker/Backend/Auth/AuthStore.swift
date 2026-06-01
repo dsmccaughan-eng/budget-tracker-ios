@@ -13,7 +13,7 @@ final class AuthStore: ObservableObject {
     @Published private(set) var userId: String?
     @Published var errorMessage: String?
 
-    /// Shown on the OTP screen when email delivery failed but edge function returned a code.
+    /// Set only when Supabase email delivery failed and allowlisted fallback returned a code.
     @Published var pendingInAppOTP: String?
 
     private var client: SupabaseClient?
@@ -74,6 +74,7 @@ final class AuthStore: ObservableObject {
         }
     }
 
+    /// Requests email OTP via Supabase. In-app code is used only when email send fails (allowlisted fallback).
     func sendOTP(email: String) async {
         errorMessage = nil
         pendingInAppOTP = nil
@@ -92,10 +93,6 @@ final class AuthStore: ObservableObject {
             return
         }
 
-        if await deliverInAppOTP(email: normalized) {
-            return
-        }
-
         do {
             let activeClient = try makeClient()
             try await activeClient.auth.signInWithOTP(
@@ -103,8 +100,9 @@ final class AuthStore: ObservableObject {
                 redirectTo: nil,
                 shouldCreateUser: true
             )
+            errorMessage = nil
         } catch {
-            if await deliverInAppOTP(email: normalized) {
+            if await tryInAppFallback(after: error, email: normalized) {
                 return
             }
             client = nil
@@ -166,6 +164,20 @@ final class AuthStore: ObservableObject {
         state = .unauthenticated
     }
 
+    private func tryInAppFallback(after error: Error, email: String) async -> Bool {
+        guard isLikelyEmailDeliveryFailure(error) else { return false }
+        return await deliverInAppOTP(email: email)
+    }
+
+    private func isLikelyEmailDeliveryFailure(_ error: Error) -> Bool {
+        let message = error.localizedDescription.lowercased()
+        return message.contains("email")
+            || message.contains("smtp")
+            || message.contains("mail")
+            || message.contains("hook")
+            || message.contains("send")
+    }
+
     private func deliverInAppOTP(email: String) async -> Bool {
         do {
             if let inApp = try await AuthOTPBridge.requestInAppOTP(email: email) {
@@ -173,20 +185,21 @@ final class AuthStore: ObservableObject {
                 errorMessage = nil
                 return true
             }
+            errorMessage = "Could not send email and no in-app fallback is available for this address."
+            return false
         } catch {
             errorMessage = error.localizedDescription
-            return true
+            return false
         }
-        return false
     }
 
     private func friendlyOTPError(_ error: Error) -> String {
         let message = error.localizedDescription.lowercased()
         if message.contains("rate limit") || message.contains("too many") {
-            return "Too many sign-in attempts. Wait a few minutes, or use the code shown in the app if available."
+            return "Too many sign-in attempts. Wait a few minutes and try again."
         }
         if message.contains("email") || message.contains("smtp") {
-            return "Could not send email. If your address is on the allowlist, try again to get an in-app code."
+            return "Could not send the sign-in email. Check your address and try again."
         }
         return error.localizedDescription
     }

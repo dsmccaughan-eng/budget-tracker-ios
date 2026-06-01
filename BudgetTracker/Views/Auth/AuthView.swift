@@ -56,7 +56,7 @@ struct AuthView: View {
         } header: {
             Text("Sign in")
         } footer: {
-            Text("We'll email a one-time code. If email is slow, your code may appear on the next screen.")
+            Text("We'll email a one-time code. Check your inbox and spam folder.")
         }
     }
 
@@ -69,11 +69,11 @@ struct AuthView: View {
                 Text(inApp)
                     .font(.system(size: 32, weight: .bold, design: .monospaced))
                     .frame(maxWidth: .infinity)
-                Text("Email delivery is unavailable — use the code above.")
+                Text("Email delivery is temporarily unavailable. Enter the code above to continue.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             } else {
-                Text("Enter the code sent to \(email)")
+                Text("Enter the code we sent to \(email)")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
             }
@@ -106,7 +106,7 @@ struct AuthView: View {
                 auth.errorMessage = nil
             }
         } header: {
-            Text("Check your email")
+            Text(auth.pendingInAppOTP == nil ? "Check your email" : "Sign-in code")
         }
     }
 
@@ -117,7 +117,7 @@ struct AuthView: View {
         Task {
             await auth.sendOTP(email: email)
             await MainActor.run {
-                if auth.errorMessage == nil || auth.pendingInAppOTP != nil {
+                if auth.errorMessage == nil {
                     if let code = auth.pendingInAppOTP {
                         otp = code
                     }

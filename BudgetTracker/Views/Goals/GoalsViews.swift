@@ -8,6 +8,16 @@ struct GoalsView: View {
     var body: some View {
         NavigationStack {
             List {
+                Section {
+                    NavigationLink {
+                        BudgetView()
+                    } label: {
+                        Label("Monthly category budgets", systemImage: "dollarsign.circle")
+                    }
+                } footer: {
+                    Text("Spending limits (Groceries, Dining, etc.) live on the Budgets tab — not here.")
+                }
+
                 Section("Suggested emergency fund") {
                     Text(FinanceFormatting.currency(goals.suggestedEmergencyFund))
                         .font(.title3.bold())
