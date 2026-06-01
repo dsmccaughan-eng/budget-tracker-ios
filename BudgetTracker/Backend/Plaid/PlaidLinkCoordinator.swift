@@ -6,6 +6,7 @@ import UIKit
 @MainActor
 final class PlaidLinkCoordinator: NSObject, ObservableObject {
     private var linkHandler: Handler?
+    private(set) var isOAuthHandoff = false
 
     func open(
         linkToken: String,
@@ -46,7 +47,16 @@ final class PlaidLinkCoordinator: NSObject, ObservableObject {
         return true
     }
 
+    func markOAuthHandoff() {
+        isOAuthHandoff = true
+    }
+
+    func clearOAuthHandoff() {
+        isOAuthHandoff = false
+    }
+
     func endSession() {
+        isOAuthHandoff = false
         linkHandler = nil
     }
 

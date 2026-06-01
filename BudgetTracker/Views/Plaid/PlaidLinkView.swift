@@ -40,7 +40,9 @@ struct PlaidLinkView: View {
         .interactiveDismissDisabled(isPresentingLink)
         .sheet(isPresented: $isPresentingLink, onDismiss: {
             linkToken = nil
-            plaidLink.endSession()
+            if !plaidLink.isOAuthHandoff {
+                plaidLink.endSession()
+            }
         }) {
             if let linkToken {
                 PlaidLinkPresenter(
@@ -54,9 +56,7 @@ struct PlaidLinkView: View {
                         }
                     },
                     onExit: { exit in
-                        statusMessage = Self.exitMessage(exit)
-                            ?? "Could not open bank link. Try again."
-                        isPresentingLink = false
+                        handleLinkExit(exit)
                     }
                 )
             }
@@ -110,9 +110,24 @@ struct PlaidLinkView: View {
         }
     }
 
+    private func handleLinkExit(_ exit: LinkExit?) {
+        if exit?.error == nil, Self.exitMessage(exit) == nil {
+            plaidLink.markOAuthHandoff()
+            statusMessage =
+                "Finish signing in with Robinhood, then return to Budget Tracker. " +
+                "Tap Open on the return page if you see it."
+            return
+        }
+        plaidLink.clearOAuthHandoff()
+        statusMessage = Self.exitMessage(exit) ?? "Could not open bank link. Try again."
+        isPresentingLink = false
+    }
+
     private func exchangeToken(_ success: LinkSuccess) async {
+        plaidLink.clearOAuthHandoff()
+        isPresentingLink = false
         isLoading = true
-        defer { isLoading = false }
+        statusMessage = "Saving your bank connection…"
 
         do {
             let response: ExchangeTokenResponse = try await SupabaseService.shared.invokeFunction(
@@ -123,12 +138,16 @@ struct PlaidLinkView: View {
                 ),
                 client: auth.supabaseClient
             )
-            statusMessage = "Linked \(success.metadata.institution.name) with \(response.accountsLinked) accounts."
-            isPresentingLink = false
             await transactions.loadAll(client: auth.supabaseClient)
-            _ = try? await SupabaseService.shared.syncTransactions(client: auth.supabaseClient)
-            await transactions.loadAll(client: auth.supabaseClient)
+            statusMessage =
+                "Linked \(success.metadata.institution.name) (\(response.accountsLinked) accounts). " +
+                "Syncing transactions in the background."
+            isLoading = false
+            Task {
+                await transactions.sync(client: auth.supabaseClient)
+            }
         } catch {
+            isLoading = false
             statusMessage = "Link succeeded but saving failed: \(error.localizedDescription)"
         }
     }

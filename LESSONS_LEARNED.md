@@ -77,4 +77,11 @@ Entry format
 - **Guardrails:** Run verify script before telling user OAuth is ready; Robinhood requires Production + redirect URI (not Sandbox-only flow).
 - **Verification:** Both URLs return 200; link Robinhood on TestFlight → return page → app completes exchange; accounts sync.
 
+### 2026-06-01 - Robinhood OAuth spins / loads for minutes after sign-in
+- **Symptom:** User completes Robinhood login; Plaid or app shows loading for several minutes; link never finishes.
+- **Root cause:** Plaid calls `onExit` with no error when handing off to OAuth; `PlaidLinkView` treated that as failure, dismissed the sheet, and `endSession()` destroyed the `Handler` before the user returned. Initial transaction sync after link also blocked the UI.
+- **Fix pattern:** On `onExit` with `exit.error == nil` and no user-facing exit message, keep sheet + handler (`markOAuthHandoff`); handle Universal Links via `onContinueUserActivity`; after `onSuccess`, dismiss sheet, save token, sync transactions in background `Task`.
+- **Guardrails:** Do not set `isPresentingLink = false` on OAuth handoff `onExit`; do not call `endSession()` from sheet `onDismiss` while `isOAuthHandoff`.
+- **Verification:** Link Robinhood → leave for bank → return → success within seconds; accounts appear; transactions sync without blocking button.
+
 <!-- Append new entries above this line -->

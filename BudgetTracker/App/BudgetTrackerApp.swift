@@ -22,6 +22,10 @@ struct BudgetTrackerApp: App {
                 .onOpenURL { url in
                     _ = plaidLinkCoordinator.continueLink(from: url)
                 }
+                .onContinueUserActivity(NSUserActivityTypeBrowsingWeb) { activity in
+                    guard let url = activity.webpageURL else { return }
+                    _ = plaidLinkCoordinator.continueLink(from: url)
+                }
                 .environmentObject(budgetStore)
                 .environmentObject(goalsStore)
                 .environmentObject(netWorthStore)
