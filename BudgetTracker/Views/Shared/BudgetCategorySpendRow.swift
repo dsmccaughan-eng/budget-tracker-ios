@@ -28,7 +28,7 @@ struct BudgetCategorySpendRow: View {
                     .font(.subheadline.weight(.semibold))
                 Text(remainingLabel)
                     .font(.caption)
-                    .foregroundStyle(progress.remaining >= 0 ? .secondary : .red)
+                    .foregroundStyle(progress.remaining >= 0 ? Color.secondary : Color.red)
             }
         }
         .padding(.vertical, 4)
