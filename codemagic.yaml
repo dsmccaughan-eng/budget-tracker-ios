@@ -77,6 +77,17 @@ workflows:
           set -e
           scripts/ci-step-timeout.sh "$CM_PRE_IPA_STEP_TIMEOUT_SEC" "Verify signing before archive" \
             sh scripts/verify-ci-signing.sh
+      - name: Verify supabase-swift version
+        script: |
+          set -e
+          chmod +x scripts/verify-supabase-package.sh
+          scripts/ci-step-timeout.sh "$CM_PRE_IPA_STEP_TIMEOUT_SEC" "Verify supabase-swift version" \
+            bash scripts/verify-supabase-package.sh
+      - name: Run unit tests
+        script: |
+          set -e
+          chmod +x scripts/run-unit-tests.sh
+          scripts/ci-step-timeout.sh "900" "Run unit tests" bash scripts/run-unit-tests.sh
       - name: Build IPA
         script: |
           xcode-project build-ipa \

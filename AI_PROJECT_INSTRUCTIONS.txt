@@ -83,6 +83,13 @@ Engineering Standards (backend, tests, structure)
 - When a file exceeds 400 lines, split by responsibility (models vs store vs persistence vs API client).
 - Run `powershell -File scripts/check-file-line-limits.ps1` before large merges.
 
+2b) Pre-ship test gate (required before TestFlight)
+- Windows: `powershell -File scripts/pre-ship-gate.ps1` (line limits + checklist).
+- Mac / Codemagic: `bash scripts/verify-supabase-package.sh` then `bash scripts/run-unit-tests.sh`.
+- Crash review: `docs/TDD_AND_CRASHES.md` (Xcode Organizer → Crashes).
+- Do **not** upload TestFlight until unit tests pass and launch-guard tests (`AuthStoreTests`, `SupabaseConfigTests`) pass on CI.
+- When changing thresholds (budget alerts, subscription lookback, etc.), update `LaunchReadinessTests` first.
+
 3) Naming and layout
 - Use descriptive file and folder names so agents can find code by domain.
 - Backend layout (do **not** recreate `Services/`):
@@ -133,6 +140,7 @@ Update Log
 - 2026-05-31: Supabase project ref corrected to `dldbcbituquxedlkeefu` (brief had typo `dldbcbituxuxedlkeefu`).
 - 2026-05-31: Expanded this file to mirror Optimized agent/CI/release process (Windows push, GHA verify, pkg.xcconfig, TestFlight prep).
 - 2026-05-31: **GitHub backup only**; TestFlight via **Codemagic** (see `docs/CODEMAGIC.md`, synced from `../ios-build/`).
+- 2026-06-01: Pre-ship TDD gate — `BudgetTrackerTests` launch guards, `scripts/pre-ship-gate.ps1`, Codemagic unit-test + Supabase 2.44.0 verify; `docs/TDD_AND_CRASHES.md`.
 - 2026-05-31: Plaid hardening — webhooks with JWT verification, update mode, item removal, audit log, rate limits; see `docs/PLAID_PRODUCTION_CHECKLIST.md`.
 
 Security — credential rotation (required if secrets were ever committed or pasted in chat)
@@ -161,6 +169,10 @@ Budget Tracker uses a **single iOS app target** (no Watch/Widget). Adapt names o
 | profile `Optimized Distribution` | profile `Budget Tracker Distribution` |
 
 Agents: do not modify archive/export command flags in workflows without explicit user approval.
+
+Optional test gate before archive (Codemagic runs this automatically; Mac local):
+powershell -File scripts/pre-ship-gate.ps1
+bash scripts/verify-supabase-package.sh && bash scripts/run-unit-tests.sh
 
 ## Step 1 — Unlock keychain (required every Mac SSH session; local Mac only)
 security unlock-keychain -p "<KEYCHAIN_PASSWORD>" ~/Library/Keychains/login.keychain-db

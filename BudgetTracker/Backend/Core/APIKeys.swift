@@ -138,6 +138,11 @@ struct APIKeys {
         return value.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
+    /// Shared with tests (`APIKeysTests`) — rejects xcconfig placeholders and empty strings.
+    static func validatesKeyFormat(_ value: String) -> Bool {
+        isUsableKey(value)
+    }
+
     private static func isUsableKey(_ value: String) -> Bool {
         guard !value.isEmpty else { return false }
         if value.contains("$(") { return false }

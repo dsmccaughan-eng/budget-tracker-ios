@@ -36,8 +36,7 @@ struct BudgetTrackerApp: App {
 
     @MainActor
     private func reloadFinancialData() async {
-        guard authStore.state == .authenticated else { return }
-        let client = authStore.supabaseClient
+        guard authStore.state == .authenticated, let client = authStore.activeSupabaseClient else { return }
         await transactionStore.loadAll(client: client)
         await budgetStore.reload(client: client, transactions: transactionStore.transactions)
         await goalsStore.reload(client: client, transactions: transactionStore.transactions)

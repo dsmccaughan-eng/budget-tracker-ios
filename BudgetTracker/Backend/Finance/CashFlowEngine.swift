@@ -92,7 +92,9 @@ struct SubscriptionCharge: Identifiable, Equatable {
 }
 
 enum SubscriptionAuditEngine {
-    static func recurringCharges(transactions: [Transaction], lookbackDays: Int = 120) -> [SubscriptionCharge] {
+    static let defaultLookbackDays = 120
+
+    static func recurringCharges(transactions: [Transaction], lookbackDays: Int = defaultLookbackDays) -> [SubscriptionCharge] {
         let calendar = Calendar.current
         let cutoff = calendar.date(byAdding: .day, value: -lookbackDays, to: Date()) ?? Date()
         let formatter = DateFormatter()

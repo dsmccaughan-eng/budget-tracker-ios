@@ -21,7 +21,7 @@ Entry format
 - **Root cause:** `supabase-swift` before **2.44.0** force-unwraps `URL.host` in `SupabaseClient.init`. On **iOS 26**, deprecated `URL.host` returns `nil` for valid `https://` URLs → `EXC_BREAKPOINT` in `SupabaseClient.init` before UI (see [supabase/supabase-swift#960](https://github.com/supabase/supabase-swift/issues/960), fixed in **2.44.0** / [#962](https://github.com/supabase/supabase-swift/pull/962)). Budget Tracker pinned `from: 2.0.0` and calls `SupabaseClient` during `AuthStore.bootstrap()` right after launch.
 - **Fix pattern:** Pin Supabase SPM to **`from: "2.44.0"`** (or newer). Keep `AuthStore` lazy client creation (no `SupabaseClient` in `init`). Optional: `STRIP_BITCODE_FROM_COPIED_FILES = NO` for LinkKit embed safety.
 - **Guardrails:** Do not downgrade Supabase below 2.44.0 while supporting iOS 26 / Xcode 26 SDK builds. Re-fetch crashes with `node scripts/fetch-asc-crashes.mjs` after the next TestFlight wave.
-- **Verification:** App reaches auth screen on iOS 26 device; symbolicated crash no longer shows `SupabaseClient.init` + `URL.host` force-unwrap.
+- **Verification:** `bash scripts/verify-supabase-package.sh` and `AuthStoreTests` pass on CI; app reaches auth screen on iOS 26 device; Xcode Organizer crash no longer shows `SupabaseClient.init` + `URL.host` force-unwrap. See `docs/TDD_AND_CRASHES.md`.
 
 ### 2026-05-31 - Agent docs split (brief vs living instructions)
 - **Symptom:** Agents only had docs/PROJECT_BRIEF.md; no standing place for post-fix notes or shipped behavior deltas.

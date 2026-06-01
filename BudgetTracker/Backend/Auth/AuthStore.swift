@@ -1,15 +1,6 @@
 import Foundation
 import Supabase
 
-enum SupabaseConfig {
-    static var url: URL? {
-        URL(string: APIKeys.supabaseURL)
-    }
-
-    static var anonKey: String { APIKeys.supabaseAnonKey }
-    static var isConfigured: Bool { url != nil && APIKeys.hasValidSupabaseConfig }
-}
-
 @MainActor
 final class AuthStore: ObservableObject {
     enum State: Equatable {
@@ -28,8 +19,14 @@ final class AuthStore: ObservableObject {
         client = injectedClient
     }
 
+    /// Client available only after successful bootstrap or sign-in (avoids launch-time traps).
+    var activeSupabaseClient: SupabaseClient? {
+        guard state == .authenticated, let client else { return nil }
+        return client
+    }
+
     var supabaseClient: SupabaseClient {
-        guard let client else {
+        guard let client = activeSupabaseClient else {
             fatalError("Supabase client accessed before authentication bootstrap completed.")
         }
         return client
@@ -42,10 +39,7 @@ final class AuthStore: ObservableObject {
             throw BudgetTrackerError.server("Missing backend configuration. Add Supabase keys in Settings.")
         }
 
-        let created = SupabaseClient(
-            supabaseURL: url,
-            supabaseKey: SupabaseConfig.anonKey
-        )
+        let created = try SupabaseClientFactory.makeClient(url: url, anonKey: SupabaseConfig.anonKey)
         client = created
         return created
     }
