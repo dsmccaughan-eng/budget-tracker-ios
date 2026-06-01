@@ -28,9 +28,6 @@ targets:
       - path: BudgetTracker
         excludes:
           - Config/LocalAPIKeys.plist.example
-      - path: Config/LocalAPIKeys.plist
-        buildPhase: resources
-        optional: true
     dependencies:
       - package: Supabase
         product: Supabase
