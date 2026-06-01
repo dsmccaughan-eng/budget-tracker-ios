@@ -58,16 +58,18 @@ actor SupabaseService {
         limit: Int = 5000
     ) async throws -> [Transaction] {
         let session = try await client.auth.session
-        var query = client
+        var filter = client
             .from("transactions")
             .select()
             .eq("user_id", value: session.user.id.uuidString)
+        if let since {
+            filter = filter.gte("date", value: since)
+        }
+        let rows: [Transaction] = try await filter
             .order("date", ascending: false)
             .limit(limit)
-        if let since {
-            query = query.gte("date", value: since)
-        }
-        let rows: [Transaction] = try await query.execute().value
+            .execute()
+            .value
         return rows
     }
 
