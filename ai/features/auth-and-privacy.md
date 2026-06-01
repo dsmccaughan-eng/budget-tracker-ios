@@ -7,7 +7,8 @@
 - Face ID / Touch ID before any financial screen (cold start and return from background or app switcher)
 - Auto-prompt biometrics on unlock; after 3 failed attempts (or user chooses PIN), require 6-digit app PIN
 - PIN verifier stored in Keychain (`kSecAttrAccessibleWhenUnlockedThisDeviceOnly`) as PBKDF2-HMAC-SHA256 (120k iterations) — never plaintext
-- First authenticated session: user must create PIN before financial UI
+- First-time PIN optional: use **Settings → Security → Set up app lock** (or Dashboard banner) when already signed in
+- After PIN exists: Face ID / PIN required when returning to the app
 - Financial Supabase loads only when authenticated, PIN configured, and app unlocked
 - `NSAllowsArbitraryLoads` = false
 

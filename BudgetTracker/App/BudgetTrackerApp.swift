@@ -40,8 +40,7 @@ struct BudgetTrackerApp: App {
                 }
                 .task(id: financialDataTaskID) {
                     guard authStore.state == .authenticated,
-                          appLockStore.hasPIN,
-                          appLockStore.isUnlocked else { return }
+                          appLockStore.canAccessFinancialData else { return }
                     await reloadFinancialData()
                 }
                 .onChange(of: authStore.state) { _, newState in
@@ -49,19 +48,21 @@ struct BudgetTrackerApp: App {
                         appLockStore.lock()
                     }
                 }
-                .onChange(of: appLockStore.hasPIN) { _, hasPIN in
-                    guard hasPIN, appLockStore.isUnlocked, authStore.state == .authenticated else { return }
+                .onChange(of: appLockStore.hasPIN) { _, _ in
+                    guard authStore.state == .authenticated,
+                          appLockStore.canAccessFinancialData else { return }
                     Task { await reloadFinancialData() }
                 }
-                .onChange(of: appLockStore.isUnlocked) { _, unlocked in
-                    guard unlocked, appLockStore.hasPIN, authStore.state == .authenticated else { return }
+                .onChange(of: appLockStore.isUnlocked) { _, _ in
+                    guard authStore.state == .authenticated,
+                          appLockStore.canAccessFinancialData else { return }
                     Task { await reloadFinancialData() }
                 }
         }
     }
 
     private var financialDataTaskID: String {
-        "\(authStore.state)-\(appLockStore.hasPIN)-\(appLockStore.isUnlocked)"
+        "\(authStore.state)-\(appLockStore.hasPIN)-\(appLockStore.isUnlocked)-\(appLockStore.canAccessFinancialData)"
     }
 
     @MainActor

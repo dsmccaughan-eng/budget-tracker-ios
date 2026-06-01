@@ -6,6 +6,7 @@ struct DashboardView: View {
     @EnvironmentObject private var budgets: BudgetStore
     @EnvironmentObject private var netWorth: NetWorthStore
     @EnvironmentObject private var notifications: NotificationSettingsStore
+    @EnvironmentObject private var appLock: AppLockStore
 
     @State private var showAddBudget = false
     @State private var showSettings = false
@@ -13,6 +14,18 @@ struct DashboardView: View {
     var body: some View {
         NavigationStack {
             List {
+                if !appLock.hasPIN {
+                    Section {
+                        NavigationLink {
+                            SetupAppLockSettingsView(lock: appLock)
+                        } label: {
+                            Label("Set up Face ID and PIN", systemImage: "lock.shield")
+                        }
+                    } footer: {
+                        Text("Protect your budget when you leave the app. You can also enable this under Settings → Security.")
+                    }
+                }
+
                 Section("Net worth") {
                     LabeledContent("Today", value: FinanceFormatting.currency(netWorth.currentNetWorth))
                     NavigationLink("Net worth details") {

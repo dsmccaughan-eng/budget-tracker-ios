@@ -30,9 +30,7 @@ struct RootView: View {
                 financialNavigation
             }
         } else {
-            SetPINView(lock: appLock) {
-                appLock.refreshConfiguration()
-            }
+            financialNavigation
         }
     }
 

@@ -331,19 +331,10 @@ struct SettingsView: View {
 
     var body: some View {
         List {
-            Section {
-                if appLock.biometricsAvailable {
-                    Toggle("Use Face ID / Touch ID", isOn: $appLock.biometricsEnabled)
-                }
-                NavigationLink {
-                    ChangePINView(lock: appLock)
-                } label: {
-                    Label("Change PIN", systemImage: "lock.rotation")
-                }
-            } header: {
-                Text("Security")
-            } footer: {
-                Text("Face ID or Touch ID runs when you return to the app. After several failed attempts, your 6-digit PIN is required. Change your PIN here anytime.")
+            if appLock.hasPIN {
+                appLockEnabledSection
+            } else {
+                appLockSetupSection
             }
             Section("Account") {
                 Button("Sign Out", role: .destructive) {
@@ -358,5 +349,58 @@ struct SettingsView: View {
             }
         }
         .navigationTitle("Settings")
+        .onAppear {
+            appLock.refreshConfiguration()
+        }
+    }
+
+    private var appLockSetupSection: some View {
+        Section {
+            NavigationLink {
+                SetupAppLockSettingsView(lock: appLock)
+            } label: {
+                Label("Set up app lock", systemImage: "lock.shield")
+            }
+        } header: {
+            Text("Security")
+        } footer: {
+            Text("Add a 6-digit PIN and Face ID or Touch ID. Your budget data will require unlock each time you return to the app.")
+        }
+    }
+
+    private var appLockEnabledSection: some View {
+        Section {
+            LabeledContent("App lock", value: "On")
+            if appLock.biometricsAvailable {
+                Toggle("Use Face ID / Touch ID", isOn: $appLock.biometricsEnabled)
+            }
+            NavigationLink {
+                ChangePINView(lock: appLock)
+            } label: {
+                Label("Change PIN", systemImage: "lock.rotation")
+            }
+        } header: {
+            Text("Security")
+        } footer: {
+            if appLock.biometricsAvailable {
+                Text("Face ID or Touch ID runs when you return to the app. After several failed attempts, your 6-digit PIN is required.")
+            } else {
+                Text("Your 6-digit PIN is required when you return to the app. Face ID is not available on this device.")
+            }
+        }
+    }
+}
+
+struct SetupAppLockSettingsView: View {
+    @ObservedObject var lock: AppLockStore
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        SetPINView(lock: lock) {
+            lock.refreshConfiguration()
+            dismiss()
+        }
+        .navigationTitle("Set up app lock")
+        .navigationBarTitleDisplayMode(.inline)
     }
 }

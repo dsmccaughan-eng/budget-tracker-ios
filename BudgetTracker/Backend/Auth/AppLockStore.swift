@@ -40,6 +40,11 @@ final class AppLockStore: ObservableObject {
         pinFailureCount >= AppLockPolicy.maxPINFailures
     }
 
+    /// No PIN configured yet, or user passed the lock screen.
+    var canAccessFinancialData: Bool {
+        !hasPIN || isUnlocked
+    }
+
     private(set) var biometricsAvailable = false
 
     func refreshConfiguration() {
