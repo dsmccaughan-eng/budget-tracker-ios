@@ -1,6 +1,9 @@
 import Foundation
 
 struct APIKeys {
+    /// Public project URL (safe to ship in the client; anon key still required separately).
+    static let defaultSupabaseURL = "https://dldbcbituquxedlkeefu.supabase.co"
+
     private static let geminiUserProvidedFlag = "gemini_api_key_user_provided"
     private static let supabaseUserProvidedFlag = "supabase_keys_user_provided"
 
@@ -39,6 +42,14 @@ struct APIKeys {
 
     static var hasValidGeminiKey: Bool { !gemini.isEmpty }
     static var hasValidSupabaseConfig: Bool { !supabaseURL.isEmpty && !supabaseAnonKey.isEmpty }
+
+    static func saveUserSupabaseKeys(url: String, anonKey: String) {
+        let trimmedURL = url.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedKey = anonKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        UserDefaults.standard.set(trimmedURL, forKey: "supabase_url")
+        UserDefaults.standard.set(trimmedKey, forKey: "supabase_anon_key")
+        UserDefaults.standard.set(true, forKey: supabaseUserProvidedFlag)
+    }
 
     static func syncToUserDefaultsIfNeeded() {
         seedIfNeeded(
@@ -124,6 +135,10 @@ struct APIKeys {
             return localValue
         }
         #endif
+
+        if infoPlistKey == "SUPABASE_URL", isUsableKey(defaultSupabaseURL) {
+            return defaultSupabaseURL
+        }
 
         return ""
     }

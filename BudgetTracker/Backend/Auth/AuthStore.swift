@@ -13,13 +13,15 @@ final class AuthStore: ObservableObject {
     @Published private(set) var userId: String?
     @Published var errorMessage: String?
 
+    /// Shown on the OTP screen when email delivery failed but edge function returned a code.
+    @Published var pendingInAppOTP: String?
+
     private var client: SupabaseClient?
 
     init(injectedClient: SupabaseClient? = nil) {
         client = injectedClient
     }
 
-    /// Client available only after successful bootstrap or sign-in (avoids launch-time traps).
     var activeSupabaseClient: SupabaseClient? {
         guard state == .authenticated, let client else { return nil }
         return client
@@ -36,7 +38,7 @@ final class AuthStore: ObservableObject {
         if let client { return client }
 
         guard let url = SupabaseConfig.url, SupabaseConfig.isConfigured else {
-            throw BudgetTrackerError.server("Missing backend configuration. Add Supabase keys in Settings.")
+            throw BudgetTrackerError.server(missingBackendMessage)
         }
 
         let created = try SupabaseClientFactory.makeClient(url: url, anonKey: SupabaseConfig.anonKey)
@@ -44,14 +46,18 @@ final class AuthStore: ObservableObject {
         return created
     }
 
+    static let missingBackendMessage =
+        "Add your Supabase anon key below (Dashboard → Settings → API → anon public)."
+
     func bootstrap() async {
         errorMessage = nil
         client = nil
+        pendingInAppOTP = nil
 
         guard SupabaseConfig.isConfigured else {
             userId = nil
             state = .unauthenticated
-            errorMessage = "Missing backend configuration. Add Supabase keys in Settings."
+            errorMessage = Self.missingBackendMessage
             return
         }
 
@@ -67,49 +73,72 @@ final class AuthStore: ObservableObject {
         }
     }
 
-    func signIn(email: String, password: String) async {
+    func sendOTP(email: String) async {
         errorMessage = nil
+        pendingInAppOTP = nil
         client = nil
+
+        let normalized = email.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard normalized.contains("@") else {
+            errorMessage = "Enter a valid email address."
+            return
+        }
 
         guard SupabaseConfig.isConfigured else {
             state = .unauthenticated
-            errorMessage = "Missing backend configuration. Add Supabase keys in Settings."
+            errorMessage = Self.missingBackendMessage
             return
         }
 
         do {
             let activeClient = try makeClient()
-            let session = try await activeClient.auth.signIn(email: email, password: password)
-            userId = session.user.id.uuidString
-            state = .authenticated
+            try await activeClient.auth.signInWithOTP(
+                email: normalized,
+                redirectTo: nil,
+                shouldCreateUser: true
+            )
         } catch {
+            if await handleOTPDeliveryFallback(email: normalized, error: error) {
+                return
+            }
             client = nil
             errorMessage = error.localizedDescription
             state = .unauthenticated
         }
     }
 
-    func signUp(email: String, password: String) async {
+    func verifyOTP(email: String, token: String) async {
         errorMessage = nil
-        client = nil
+
+        let normalizedEmail = email.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        let code = token.trimmingCharacters(in: .whitespacesAndNewlines)
 
         guard SupabaseConfig.isConfigured else {
-            state = .unauthenticated
-            errorMessage = "Missing backend configuration. Add Supabase keys in Settings."
+            errorMessage = Self.missingBackendMessage
+            return
+        }
+
+        guard code.count >= 6 else {
+            errorMessage = "Enter the 6-digit code from your email."
             return
         }
 
         do {
             let activeClient = try makeClient()
-            let response = try await activeClient.auth.signUp(email: email, password: password)
-            if let session = response.session {
-                userId = session.user.id.uuidString
-                state = .authenticated
-            } else {
+            let response = try await activeClient.auth.verifyOTP(
+                email: normalizedEmail,
+                token: code,
+                type: .email
+            )
+            guard let session = response.session else {
+                errorMessage = "Sign-in incomplete. Request a new code and try again."
                 client = nil
-                errorMessage = "Check your email to confirm your account."
                 state = .unauthenticated
+                return
             }
+            userId = session.user.id.uuidString
+            state = .authenticated
+            pendingInAppOTP = nil
         } catch {
             client = nil
             errorMessage = error.localizedDescription
@@ -127,6 +156,7 @@ final class AuthStore: ObservableObject {
         }
         client = nil
         userId = nil
+        pendingInAppOTP = nil
         state = .unauthenticated
     }
 
@@ -135,5 +165,22 @@ final class AuthStore: ObservableObject {
             guard let client else { return nil }
             return try? await client.auth.session.accessToken
         }
+    }
+
+    private func handleOTPDeliveryFallback(email: String, error: Error) async -> Bool {
+        let message = error.localizedDescription.lowercased()
+        let emailLikelyFailed = message.contains("email") || message.contains("smtp") || message.contains("500")
+        guard emailLikelyFailed else { return false }
+
+        do {
+            if let inApp = try await AuthOTPBridge.requestInAppOTP(email: email) {
+                pendingInAppOTP = inApp
+                return true
+            }
+        } catch {
+            errorMessage = error.localizedDescription
+            return true
+        }
+        return false
     }
 }

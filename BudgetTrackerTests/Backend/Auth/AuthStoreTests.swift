@@ -16,7 +16,7 @@ final class AuthStoreTests: XCTestCase {
         await store.bootstrap()
         XCTAssertEqual(store.state, .unauthenticated)
         XCTAssertNil(store.userId)
-        XCTAssertNotNil(store.errorMessage)
+        XCTAssertEqual(store.errorMessage, AuthStore.missingBackendMessage)
     }
 
     func testSupabaseClientFactoryDoesNotTrapWithValidHTTPSURL() throws {

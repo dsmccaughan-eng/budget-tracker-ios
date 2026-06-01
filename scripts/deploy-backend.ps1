@@ -55,6 +55,7 @@ if ($redirectUri) {
 
 Write-Host "==> Deploying Edge Functions"
 $functions = @(
+  "request-login-otp",
   "plaid-create-link-token",
   "plaid-create-update-link-token",
   "plaid-exchange-token",

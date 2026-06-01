@@ -327,9 +327,26 @@ struct BudgetHistoryView: View {
 
 struct SettingsView: View {
     @EnvironmentObject private var auth: AuthStore
+    @State private var supabaseAnonKey = ""
 
     var body: some View {
         List {
+            Section {
+                Text(APIKeys.defaultSupabaseURL)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                SecureField("Supabase anon key", text: $supabaseAnonKey)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                Button("Save backend key") {
+                    APIKeys.saveUserSupabaseKeys(url: APIKeys.defaultSupabaseURL, anonKey: supabaseAnonKey)
+                    Task { await auth.bootstrap() }
+                }
+                .disabled(supabaseAnonKey.trimmingCharacters(in: .whitespacesAndNewlines).count < 20)
+            } header: {
+                Text("Backend")
+            }
+
             Section("Account") {
                 Button("Sign Out", role: .destructive) {
                     Task { await auth.signOut() }
@@ -343,5 +360,10 @@ struct SettingsView: View {
             }
         }
         .navigationTitle("Settings")
+        .onAppear {
+            if supabaseAnonKey.isEmpty {
+                supabaseAnonKey = APIKeys.supabaseAnonKey
+            }
+        }
     }
 }

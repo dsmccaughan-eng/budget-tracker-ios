@@ -13,6 +13,13 @@ final class APIKeysTests: XCTestCase {
         super.tearDown()
     }
 
+    override func setUp() {
+        super.setUp()
+        UserDefaults.standard.removeObject(forKey: supabaseURLKey)
+        UserDefaults.standard.removeObject(forKey: supabaseAnonKey)
+        UserDefaults.standard.removeObject(forKey: supabaseUserFlag)
+    }
+
     func testValidatesKeyRejectsPlaceholders() {
         XCTAssertFalse(APIKeys.validatesKeyFormat(""))
         XCTAssertFalse(APIKeys.validatesKeyFormat("$(SUPABASE_URL)"))
@@ -22,6 +29,19 @@ final class APIKeysTests: XCTestCase {
     func testValidatesKeyAcceptsProductionShapedValues() {
         XCTAssertTrue(APIKeys.validatesKeyFormat("https://dldbcbituquxedlkeefu.supabase.co"))
         XCTAssertTrue(APIKeys.validatesKeyFormat("eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.example"))
+    }
+
+    func testDefaultSupabaseURLIsProductionProject() {
+        XCTAssertEqual(APIKeys.defaultSupabaseURL, "https://dldbcbituquxedlkeefu.supabase.co")
+    }
+
+    func testSaveUserSupabaseKeysMarksConfigured() {
+        APIKeys.saveUserSupabaseKeys(
+            url: APIKeys.defaultSupabaseURL,
+            anonKey: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.test-key"
+        )
+        XCTAssertTrue(APIKeys.hasValidSupabaseConfig)
+        XCTAssertTrue(SupabaseConfig.isConfigured)
     }
 
     func testHasValidSupabaseConfigFalseWhenPlistPlaceholdersOnly() {
