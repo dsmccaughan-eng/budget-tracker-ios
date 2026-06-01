@@ -95,3 +95,7 @@ for (const build of buildList) {
 }
 
 console.log("\nDone. Reports in", outDir);
+console.log(
+  "\nNote: If ASC returns empty but the app dies on launch on iOS 26 with supabase-swift < 2.44.0,",
+  "see https://github.com/supabase/supabase-swift/issues/960 (fixed in 2.44.0)."
+);

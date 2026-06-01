@@ -14,7 +14,8 @@ settings:
 packages:
   Supabase:
     url: https://github.com/supabase/supabase-swift
-    from: 2.0.0
+    # 2.44.0+ required: fixes immediate launch crash on iOS 26 (SupabaseClient URL.host force-unwrap, supabase/supabase-swift#962).
+    from: "2.44.0"
   LinkKit:
     url: https://github.com/plaid/plaid-link-ios-spm.git
     from: 5.0.0
@@ -63,6 +64,8 @@ targets:
         TARGETED_DEVICE_FAMILY: "1"
         ITSAppUsesNonExemptEncryption: NO
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ENABLE_BITCODE: NO
+        STRIP_BITCODE_FROM_COPIED_FILES: NO
 
   BudgetTrackerTests:
     type: bundle.unit-test
