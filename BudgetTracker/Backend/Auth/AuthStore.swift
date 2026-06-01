@@ -7,11 +7,7 @@ enum SupabaseConfig {
     }
 
     static var anonKey: String { APIKeys.supabaseAnonKey }
-    static var isConfigured: Bool { url != nil && hasValidSupabaseConfig }
-
-    private static var hasValidSupabaseConfig: Bool {
-        APIKeys.hasValidSupabaseConfig
-    }
+    static var isConfigured: Bool { url != nil && APIKeys.hasValidSupabaseConfig }
 }
 
 @MainActor
@@ -26,40 +22,52 @@ final class AuthStore: ObservableObject {
     @Published private(set) var userId: String?
     @Published var errorMessage: String?
 
-    private let client: SupabaseClient
-    private let hasBackendConfig: Bool
+    private var client: SupabaseClient?
 
-    init(client: SupabaseClient? = nil) {
-        if let client {
-            self.client = client
-            hasBackendConfig = true
-        } else if let url = SupabaseConfig.url, SupabaseConfig.isConfigured {
-            self.client = SupabaseClient(
-                supabaseURL: url,
-                supabaseKey: SupabaseConfig.anonKey
-            )
-            hasBackendConfig = true
-        } else {
-            self.client = SupabaseClient(
-                supabaseURL: URL(string: "https://placeholder.supabase.co")!,
-                supabaseKey: "placeholder"
-            )
-            hasBackendConfig = false
+    init(injectedClient: SupabaseClient? = nil) {
+        client = injectedClient
+    }
+
+    var supabaseClient: SupabaseClient {
+        guard let client else {
+            fatalError("Supabase client accessed before authentication bootstrap completed.")
         }
+        return client
+    }
+
+    private func makeClient() throws -> SupabaseClient {
+        if let client { return client }
+
+        guard let url = SupabaseConfig.url, SupabaseConfig.isConfigured else {
+            throw BudgetTrackerError.server("Missing backend configuration. Add Supabase keys in Settings.")
+        }
+
+        let created = SupabaseClient(
+            supabaseURL: url,
+            supabaseKey: SupabaseConfig.anonKey
+        )
+        client = created
+        return created
     }
 
     func bootstrap() async {
-        guard hasBackendConfig else {
+        errorMessage = nil
+        client = nil
+
+        guard SupabaseConfig.isConfigured else {
             userId = nil
             state = .unauthenticated
             errorMessage = "Missing backend configuration. Add Supabase keys in Settings."
             return
         }
+
         do {
-            let session = try await client.auth.session
+            let activeClient = try makeClient()
+            let session = try await activeClient.auth.session
             userId = session.user.id.uuidString
             state = .authenticated
         } catch {
+            client = nil
             userId = nil
             state = .unauthenticated
         }
@@ -67,16 +75,21 @@ final class AuthStore: ObservableObject {
 
     func signIn(email: String, password: String) async {
         errorMessage = nil
-        guard hasBackendConfig else {
+        client = nil
+
+        guard SupabaseConfig.isConfigured else {
             state = .unauthenticated
             errorMessage = "Missing backend configuration. Add Supabase keys in Settings."
             return
         }
+
         do {
-            let session = try await client.auth.signIn(email: email, password: password)
+            let activeClient = try makeClient()
+            let session = try await activeClient.auth.signIn(email: email, password: password)
             userId = session.user.id.uuidString
             state = .authenticated
         } catch {
+            client = nil
             errorMessage = error.localizedDescription
             state = .unauthenticated
         }
@@ -84,41 +97,49 @@ final class AuthStore: ObservableObject {
 
     func signUp(email: String, password: String) async {
         errorMessage = nil
-        guard hasBackendConfig else {
+        client = nil
+
+        guard SupabaseConfig.isConfigured else {
             state = .unauthenticated
             errorMessage = "Missing backend configuration. Add Supabase keys in Settings."
             return
         }
+
         do {
-            let response = try await client.auth.signUp(email: email, password: password)
+            let activeClient = try makeClient()
+            let response = try await activeClient.auth.signUp(email: email, password: password)
             if let session = response.session {
                 userId = session.user.id.uuidString
                 state = .authenticated
             } else {
+                client = nil
                 errorMessage = "Check your email to confirm your account."
                 state = .unauthenticated
             }
         } catch {
+            client = nil
             errorMessage = error.localizedDescription
             state = .unauthenticated
         }
     }
 
     func signOut() async {
-        do {
-            try await client.auth.signOut()
-        } catch {
-            errorMessage = error.localizedDescription
+        if let client {
+            do {
+                try await client.auth.signOut()
+            } catch {
+                errorMessage = error.localizedDescription
+            }
         }
+        client = nil
         userId = nil
         state = .unauthenticated
     }
 
     var accessToken: String? {
         get async {
-            try? await client.auth.session.accessToken
+            guard let client else { return nil }
+            return try? await client.auth.session.accessToken
         }
     }
-
-    var supabaseClient: SupabaseClient { client }
 }

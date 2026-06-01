@@ -2,7 +2,6 @@ import SwiftUI
 
 struct RootView: View {
     @EnvironmentObject private var auth: AuthStore
-    @StateObject private var biometricGate = BiometricGateStore()
 
     var body: some View {
         Group {
@@ -12,19 +11,17 @@ struct RootView: View {
             case .unauthenticated:
                 AuthView()
             case .authenticated:
-                BiometricGateView(gate: biometricGate) {
-                    NavigationStack {
-                        MainTabView()
-                            .toolbar {
-                                ToolbarItem(placement: .topBarTrailing) {
-                                    NavigationLink {
-                                        SettingsView()
-                                    } label: {
-                                        Image(systemName: "gearshape")
-                                    }
+                NavigationStack {
+                    MainTabView()
+                        .toolbar {
+                            ToolbarItem(placement: .topBarTrailing) {
+                                NavigationLink {
+                                    SettingsView()
+                                } label: {
+                                    Image(systemName: "gearshape")
                                 }
                             }
-                    }
+                        }
                 }
             }
         }
