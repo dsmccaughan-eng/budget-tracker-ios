@@ -20,7 +20,11 @@ foreach ($path in $paths) {
     $response = Invoke-WebRequest -Uri $url -UseBasicParsing -MaximumRedirection 0
     Write-Host "[OK] $url ($($response.StatusCode))" -ForegroundColor Green
     if ($path -like "*apple-app-site-association*") {
-      $json = $response.Content | ConvertFrom-Json
+      $body = $response.Content
+      if ($body -is [byte[]]) {
+        $body = [System.Text.Encoding]::UTF8.GetString($body)
+      }
+      $json = $body | ConvertFrom-Json
       $appIds = $json.applinks.details[0].appIDs
       Write-Host "     appIDs: $($appIds -join ', ')"
     }
