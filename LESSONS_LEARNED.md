@@ -90,4 +90,10 @@ Entry format
 - **Fix pattern:** One navigation stack per tab; present `AddBudgetView` in a sheet from Dashboard; pie uses monthly limits until spending exists; reload budgets on Dashboard `.task`; build number 6.
 - **Verification:** Set up budgets sheet saves; Budgets tab shows donut + category rows; Dashboard preview pie + bills section; Transactions grouped by month.
 
+### 2026-06-01 - App lock and budgets “not implemented” on device
+- **Symptom:** User reported no Face ID/PIN and broken budgets despite merged code and green Codemagic build.
+- **Root cause:** PIN used a 1×1 invisible `SecureField` that often does not focus on iOS; users never completed PIN setup so the app looked unchanged. Budget saves did not always reload UI or show errors.
+- **Fix pattern:** Visible `PINEntryField` with focus; explicit Set PIN steps; reload financial data on unlock/PIN; budget save alerts and duplicate-category guard; TestFlight build 7.
+- **Verification:** Fresh install → email sign-in → “Secure your budget” screen → enter/confirm PIN → Face ID on reopen; Set up budgets saves and pie appears.
+
 <!-- Append new entries above this line -->

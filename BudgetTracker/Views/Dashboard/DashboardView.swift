@@ -63,8 +63,18 @@ struct DashboardView: View {
                     }
                 }
 
+                if let budgetError = budgets.errorMessage {
+                    Section {
+                        Text(budgetError)
+                            .foregroundStyle(.red)
+                            .font(.footnote)
+                    }
+                }
+
                 Section("Budget overview") {
-                    if budgets.progress.isEmpty {
+                    if budgets.isLoading {
+                        ProgressView("Loading budgets…")
+                    } else if budgets.progress.isEmpty {
                         Text("Set monthly limits per category to track spending.")
                             .foregroundStyle(.secondary)
                         Button {
@@ -141,7 +151,9 @@ struct DashboardView: View {
                     .accessibilityLabel("Settings")
                 }
             }
-            .sheet(isPresented: $showAddBudget) {
+            .sheet(isPresented: $showAddBudget, onDismiss: {
+                Task { await reloadDashboardData() }
+            }) {
                 NavigationStack {
                     AddBudgetView()
                 }

@@ -147,44 +147,61 @@ struct SetPINView: View {
 
     @State private var pin = ""
     @State private var confirmPIN = ""
+    @State private var step: SetupStep = .enter
     @State private var errorMessage: String?
 
+    private enum SetupStep {
+        case enter, confirm
+    }
+
     var body: some View {
-        VStack(spacing: 20) {
+        VStack(spacing: 24) {
             Image(systemName: "lock.shield")
                 .font(.system(size: 48))
-            Text("Create App PIN")
+                .foregroundStyle(.tint)
+
+            Text("Secure your budget")
                 .font(.title2.bold())
-            Text("Use a \(AppLockPolicy.pinLength)-digit PIN. Face ID unlocks first; after several failed attempts you will use this PIN.")
+
+            Text("Create a \(AppLockPolicy.pinLength)-digit PIN. Face ID runs when you open the app; use the PIN if biometrics fail.")
                 .multilineTextAlignment(.center)
                 .foregroundStyle(.secondary)
+                .font(.subheadline)
 
-            if pin.count < AppLockPolicy.pinLength {
-                Text("Enter PIN")
-                    .font(.headline)
-                PINEntryField(pin: $pin, length: AppLockPolicy.pinLength)
+            if step == .enter {
+                PINEntryField(pin: $pin, length: AppLockPolicy.pinLength, prompt: "New PIN")
+                Button("Continue") {
+                    guard pin.count == AppLockPolicy.pinLength else { return }
+                    errorMessage = nil
+                    step = .confirm
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(pin.count != AppLockPolicy.pinLength)
             } else {
-                Text("Confirm PIN")
-                    .font(.headline)
-                PINEntryField(pin: $confirmPIN, length: AppLockPolicy.pinLength)
+                PINEntryField(pin: $confirmPIN, length: AppLockPolicy.pinLength, prompt: "Confirm PIN")
+                Button("Save PIN") {
+                    savePIN()
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(confirmPIN.count != AppLockPolicy.pinLength)
+
+                Button("Back") {
+                    confirmPIN = ""
+                    step = .enter
+                }
+                .font(.footnote)
             }
 
             if let errorMessage {
                 Text(errorMessage)
                     .font(.footnote)
                     .foregroundStyle(.red)
+                    .multilineTextAlignment(.center)
             }
         }
-        .padding()
-        .onChange(of: pin) { _, newValue in
-            if newValue.count == AppLockPolicy.pinLength {
-                errorMessage = nil
-            }
-        }
-        .onChange(of: confirmPIN) { _, newValue in
-            guard newValue.count == AppLockPolicy.pinLength else { return }
-            savePIN()
-        }
+        .padding(24)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color(.systemBackground))
     }
 
     private func savePIN() {
@@ -196,43 +213,13 @@ struct SetPINView: View {
         do {
             try lock.setPIN(pin)
             lock.unlock()
+            lock.refreshConfiguration()
             onComplete()
         } catch {
             errorMessage = error.localizedDescription
             pin = ""
             confirmPIN = ""
-        }
-    }
-}
-
-struct PINEntryField: View {
-    @Binding var pin: String
-    let length: Int
-
-    var body: some View {
-        HStack(spacing: 12) {
-            ForEach(0..<length, id: \.self) { index in
-                Circle()
-                    .strokeBorder(.secondary, lineWidth: 1)
-                    .background(Circle().fill(index < pin.count ? Color.primary : Color.clear))
-                    .frame(width: 14, height: 14)
-            }
-        }
-        .overlay {
-            SecureField("", text: $pin)
-                .keyboardType(.numberPad)
-                .textContentType(.oneTimeCode)
-                .frame(width: 1, height: 1)
-                .opacity(0.01)
-                .accessibilityLabel("PIN entry")
-        }
-        .onChange(of: pin) { _, newValue in
-            let digits = newValue.filter(\.isNumber)
-            if digits.count > length {
-                pin = String(digits.prefix(length))
-            } else {
-                pin = digits
-            }
+            step = .enter
         }
     }
 }

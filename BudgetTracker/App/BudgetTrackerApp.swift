@@ -49,6 +49,14 @@ struct BudgetTrackerApp: App {
                         appLockStore.lock()
                     }
                 }
+                .onChange(of: appLockStore.hasPIN) { _, hasPIN in
+                    guard hasPIN, appLockStore.isUnlocked, authStore.state == .authenticated else { return }
+                    Task { await reloadFinancialData() }
+                }
+                .onChange(of: appLockStore.isUnlocked) { _, unlocked in
+                    guard unlocked, appLockStore.hasPIN, authStore.state == .authenticated else { return }
+                    Task { await reloadFinancialData() }
+                }
         }
     }
 

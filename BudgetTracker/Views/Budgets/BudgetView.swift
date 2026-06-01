@@ -94,7 +94,9 @@ struct BudgetView: View {
                     }
                 }
             }
-            .sheet(isPresented: $showAddBudget) {
+            .sheet(isPresented: $showAddBudget, onDismiss: {
+                Task { await reloadBudgetsTab() }
+            }) {
                 NavigationStack {
                     AddBudgetView()
                 }
@@ -138,6 +140,12 @@ struct AddBudgetView: View {
 
     @State private var draft = BudgetDraft()
     @State private var isSaving = false
+    @State private var showSaveError = false
+
+    private var availableCategories: [String] {
+        let used = Set(budgets.budgets.map(\.category))
+        return BudgetCategories.all.filter { !used.contains($0) }
+    }
 
     var body: some View {
         Form {
@@ -148,9 +156,20 @@ struct AddBudgetView: View {
             }
 
             Section("Category") {
-                Picker("Category", selection: $draft.category) {
-                    ForEach(BudgetCategories.all, id: \.self) { category in
-                        Text(category).tag(category)
+                if availableCategories.isEmpty {
+                    Text("Every category already has a budget.")
+                        .foregroundStyle(.secondary)
+                } else {
+                    Picker("Category", selection: $draft.category) {
+                        ForEach(availableCategories, id: \.self) { category in
+                            Text(category).tag(category)
+                        }
+                    }
+                    .onAppear {
+                        if !availableCategories.contains(draft.category),
+                           let first = availableCategories.first {
+                            draft.category = first
+                        }
                     }
                 }
             }
@@ -189,6 +208,11 @@ struct AddBudgetView: View {
             }
         }
         .navigationTitle("Add Budget")
+        .alert("Could not save budget", isPresented: $showSaveError) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(budgets.errorMessage ?? "Try again.")
+        }
         .toolbar {
             ToolbarItem(placement: .cancellationAction) {
                 Button("Cancel") { dismiss() }
@@ -197,7 +221,7 @@ struct AddBudgetView: View {
                 Button(isSaving ? "Saving…" : "Save") {
                     Task { await save() }
                 }
-                .disabled(isSaving || draft.monthlyLimit <= 0)
+                .disabled(isSaving || draft.monthlyLimit <= 0 || availableCategories.isEmpty)
             }
         }
     }
@@ -210,6 +234,10 @@ struct AddBudgetView: View {
         isSaving = true
         defer { isSaving = false }
         await budgets.addBudget(draft, client: client, transactions: transactions.transactions)
-        if budgets.errorMessage == nil { dismiss() }
+        if budgets.errorMessage == nil {
+            dismiss()
+        } else {
+            showSaveError = true
+        }
     }
 }

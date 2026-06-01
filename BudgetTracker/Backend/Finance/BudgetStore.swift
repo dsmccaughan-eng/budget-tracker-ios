@@ -27,6 +27,10 @@ final class BudgetStore: ObservableObject {
 
     func addBudget(_ draft: BudgetDraft, client: SupabaseClient, transactions: [Transaction]) async {
         errorMessage = nil
+        if budgets.contains(where: { $0.category == draft.category }) {
+            errorMessage = "You already have a budget for \(draft.category)."
+            return
+        }
         do {
             let budget = Budget(
                 id: UUID(),
