@@ -1,0 +1,17 @@
+# DISABLED — GitHub backup only. Use Xcode Cloud when iOS ships.
+# See ../Optimized/docs/XCODE_CLOUD_RELEASE.md
+
+name: "(Disabled) Verify compile — use Xcode Cloud"
+
+on:
+  workflow_dispatch:
+
+jobs:
+  disabled:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - run: |
+          echo "::error::GitHub Actions macOS builds are disabled for this project."
+          echo "See Optimized/docs/XCODE_CLOUD_RELEASE.md"
+          exit 1

@@ -1,0 +1,38 @@
+# Xcode
+xcuserdata/
+*.hmap
+*.ipa
+*.dSYM.zip
+*.dSYM
+.build/
+DerivedData/
+
+# Secrets — never commit
+Config/SECRETS.local.md
+Config/LocalAPIKeys.plist
+pkg.xcconfig
+*.p12
+*.key
+*.cer
+*.mobileprovision
+.env
+.env.*
+
+# Generated (optional commit of .xcodeproj if using Xcode Cloud onboarding)
+# BudgetTracker.xcodeproj
+
+# Supabase local
+.supabase/
+supabase/.temp/
+
+# Signing (local only)
+signing/
+
+# IDE
+.DS_Store
+.cursor/
+.claude/
+
+# Archives
+*.xcarchive
+build/

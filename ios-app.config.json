@@ -1,0 +1,38 @@
+{
+    "slug":  "budgettracker",
+    "folder":  "BudgetTracker",
+    "displayName":  "Budget Tracker",
+    "githubRepo":  "dsmccaughan-eng/budget-tracker-ios",
+    "bundleId":  "com.optimized.budgettracker",
+    "teamId":  "CHHWVGCKG4",
+    "xcodeScheme":  "BudgetTracker",
+    "xcodeProject":  "BudgetTracker.xcodeproj",
+    "ascAppId":  "6775334574",
+    "ascKeyId":  "N99V63R65U",
+    "ascIssuerId":  "aac249cb-4e46-49a0-832f-446a6bdba91d",
+    "buildNumberOffset":  0,
+    "pkgXcconfigKeys":  [
+                            "GEMINI_API_KEY",
+                            "SUPABASE_URL",
+                            "SUPABASE_ANON_KEY"
+                        ],
+    "codemagic":  {
+                      "appId":  "6a1cf17dfb8d45d293dc0a2c",
+                      "workflowId":  "budgettracker-testflight",
+                      "workflowName":  "Budget Tracker TestFlight",
+                      "secretsGroup":  "optimized_secrets",
+                      "groupId":  "6a1cf18b4220c3f8931d8a38"
+                  },
+    "profiles":  [
+                     {
+                         "env":  "CM_PROVISIONING_PROFILE_MAIN",
+                         "file":  "BudgetTracker_Distribution.mobileprovision",
+                         "ascName":  "Budget Tracker Distribution",
+                         "bundleId":  "com.optimized.budgettracker",
+                         "exportProfileName":  "Budget Tracker Distribution"
+                     }
+                 ],
+    "githubSigningSecrets":  {
+                                 "APP_PROFILE":  "DIST_PROVISIONING_PROFILE_BASE64"
+                             }
+}

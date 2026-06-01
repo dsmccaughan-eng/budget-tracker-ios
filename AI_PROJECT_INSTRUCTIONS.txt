@@ -1,0 +1,260 @@
+Budget Tracker Project AI Instructions
+Last updated: 2026-05-31
+
+Repo root (REPO_ROOT)
+- Windows: `C:\Users\dsmcc\Projects\Users\m1\Desktop\BudgetTracker`
+- All signing, archives, and config live inside REPO_ROOT (not the parent Desktop folder).
+- Shared TestFlight/Codemagic: `../ios-build/` + `.\ios-build\sync-to-repos.ps1` from Desktop; config in `ios-app.config.json` (from `ios-build/apps/budgettracker.json`).
+- `signing/certs/` — `.p8`, `.p12`, distribution cert/key (gitignored; create when TestFlight is ready)
+- `signing/profiles/` — `BudgetTracker_Distribution.mobileprovision` (gitignored)
+- `pkg.xcconfig` — API keys + SPM signing override at repo root (gitignored; copy from `pkg.xcconfig.example`)
+- `ExportOptions.plist` — manual TestFlight export at repo root (add when TestFlight workflow ships)
+- `build/` — local `BudgetTracker.xcarchive` and `BudgetTrackerExport/` outputs (gitignored)
+- `Config/SECRETS.local.md` — Plaid, Supabase, Gemini, Apple (gitignored)
+- `Config/LocalAPIKeys.plist` — DEBUG Simulator keys (gitignored; from `LocalAPIKeys.plist.example`)
+- Sibling reference (patterns only): `../Optimized/` and shared `../ios-build/` — do **not** share Supabase project, bundle IDs, or signing profiles.
+
+Agent read order
+1) `AI_PROJECT_INSTRUCTIONS.txt` (this file)
+2) `LESSONS_LEARNED.md` (resolved bugs — do not re-break fixes)
+3) `docs/PROJECT_BRIEF.md` (full spec, models, build phases)
+4) `Config/SECRETS.local.md` (gitignored credentials)
+
+Purpose
+- Keep Plaid sync, categorization, budgets, goals, and financial UI behavior consistent.
+- Preserve user corrections (categories, merchant rules, splits) and never expose bank tokens on device.
+- Ship a reliable personal finance app with minimal taps and actionable errors.
+
+Product North Star
+- Part of the broader life-optimization vision (see `../Optimized/AI_PROJECT_INSTRUCTIONS.txt`); **Budget Tracker is the finance domain**.
+- Primary objective: maximize usefulness while minimizing manual input (sync, rules, defaults over forms).
+- Non-negotiable quality bar: reliability, data integrity, and security over feature count.
+- Use Gemini where it materially helps (unknown merchants, receipts, insights); always keep deterministic fallbacks.
+
+Execution Priorities
+1) Reliability first
+- Prevent silent failures; expose actionable recovery states; never lose user category/rule corrections.
+
+2) Low-friction automation
+- Prefer Plaid sync + merchant rules + curated `merchant_db` before asking the user to categorize.
+
+3) Practical AI integration
+- Gemini for receipts and insights; server-side categorization on sync when possible; client fallbacks when AI fails.
+
+4) Incremental delivery
+- Edge Functions verified on Plaid Sandbox before relying on iOS flows; compile on CI before TestFlight.
+
+Core Product Rules
+1) Plaid and secrets
+- iOS → Supabase Edge Function → Plaid only. Never call Plaid API from iOS.
+- Never store Plaid `access_token`, `client_secret`, or full account numbers on device (mask = last 4 only).
+- Plaid `access_token` lives in Supabase Vault only.
+- Plaid production readiness: follow `docs/PLAID_PRODUCTION_CHECKLIST.md` (webhooks, update mode, OAuth redirect URI, item removal).
+- Edge Functions: 7 total — link, update-link, exchange, accounts, sync, remove-item, webhook (webhook uses Plaid JWT verification, not Supabase JWT).
+
+2) Auth and privacy
+- Face ID / Touch ID required before any financial screen (cold open and return from background).
+- `NSAllowsArbitraryLoads` = false in Info.plist.
+
+3) Categorization priority (locked)
+- (1) `merchant_rules` (user) → (2) `merchant_db` (seed) → (3) Gemini JSON → (4) Plaid raw category.
+- Category enum is fixed (17 categories in PROJECT_BRIEF); validate AI JSON before saving.
+
+4) Tabs and information architecture
+- Bottom tabs: Dashboard, Transactions, Budgets, Goals, Insights.
+- Bank link via Edge Functions only (`PlaidLinkView`); settings (rules, notifications) from gear / Profile path.
+
+5) Budgets and goals
+- Budget math and alert thresholds must stay deterministic and tested (`BudgetMath`, `BudgetAlertEngine`).
+- Debt payoff strategies (avalanche/snowball) are client-side models; do not send debt balances to third parties.
+
+6) Stability expectations
+- Sync and link errors must surface in UI (`TransactionStore.errorMessage`, Plaid link status).
+- User-edited categories must persist and not be overwritten on sync unless still `Other`.
+
+Engineering Standards (backend, tests, structure)
+1) Test-driven backend development
+- “Backend” = data/services under `BudgetTracker/Backend/` (AI, Auth, Cloud, Core, Finance, Plaid).
+- For new pure logic (categorization, budget math, goals, debt, cash flow, subscriptions): add or update tests in `BudgetTrackerTests/Backend/<domain>/` **first**, then implement until tests pass.
+- UI-only changes in `BudgetTracker/Views/` need tests when they embed pure logic; prefer extracting logic into `Backend/Finance/`.
+
+2) File size (AI-readable)
+- Target ≤ 400 lines per Swift file; hard stop at 500 unless splitting would harm clarity.
+- When a file exceeds 400 lines, split by responsibility (models vs store vs persistence vs API client).
+- Run `powershell -File scripts/check-file-line-limits.ps1` before large merges.
+
+3) Naming and layout
+- Use descriptive file and folder names so agents can find code by domain.
+- Backend layout (do **not** recreate `Services/`):
+  - `Backend/AI/` — Gemini client, `AIResponseNormalizer`
+  - `Backend/Auth/` — Supabase session (`AuthStore`)
+  - `Backend/Cloud/` — `SupabaseService` + extensions (`+Finance`, `+Goals`)
+  - `Backend/Core/` — `APIKeys`, config resolution (copy pattern from Optimized)
+  - `Backend/Finance/` — stores, budget/goals/cash-flow engines
+  - `Backend/Plaid/` — LinkKit bridge only (no secret-bearing API calls)
+  - `BudgetTracker/Models/` — Codable types
+  - `BudgetTracker/Views/` — SwiftUI by feature
+  - `supabase/functions/` — Plaid Edge Functions (Deno)
+  - `supabase/migrations/` — Postgres schema + RLS
+- After moving files: `git push` for backup; builds via **Xcode Cloud** when shipping (see `../Optimized/docs/XCODE_CLOUD_RELEASE.md`).
+
+4) Regenerate Xcode project (no Mac required)
+- `project.yml` is source of truth; Swift under `BudgetTracker/` is picked up by XcodeGen.
+- You do **not** need a Mac locally. After editing on Windows: **`git push`** (GitHub backup). **Do not** use GitHub Actions macOS workflows (disabled — same policy as Optimized).
+- Optional on Mac only: `cd <REPO_ROOT> && xcodegen generate`.
+- Line budget on Windows: `powershell -File scripts/check-file-line-limits.ps1`
+
+5) Supabase backend (Phase 1 before iOS secrets work)
+- Project ref: `dldbcbituquxedlkeefu` (URL: `https://dldbcbituquxedlkeefu.supabase.co`) — **not** the Optimized fitness project.
+- Link/deploy from Windows: `scripts/supabase-auto-connect.ps1`, `scripts/deploy-backend.ps1`, `scripts/test-plaid-sandbox.ps1`.
+- Store Plaid secret + service role in Supabase secrets / Vault — never in repo or iOS.
+
+AI Agent Operating Notes
+- Before major edits, read this file, `LESSONS_LEARNED.md`, and `docs/PROJECT_BRIEF.md`.
+- Update this file when important behavior decisions are introduced (append to **Update Log**).
+- Avoid deleting or rewriting prior guidance; append concise updates.
+- Prefer “go-bys” from this repo or `../Optimized/` (APIKeys, Supabase client, Gemini JSON, GHA, XcodeGen) before inventing new patterns.
+- When using a go-by, adapt minimally; do **not** copy Optimized fitness domain code or Supabase project.
+- If no suitable go-by exists, state that briefly and implement the smallest safe custom solution.
+- If requirements are ambiguous, ask focused follow-up questions before implementation.
+- Provide direct pushback when a proposal risks security regressions, silent data loss, or unnecessary CI cost.
+- Think creatively, but favor repeatable, testable designs that reduce future maintenance mistakes.
+- When proposing features, optimize for “maximum user value per unit of user effort.”
+
+Documentation duties (agents)
+- After fixing a non-trivial bug: append one entry to `LESSONS_LEARNED.md` (symptom, cause, fix, verification).
+- After a product/behavior decision: append one line to **Update Log** below.
+- Do not duplicate `PROJECT_BRIEF.md` here — link or one-line summary only.
+- Do not paste secrets into this file or `LESSONS_LEARNED.md`.
+
+Update Log
+- 2026-05-31: Initial AI instructions; mandate `LESSONS_LEARNED.md` + this file alongside `PROJECT_BRIEF.md`.
+- 2026-05-31: Repo scaffold — Supabase Edge Functions, migrations, merchant seed, XcodeGen shell, Face ID gate, Phases 1–6 iOS features.
+- 2026-05-31: Supabase project ref corrected to `dldbcbituquxedlkeefu` (brief had typo `dldbcbituxuxedlkeefu`).
+- 2026-05-31: Expanded this file to mirror Optimized agent/CI/release process (Windows push, GHA verify, pkg.xcconfig, TestFlight prep).
+- 2026-05-31: **GitHub backup only**; TestFlight via **Codemagic** (see `docs/CODEMAGIC.md`, synced from `../ios-build/`).
+- 2026-05-31: Plaid hardening — webhooks with JWT verification, update mode, item removal, audit log, rate limits; see `docs/PLAID_PRODUCTION_CHECKLIST.md`.
+
+Security — credential rotation (required if secrets were ever committed or pasted in chat)
+- Rotate Plaid sandbox/development secret, Supabase `service_role`, Gemini key, and Apple app-specific password if exposed.
+- Rotate Supabase CLI PAT (`SUPABASE_ACCESS_TOKEN`) if pasted in chat or committed.
+- Prefer local-only secrets: `Config/SECRETS.local.md`, `pkg.xcconfig`, `LocalAPIKeys.plist` — never commit real values.
+
+Release API keys (TestFlight / Release builds)
+- Resolution order (copy Optimized pattern in `BudgetTracker/Backend/Core/APIKeys.swift`):
+  Profile/user override in UserDefaults → env → Info.plist (from xcconfig at archive) → `LocalAPIKeys.plist` (**DEBUG only**).
+- Reject placeholders containing `$(…)`, `YOUR_*`, or empty strings.
+- Release archives must set real keys in `pkg.xcconfig` so Info.plist gets `GEMINI_API_KEY`, `SUPABASE_URL`, `SUPABASE_ANON_KEY`.
+- `scripts/ci-write-pkg-xcconfig.sh` writes CI pkg.xcconfig from GitHub Actions secrets.
+- Example local file: copy `pkg.xcconfig.example` → `pkg.xcconfig` (gitignored).
+
+Release / TestFlight — working build/upload sequence (when TestFlight workflow exists)
+
+Mirror `../Optimized/AI_PROJECT_INSTRUCTIONS.txt` and `../Optimized/.github/workflows/testflight.yml`.
+Budget Tracker uses a **single iOS app target** (no Watch/Widget). Adapt names only:
+
+| Optimized | Budget Tracker |
+|-----------|----------------|
+| `Optimized.xcodeproj` | `BudgetTracker.xcodeproj` |
+| scheme `Optimized` | scheme `BudgetTracker` |
+| `com.optimizedapp.app` | `com.budgettracker.app` |
+| profile `Optimized Distribution` | profile `Budget Tracker Distribution` |
+
+Agents: do not modify archive/export command flags in workflows without explicit user approval.
+
+## Step 1 — Unlock keychain (required every Mac SSH session; local Mac only)
+security unlock-keychain -p "<KEYCHAIN_PASSWORD>" ~/Library/Keychains/login.keychain-db
+security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "<KEYCHAIN_PASSWORD>" ~/Library/Keychains/login.keychain-db
+
+## Step 2 — Increment build number (must be higher than last upload)
+# Edit project.yml CURRENT_PROJECT_VERSION, then:
+cd <REPO_ROOT> && xcodegen generate
+
+## Step 3 — Archive
+xcodebuild \
+  -project BudgetTracker.xcodeproj \
+  -scheme BudgetTracker \
+  -configuration Release \
+  -archivePath build/BudgetTracker.xcarchive \
+  archive \
+  -allowProvisioningUpdates \
+  DEVELOPMENT_TEAM=CHHWVGCKG4 \
+  CODE_SIGN_IDENTITY="Apple Distribution: Dylan McCaughan (CHHWVGCKG4)" \
+  CODE_SIGN_STYLE=Manual \
+  -xcconfig pkg.xcconfig
+
+## Step 4 — Export
+xcodebuild \
+  -exportArchive \
+  -archivePath build/BudgetTracker.xcarchive \
+  -exportPath build/BudgetTrackerExport \
+  -exportOptionsPlist ExportOptions.plist
+
+## Step 5 — Upload
+xcrun altool \
+  --upload-app \
+  -f build/BudgetTrackerExport/BudgetTracker.ipa \
+  -t ios \
+  -u <APPLE_ID_EMAIL> \
+  --password "<APP_SPECIFIC_PASSWORD>"
+
+## Why -xcconfig is mandatory
+pkg.xcconfig contains:
+  CODE_SIGNING_ALLOWED = NO
+  CODE_SIGNING_REQUIRED = NO
+  CODE_SIGN_IDENTITY =
+  PROVISIONING_PROFILE_SPECIFIER =
+
+Without it, Swift packages (Supabase, LinkKit) inherit distribution signing flags and fail with “does not support provisioning profiles”.
+Per-target signing is in `project.yml`:
+  - App → `Budget Tracker Distribution` profile
+
+## Critical Rules
+- NEVER pass PROVISIONING_PROFILE_SPECIFIER on the xcodebuild command line
+- NEVER remove `-xcconfig pkg.xcconfig` from Release archive
+- ALWAYS unlock keychain before archive (Step 1) on local Mac
+- ALWAYS run `xcodegen generate` after editing `project.yml` (Step 2)
+- ALWAYS increment `CURRENT_PROJECT_VERSION` before each TestFlight upload
+- Build number must be strictly increasing — check App Store Connect first
+
+## ExportOptions.plist (create at repo root when TestFlight is enabled)
+{
+  method = app-store-connect;
+  teamID = CHHWVGCKG4;
+  signingStyle = manual;
+  stripSwiftSymbols = true;
+  provisioningProfiles = {
+    "com.budgettracker.app" = "Budget Tracker Distribution";
+  };
+}
+
+## Windows development + release (GitHub backup + Xcode Cloud)
+
+### GitHub — backup only
+- Remote: https://github.com/dsmccaughan-eng/budget-tracker (private; branch `main`).
+- Push from Windows: `git add . && git commit -m "..." && git push origin main`.
+- Policy: `../Optimized/docs/GITHUB_POLICY.md` — **macOS GitHub Actions workflows are disabled** (stub only).
+
+### TestFlight / builds — Xcode Cloud (when ready to ship)
+- Follow `../Optimized/docs/XCODE_CLOUD_RELEASE.md` for App Store Connect setup.
+- Add `ci_scripts/` (copy from Optimized) before first archive.
+- Release env vars (`GEMINI_API_KEY`, `SUPABASE_URL`, `SUPABASE_ANON_KEY`) in **Xcode Cloud**, not GitHub.
+- `DEVELOPMENT_TEAM`: CHHWVGCKG4; bundle ID: `com.budgettracker.app`.
+
+### XcodeGen
+- Source of truth: `project.yml`. Xcode Cloud can run `xcodegen generate` via `ci_post_clone.sh`.
+- Commit `BudgetTracker.xcodeproj` with shared scheme before Xcode Cloud onboarding.
+
+### Common failures
+| Symptom | Fix |
+|--------|-----|
+| Xcode Cloud scheme not found | Commit shared scheme in `.xcodeproj` |
+| Supabase link “Not Found” | Project ref `dldbcbituquxedlkeefu`; valid PAT in `SECRETS.local.md` |
+| Plaid Edge Function 401 | Use `scripts/test-plaid-sandbox.ps1` with user JWT |
+| Duplicate TestFlight build | Bump `CURRENT_PROJECT_VERSION` in `project.yml` |
+
+### Agents on Windows
+- Edit Swift, `project.yml`, `supabase/`, scripts, docs; **push for backup only**.
+- **Never** dispatch GitHub macOS workflows unless user explicitly re-enables them.
+- Backend deploy: `.\scripts\deploy-backend.ps1` after `supabase link`.
+- Do not commit `pkg.xcconfig`, `LocalAPIKeys.plist`, `Config/SECRETS.local.md`, certs, or `.p12` files.

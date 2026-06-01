@@ -1,0 +1,97 @@
+# Budget Tracker TestFlight - generated from Desktop/ios-build (do not edit by hand).
+# Update ios-build/apps/budgettracker.json then run: .\ios-build\sync-to-repos.ps1
+
+workflows:
+  budgettracker-testflight:
+    name: Budget Tracker TestFlight
+    max_build_duration: 120
+    instance_type: mac_mini_m2
+    environment:
+      groups:
+        - optimized_secrets
+        - budgettracker_secrets
+      vars:
+        XCODE_SCHEME: BudgetTracker
+        BUNDLE_ID: com.optimized.budgettracker
+        APP_STORE_APPLE_ID: "6775334574"
+        CM_CLONE_DEPTH: "1"
+        CM_PRE_IPA_STEP_TIMEOUT_SEC: "60"
+      xcode: "26.4"
+    scripts:
+      - name: Install XcodeGen
+        script: |
+          set -e
+          chmod +x scripts/ci-step-timeout.sh
+          scripts/ci-step-timeout.sh "$CM_PRE_IPA_STEP_TIMEOUT_SEC" "Install XcodeGen" sh -c '
+            if ! command -v xcodegen >/dev/null 2>&1; then
+              brew install xcodegen
+            fi
+          '
+      - name: Set up manual code signing
+        script: |
+          set -e
+          scripts/ci-step-timeout.sh "$CM_PRE_IPA_STEP_TIMEOUT_SEC" "Set up manual code signing" sh -c '
+            for v in CM_CERTIFICATE CM_CERTIFICATE_PASSWORD CM_PROVISIONING_PROFILE_BUDGET; do
+              if [ -z "${!v:-}" ]; then
+                echo "Missing $v in optimized_secrets or app variables. Set CM_PROVISIONING_PROFILE_BUDGET for this app."
+                exit 1
+              fi
+            done
+            keychain initialize
+            chmod +x scripts/install-mobileprovision.sh
+            export CM_PROVISIONING_PROFILE_MAIN="$CM_PROVISIONING_PROFILE_BUDGET"
+            sh scripts/install-mobileprovision.sh "$CM_PROVISIONING_PROFILE_MAIN"
+            echo "$CM_CERTIFICATE" | base64 --decode > /tmp/distribution.p12
+            keychain add-certificates --certificate /tmp/distribution.p12 --certificate-password "$CM_CERTIFICATE_PASSWORD"
+          '
+      - name: Set build number for App Store
+        script: |
+          set -e
+          BUILD=$((BUILD_NUMBER + 0))
+          scripts/ci-step-timeout.sh "$CM_PRE_IPA_STEP_TIMEOUT_SEC" "Set build number" sh -c "
+            sed -i '' \"s/CURRENT_PROJECT_VERSION: .*/CURRENT_PROJECT_VERSION: \\\"$BUILD\\\"/\" project.yml
+            echo \"CURRENT_PROJECT_VERSION=$BUILD\"
+          "
+      - name: Generate Xcode project
+        script: |
+          set -e
+          scripts/ci-step-timeout.sh "$CM_PRE_IPA_STEP_TIMEOUT_SEC" "Generate Xcode project" xcodegen generate
+      - name: Resolve Swift packages
+        script: |
+          set -e
+          scripts/ci-step-timeout.sh "$CM_PRE_IPA_STEP_TIMEOUT_SEC" "Resolve Swift packages" \
+            xcodebuild -project BudgetTracker.xcodeproj -scheme "$XCODE_SCHEME" -resolvePackageDependencies
+      - name: Release API keys (pkg.xcconfig)
+        script: |
+          set -e
+          scripts/ci-step-timeout.sh "$CM_PRE_IPA_STEP_TIMEOUT_SEC" "Release API keys (pkg.xcconfig)" sh -c '
+            chmod +x scripts/ci-write-pkg-xcconfig.sh
+            sh scripts/ci-write-pkg-xcconfig.sh pkg.xcconfig
+          '
+      - name: Export options for IPA
+        script: |
+          set -e
+          scripts/ci-step-timeout.sh "$CM_PRE_IPA_STEP_TIMEOUT_SEC" "Export options for IPA" \
+            cp ExportOptions.plist "$HOME/export_options.plist"
+      - name: Verify signing before archive
+        script: |
+          set -e
+          scripts/ci-step-timeout.sh "$CM_PRE_IPA_STEP_TIMEOUT_SEC" "Verify signing before archive" \
+            sh scripts/verify-ci-signing.sh
+      - name: Build IPA
+        script: |
+          xcode-project build-ipa \
+            --project "BudgetTracker.xcodeproj" \
+            --scheme "$XCODE_SCHEME" \
+            --export-options-plist "$HOME/export_options.plist" \
+            --archive-xcargs "-xcconfig pkg.xcconfig DEVELOPMENT_TEAM=CHHWVGCKG4 CODE_SIGN_STYLE=Manual"
+    artifacts:
+      - build/ios/ipa/*.ipa
+      - /tmp/xcodebuild_logs/*.log
+    publishing:
+      app_store_connect:
+        api_key: $APP_STORE_CONNECT_PRIVATE_KEY
+        key_id: $APP_STORE_CONNECT_KEY_IDENTIFIER
+        issuer_id: $APP_STORE_CONNECT_ISSUER_ID
+        submit_to_testflight: true
+

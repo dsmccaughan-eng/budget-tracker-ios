@@ -1,0 +1,11 @@
+// Copy to pkg.xcconfig in repo root (never commit pkg.xcconfig).
+// Keys from ios-app.config.json pkgXcconfigKeys
+
+CODE_SIGNING_ALLOWED = NO
+CODE_SIGNING_REQUIRED = NO
+CODE_SIGN_IDENTITY =
+PROVISIONING_PROFILE_SPECIFIER =
+
+GEMINI_API_KEY = your_GEMINI_API_KEY_here
+SUPABASE_URL = your_SUPABASE_URL_here
+SUPABASE_ANON_KEY = your_SUPABASE_ANON_KEY_here
