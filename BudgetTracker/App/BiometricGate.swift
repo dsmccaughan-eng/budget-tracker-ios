@@ -12,9 +12,12 @@ final class BiometricGateStore: ObservableObject {
         context.localizedCancelTitle = "Cancel"
         var error: NSError?
 
-        let policy: LAPolicy = context.canEvaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, error: &error)
-            ? .deviceOwnerAuthenticationWithBiometrics
-            : .deviceOwnerAuthentication
+        let hasFaceIDUsageText = !(Bundle.main.object(forInfoDictionaryKey: "NSFaceIDUsageDescription") as? String)?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .isEmpty ?? false
+        let canUseBiometrics = hasFaceIDUsageText &&
+            context.canEvaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, error: &error)
+        let policy: LAPolicy = canUseBiometrics ? .deviceOwnerAuthenticationWithBiometrics : .deviceOwnerAuthentication
 
         guard context.canEvaluatePolicy(policy, error: &error) else {
             lastError = error?.localizedDescription ?? "Device authentication unavailable."
@@ -65,11 +68,6 @@ struct BiometricGateView<Content: View>: View {
                     .buttonStyle(.borderedProminent)
                 }
                 .padding()
-            }
-        }
-        .task {
-            if !gate.isUnlocked {
-                await gate.authenticate()
             }
         }
         .onChange(of: scenePhase) { _, newPhase in

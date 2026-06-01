@@ -27,24 +27,34 @@ final class AuthStore: ObservableObject {
     @Published var errorMessage: String?
 
     private let client: SupabaseClient
+    private let hasBackendConfig: Bool
 
     init(client: SupabaseClient? = nil) {
         if let client {
             self.client = client
+            hasBackendConfig = true
         } else if let url = SupabaseConfig.url, SupabaseConfig.isConfigured {
             self.client = SupabaseClient(
                 supabaseURL: url,
                 supabaseKey: SupabaseConfig.anonKey
             )
+            hasBackendConfig = true
         } else {
             self.client = SupabaseClient(
                 supabaseURL: URL(string: "https://placeholder.supabase.co")!,
                 supabaseKey: "placeholder"
             )
+            hasBackendConfig = false
         }
     }
 
     func bootstrap() async {
+        guard hasBackendConfig else {
+            userId = nil
+            state = .unauthenticated
+            errorMessage = "Missing backend configuration. Add Supabase keys in Settings."
+            return
+        }
         do {
             let session = try await client.auth.session
             userId = session.user.id.uuidString
@@ -57,6 +67,11 @@ final class AuthStore: ObservableObject {
 
     func signIn(email: String, password: String) async {
         errorMessage = nil
+        guard hasBackendConfig else {
+            state = .unauthenticated
+            errorMessage = "Missing backend configuration. Add Supabase keys in Settings."
+            return
+        }
         do {
             let session = try await client.auth.signIn(email: email, password: password)
             userId = session.user.id.uuidString
@@ -69,6 +84,11 @@ final class AuthStore: ObservableObject {
 
     func signUp(email: String, password: String) async {
         errorMessage = nil
+        guard hasBackendConfig else {
+            state = .unauthenticated
+            errorMessage = "Missing backend configuration. Add Supabase keys in Settings."
+            return
+        }
         do {
             let response = try await client.auth.signUp(email: email, password: password)
             if let session = response.session {
