@@ -120,6 +120,12 @@ Entry format
 - **Fix:** Use `Color.secondary` / `Color.red` (and `plotAreaFrame` not `plotFrame` on chart overlay). Rebuild with bumped `CURRENT_PROJECT_VERSION`.
 - **Verification:** Codemagic unit-test step + archive succeed.
 
+### 2026-06-02 - TestFlight Test Information empty; build on ASC but not in TestFlight app
+- **Symptom:** User cannot save Test Information; TestFlight app shows no Budget Tracker build.
+- **Root cause:** `betaAppLocalizations` count was **0** (nothing to edit in API/UI). Build **32** was already `VALID` / `READY_FOR_BETA_TESTING` internally. ASC API key `N99V63R65U` returns **403** on `POST betaAppLocalizations` and `PATCH betaAppReviewDetails` (upload-only role); Account Holder must complete Test Information in browser once.
+- **Fix:** ASC → TestFlight → Test Information → English (U.S.) → Beta App Description + Feedback Email + Beta App Review contact. Internal install: TestFlight app signed in as `dsmccaughan@gmail.com` (Account Holder). Optional: `node scripts/setup-asc-testflight-info.mjs` after Admin-capable key or `ASC_CONTACT_PHONE` set.
+- **Verification:** `node scripts/setup-asc-testflight-info.mjs --inspect` shows `betaAppLocalizations` ≥ 1; build `internalBuildState` = `READY_FOR_BETA_TESTING`.
+
 ### 2026-06-02 - Codemagic “distribution failed” but IPA uploaded (TestFlight metadata)
 - **Symptom:** Build IPA succeeded; App Store Connect distribution failed on build 14 (`6a1ddadc`).
 - **Root cause:** `submit_to_testflight: true` tried external beta review without Beta App Information (feedback email) or Beta App Review contact (name, phone, email) in ASC for app `6775334574`.
@@ -127,3 +133,9 @@ Entry format
 - **Verification:** ASC shows processed build; internal testers can install after test info + tester group.
 
 <!-- Append new entries above this line -->
+
+### 2026-06-02 - Budget tab lag (repeated transaction scans)
+- **Symptom:** Budgets tab stuttered scrolling and month changes with thousands of synced transactions.
+- **Root cause:** `BudgetView` recomputed `progressRows` and per-row `recentMerchantSummary` on every SwiftUI body pass (O(budgets × months × transactions)); tab `.task` also re-fetched all transactions each visit.
+- **Fix:** `BudgetSpendIndex` single-pass index, `BudgetStore.monthRows` cache keyed by month/budgets, light tab reload; unified `SetupBudgetPlanView` for total + category breakdown with auto colors.
+- **Verification:** `BudgetSpendIndexTests`; scroll/month navigation should stay responsive with full transaction history loaded.

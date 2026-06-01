@@ -5,29 +5,29 @@ struct BudgetView: View {
     @EnvironmentObject private var transactions: TransactionStore
     @EnvironmentObject private var budgets: BudgetStore
 
-    @State private var showAddBudget = false
+    @State private var showBudgetPlan = false
     @State private var budgetToEdit: Budget?
     @State private var selectedMonth = BudgetMath.startOfMonth(Date())
 
+    private var monthRows: [BudgetMonthRow] {
+        budgets.monthRows(referenceDate: selectedMonth, transactions: transactions.transactions)
+    }
+
     private var monthProgress: [BudgetProgress] {
-        BudgetMath.progressRows(
-            budgets: budgets.budgets,
-            transactions: transactions.transactions,
-            referenceDate: selectedMonth
-        )
+        monthRows.map(\.progress)
     }
 
     var body: some View {
         NavigationStack {
             List {
-                if budgets.progress.isEmpty {
+                if budgets.budgets.isEmpty {
                     ContentUnavailableView {
                         Label("No budgets yet", systemImage: "dollarsign.circle")
                     } description: {
-                        Text("Set a monthly spending limit for each category (Groceries, Dining, etc.) to track progress.")
+                        Text("Set a monthly total and we’ll split it across every spending category automatically.")
                     } actions: {
-                        Button("Add monthly budget") {
-                            showAddBudget = true
+                        Button("Set up budget plan") {
+                            showBudgetPlan = true
                         }
                         .buttonStyle(.borderedProminent)
                     }
@@ -68,22 +68,20 @@ struct BudgetView: View {
                     }
 
                     Section(monthSectionTitle) {
-                        ForEach(budgets.budgets) { budget in
-                            if let row = monthProgress.first(where: { $0.category == budget.category }) {
-                                Button {
+                        ForEach(monthRows) { row in
+                            Button {
+                                if let budget = budgets.budgets.first(where: { $0.category == row.progress.category }) {
                                     budgetToEdit = budget
-                                } label: {
-                                    BudgetCategorySpendRow(
-                                        progress: row,
-                                        recentSummary: BudgetMath.recentMerchantSummary(
-                                            transactions: transactions.transactions,
-                                            category: row.category,
-                                            referenceDate: selectedMonth
-                                        )
-                                    )
                                 }
-                                .buttonStyle(.plain)
-                                .contextMenu {
+                            } label: {
+                                BudgetCategorySpendRow(
+                                    progress: row.progress,
+                                    recentSummary: row.recentSummary
+                                )
+                            }
+                            .buttonStyle(.plain)
+                            .contextMenu {
+                                if let budget = budgets.budgets.first(where: { $0.category == row.progress.category }) {
                                     Button("Edit budget", systemImage: "pencil") {
                                         budgetToEdit = budget
                                     }
@@ -96,7 +94,10 @@ struct BudgetView: View {
                         .onDelete { indexSet in
                             Task {
                                 for index in indexSet {
-                                    await deleteBudget(budgets.budgets[index])
+                                    let category = monthRows[index].progress.category
+                                    if let budget = budgets.budgets.first(where: { $0.category == category }) {
+                                        await deleteBudget(budget)
+                                    }
                                 }
                             }
                         }
@@ -117,20 +118,20 @@ struct BudgetView: View {
                     if !budgets.budgets.isEmpty {
                         EditButton()
                     }
-                    Button("Add", systemImage: "plus") {
-                        showAddBudget = true
+                    Button("Plan", systemImage: budgets.budgets.isEmpty ? "plus" : "slider.horizontal.3") {
+                        showBudgetPlan = true
                     }
                 }
             }
-            .sheet(isPresented: $showAddBudget, onDismiss: {
-                Task { await reloadBudgetsTab() }
+            .sheet(isPresented: $showBudgetPlan, onDismiss: {
+                budgets.recomputeProgress(transactions: transactions.transactions)
             }) {
                 NavigationStack {
-                    AddBudgetView()
+                    SetupBudgetPlanView()
                 }
             }
             .sheet(item: $budgetToEdit, onDismiss: {
-                Task { await reloadBudgetsTab() }
+                budgets.recomputeProgress(transactions: transactions.transactions)
             }) { budget in
                 NavigationStack {
                     EditBudgetView(budget: budget)
@@ -140,7 +141,7 @@ struct BudgetView: View {
                 await reloadBudgetsTab()
             }
             .task {
-                await reloadBudgetsTab()
+                await reloadBudgetsTabIfNeeded()
             }
         }
     }
@@ -179,110 +180,21 @@ struct BudgetView: View {
         )
     }
 
+    private func reloadBudgetsTabIfNeeded() async {
+        guard let client = auth.activeSupabaseClient else { return }
+        if budgets.budgets.isEmpty || budgets.isLoading {
+            await budgets.reload(client: client, transactions: transactions.transactions)
+        } else {
+            budgets.recomputeProgress(transactions: transactions.transactions)
+        }
+    }
+
     private func reloadBudgetsTab() async {
         guard let client = auth.activeSupabaseClient else { return }
-        await transactions.loadAll(client: client)
+        if transactions.transactions.isEmpty {
+            await transactions.loadAll(client: client)
+        }
         await budgets.reload(client: client, transactions: transactions.transactions)
-    }
-}
-
-struct AddBudgetView: View {
-    @EnvironmentObject private var auth: AuthStore
-    @EnvironmentObject private var transactions: TransactionStore
-    @EnvironmentObject private var budgets: BudgetStore
-    @Environment(\.dismiss) private var dismiss
-
-    @State private var draft = BudgetDraft()
-    @State private var isSaving = false
-    @State private var showSaveError = false
-
-    private var availableCategories: [String] {
-        let used = Set(budgets.budgets.map(\.category))
-        return BudgetCategories.all.filter { !used.contains($0) }
-    }
-
-    var body: some View {
-        Form {
-            Section {
-                Text("Choose a category and monthly limit. Spending from synced transactions counts toward each budget.")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-            }
-
-            Section("Category") {
-                if availableCategories.isEmpty {
-                    Text("Every category already has a budget.")
-                        .foregroundStyle(.secondary)
-                } else {
-                    Picker("Category", selection: $draft.category) {
-                        ForEach(availableCategories, id: \.self) { category in
-                            Text(category).tag(category)
-                        }
-                    }
-                    .onAppear {
-                        if !availableCategories.contains(draft.category),
-                           let first = availableCategories.first {
-                            draft.category = first
-                        }
-                    }
-                }
-            }
-
-            budgetLimitSections
-
-            if let errorMessage = budgets.errorMessage {
-                Section {
-                    Text(errorMessage)
-                        .foregroundStyle(.red)
-                }
-            }
-        }
-        .navigationTitle("Add Budget")
-        .alert("Could not save budget", isPresented: $showSaveError) {
-            Button("OK", role: .cancel) {}
-        } message: {
-            Text(budgets.errorMessage ?? "Try again.")
-        }
-        .toolbar {
-            ToolbarItem(placement: .cancellationAction) {
-                Button("Cancel") { dismiss() }
-            }
-            ToolbarItem(placement: .confirmationAction) {
-                Button(isSaving ? "Saving…" : "Save") {
-                    Task { await save() }
-                }
-                .disabled(isSaving || draft.monthlyLimit <= 0 || availableCategories.isEmpty)
-            }
-        }
-    }
-
-    @ViewBuilder
-    private var budgetLimitSections: some View {
-        Section("Limit") {
-            TextField("Monthly limit", value: $draft.monthlyLimit, format: .currency(code: "USD"))
-                .keyboardType(.decimalPad)
-            Toggle("Fixed expense", isOn: $draft.isFixed)
-            Toggle("Rollover unused", isOn: $draft.isRollover)
-        }
-
-        Section("Color") {
-            BudgetColorPicker(selection: $draft.color)
-        }
-    }
-
-    private func save() async {
-        guard let client = auth.activeSupabaseClient else {
-            budgets.setClientError("Sign in again to save budgets.")
-            return
-        }
-        isSaving = true
-        defer { isSaving = false }
-        await budgets.addBudget(draft, client: client, transactions: transactions.transactions)
-        if budgets.errorMessage == nil {
-            dismiss()
-        } else {
-            showSaveError = true
-        }
     }
 }
 

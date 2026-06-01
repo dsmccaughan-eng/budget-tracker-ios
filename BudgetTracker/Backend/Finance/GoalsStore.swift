@@ -118,7 +118,12 @@ final class NetWorthStore: ObservableObject {
     @Published private(set) var currentNetWorth: Double = 0
     @Published var errorMessage: String?
 
-    func reload(client: SupabaseClient, accounts: [Account]) async {
+    func reload(
+        client: SupabaseClient,
+        accounts: [Account],
+        accountSnapshots: [AccountBalanceSnapshot] = [],
+        transactions: [Transaction] = []
+    ) async {
         errorMessage = nil
         let totals = NetWorthCalculator.totals(from: accounts)
         currentAssets = totals.assets
@@ -129,6 +134,48 @@ final class NetWorthStore: ObservableObject {
         } catch {
             errorMessage = error.localizedDescription
         }
+        cachedChartInputs = ChartInputs(
+            accounts: accounts,
+            accountSnapshots: accountSnapshots,
+            transactions: transactions
+        )
+    }
+
+    func chartPoints(range: NetWorthTimeRange, referenceDate: Date = Date()) -> [NetWorthChartPoint] {
+        guard let inputs = cachedChartInputs else {
+            return NetWorthHistoryEngine.chartPoints(
+                snapshots: snapshots,
+                currentAssets: currentAssets,
+                currentLiabilities: currentLiabilities,
+                currentNetWorth: currentNetWorth,
+                referenceDate: referenceDate,
+                range: range
+            )
+        }
+        return NetWorthHistoryEngine.chartPoints(
+            snapshots: snapshots,
+            accounts: inputs.accounts,
+            accountSnapshots: inputs.accountSnapshots,
+            transactions: inputs.transactions,
+            currentAssets: currentAssets,
+            currentLiabilities: currentLiabilities,
+            currentNetWorth: currentNetWorth,
+            referenceDate: referenceDate,
+            range: range
+        )
+    }
+
+    func recordDailySnapshotIfNeeded(
+        client: SupabaseClient,
+        accounts: [Account],
+        accountBalances: AccountBalanceStore
+    ) async {
+        let today = Self.todayString()
+        if snapshots.contains(where: { $0.date == today }) {
+            await accountBalances.recordTodaySnapshots(accounts: accounts, client: client)
+            return
+        }
+        await captureSnapshot(client: client, accounts: accounts, accountBalances: accountBalances)
     }
 
     func captureSnapshot(
@@ -137,11 +184,9 @@ final class NetWorthStore: ObservableObject {
         accountBalances: AccountBalanceStore? = nil
     ) async {
         let totals = NetWorthCalculator.totals(from: accounts)
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy-MM-dd"
         let snapshot = NetWorthSnapshot(
             id: UUID(),
-            date: formatter.string(from: Date()),
+            date: Self.todayString(),
             totalAssets: totals.assets,
             totalLiabilities: totals.liabilities,
             netWorth: totals.net
@@ -159,5 +204,20 @@ final class NetWorthStore: ObservableObject {
         } catch {
             errorMessage = error.localizedDescription
         }
+    }
+
+    private struct ChartInputs {
+        let accounts: [Account]
+        let accountSnapshots: [AccountBalanceSnapshot]
+        let transactions: [Transaction]
+    }
+
+    private var cachedChartInputs: ChartInputs?
+
+    private static func todayString() -> String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "yyyy-MM-dd"
+        return formatter.string(from: Date())
     }
 }

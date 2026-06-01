@@ -118,17 +118,23 @@ enum NetWorthCalculator {
         var assets = 0.0
         var liabilities = 0.0
         for account in accounts {
-            let balance = account.currentBalance ?? 0
-            switch account.type.lowercased() {
-            case "credit", "loan":
-                liabilities += abs(balance)
-            case "investment", "depository", "brokerage":
-                assets += max(balance, 0)
-            default:
-                if balance >= 0 { assets += balance } else { liabilities += abs(balance) }
-            }
+            let split = contribution(accountType: account.type, balance: account.currentBalance ?? 0)
+            assets += split.assets
+            liabilities += split.liabilities
         }
         return (assets, liabilities, assets - liabilities)
+    }
+
+    static func contribution(accountType: String, balance: Double) -> (assets: Double, liabilities: Double) {
+        switch accountType.lowercased() {
+        case "credit", "loan":
+            return (0, abs(balance))
+        case "investment", "depository", "brokerage":
+            return (max(balance, 0), 0)
+        default:
+            if balance >= 0 { return (balance, 0) }
+            return (0, abs(balance))
+        }
     }
 }
 

@@ -63,7 +63,7 @@ struct BillsListView: View {
         .navigationTitle("Bills")
         .sheet(isPresented: $showAddBudget) {
             NavigationStack {
-                AddBudgetView()
+                SetupBudgetPlanView()
             }
         }
         .refreshable {

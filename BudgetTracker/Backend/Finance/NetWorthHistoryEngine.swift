@@ -53,6 +53,9 @@ struct NetWorthAccountGroup: Identifiable, Equatable {
 enum NetWorthHistoryEngine {
     static func chartPoints(
         snapshots: [NetWorthSnapshot],
+        accounts: [Account] = [],
+        accountSnapshots: [AccountBalanceSnapshot] = [],
+        transactions: [Transaction] = [],
         currentAssets: Double,
         currentLiabilities: Double,
         currentNetWorth: Double,
@@ -61,6 +64,20 @@ enum NetWorthHistoryEngine {
         calendar: Calendar = .current
     ) -> [NetWorthChartPoint] {
         var byDate: [String: NetWorthChartPoint] = [:]
+
+        if !accounts.isEmpty {
+            for point in chartPointsFromAccountHistory(
+                accounts: accounts,
+                accountSnapshots: accountSnapshots,
+                transactions: transactions,
+                referenceDate: referenceDate,
+                range: range,
+                calendar: calendar
+            ) {
+                byDate[point.dateString] = point
+            }
+        }
+
         for snapshot in snapshots {
             guard let date = parseDate(snapshot.date, calendar: calendar) else { continue }
             let point = NetWorthChartPoint(
@@ -70,24 +87,92 @@ enum NetWorthHistoryEngine {
                 totalAssets: snapshot.totalAssets,
                 totalLiabilities: snapshot.totalLiabilities
             )
-            byDate[snapshot.date] = point
+            if byDate[snapshot.date] == nil {
+                byDate[snapshot.date] = point
+            }
         }
 
         let todayString = formatDate(referenceDate, calendar: calendar)
-        let todayPoint = NetWorthChartPoint(
+        byDate[todayString] = NetWorthChartPoint(
             date: startOfDay(referenceDate, calendar: calendar),
             dateString: todayString,
             netWorth: currentNetWorth,
             totalAssets: currentAssets,
             totalLiabilities: currentLiabilities
         )
-        byDate[todayString] = todayPoint
 
         var points = byDate.values.sorted { $0.date < $1.date }
         if let cutoff = range.cutoffDate(before: referenceDate, calendar: calendar) {
             points = points.filter { $0.date >= cutoff }
         }
         return points
+    }
+
+    /// Daily net worth from per-account balances (snapshots + transaction reconstruction).
+    static func chartPointsFromAccountHistory(
+        accounts: [Account],
+        accountSnapshots: [AccountBalanceSnapshot],
+        transactions: [Transaction],
+        referenceDate: Date = Date(),
+        range: NetWorthTimeRange = .oneYear,
+        calendar: Calendar = .current
+    ) -> [NetWorthChartPoint] {
+        guard !accounts.isEmpty else { return [] }
+
+        var totalsByDate: [String: (assets: Double, liabilities: Double)] = [:]
+        for account in accounts {
+            let balances = AccountBalanceHistoryEngine.rawDailyBalances(
+                account: account,
+                snapshots: accountSnapshots,
+                transactions: transactions,
+                referenceDate: referenceDate,
+                range: range,
+                calendar: calendar
+            )
+            for (dateString, rawBalance) in balances {
+                let split = NetWorthCalculator.contribution(accountType: account.type, balance: rawBalance)
+                var entry = totalsByDate[dateString, default: (0, 0)]
+                entry.assets += split.assets
+                entry.liabilities += split.liabilities
+                totalsByDate[dateString] = entry
+            }
+        }
+
+        return totalsByDate.compactMap { dateString, totals in
+            guard let date = parseDate(dateString, calendar: calendar) else { return nil }
+            return NetWorthChartPoint(
+                date: date,
+                dateString: dateString,
+                netWorth: totals.assets - totals.liabilities,
+                totalAssets: totals.assets,
+                totalLiabilities: totals.liabilities
+            )
+        }
+        .sorted { $0.date < $1.date }
+    }
+
+    /// Legacy entry point for tests and callers without account history inputs.
+    static func chartPoints(
+        snapshots: [NetWorthSnapshot],
+        currentAssets: Double,
+        currentLiabilities: Double,
+        currentNetWorth: Double,
+        referenceDate: Date = Date(),
+        range: NetWorthTimeRange = .all,
+        calendar: Calendar = .current
+    ) -> [NetWorthChartPoint] {
+        chartPoints(
+            snapshots: snapshots,
+            accounts: [],
+            accountSnapshots: [],
+            transactions: [],
+            currentAssets: currentAssets,
+            currentLiabilities: currentLiabilities,
+            currentNetWorth: currentNetWorth,
+            referenceDate: referenceDate,
+            range: range,
+            calendar: calendar
+        )
     }
 
     static func nearestPoint(

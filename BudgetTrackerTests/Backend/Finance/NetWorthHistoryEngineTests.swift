@@ -81,4 +81,46 @@ final class NetWorthHistoryEngineTests: XCTestCase {
         XCTAssertEqual(change?.amount, 50_000, accuracy: 0.01)
         XCTAssertEqual(change?.percent, 50, accuracy: 0.01)
     }
+
+    func testChartPointsFromAccountHistoryBuildsDailySeries() {
+        let accountId = UUID()
+        let account = Account(
+            id: accountId,
+            plaidItemId: "item",
+            plaidAccountId: "plaid",
+            name: "Checking",
+            officialName: nil,
+            type: "depository",
+            subtype: "checking",
+            mask: "1234",
+            currentBalance: 1000,
+            availableBalance: 1000
+        )
+        let txns = [
+            Transaction(
+                id: UUID(),
+                accountId: accountId,
+                plaidTransactionId: UUID().uuidString,
+                amount: 50,
+                date: "2026-06-14",
+                merchantName: "Store",
+                name: "Store",
+                category: "Shopping",
+                subcategory: nil,
+                pending: false,
+                isManual: false,
+                splitItems: nil
+            )
+        ]
+        let points = NetWorthHistoryEngine.chartPointsFromAccountHistory(
+            accounts: [account],
+            accountSnapshots: [],
+            transactions: txns,
+            referenceDate: referenceDate,
+            range: .oneMonth,
+            calendar: calendar
+        )
+        XCTAssertFalse(points.isEmpty)
+        XCTAssertEqual(points.last?.netWorth, 1000, accuracy: 0.01)
+    }
 }

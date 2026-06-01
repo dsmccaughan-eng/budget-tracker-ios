@@ -21,12 +21,17 @@ final class AccountBalanceStore: ObservableObject {
 
     func recordTodaySnapshots(accounts: [Account], client: SupabaseClient) async {
         errorMessage = nil
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.dateFormat = "yyyy-MM-dd"
-        let today = formatter.string(from: Date())
+        let today = Self.todayString()
+        let accountIds = Set(accounts.map(\.id))
+        let covered = Set(
+            snapshots
+                .filter { $0.date == today && accountIds.contains($0.accountId) }
+                .map(\.accountId)
+        )
+        let missing = accounts.filter { !covered.contains($0.id) }
+        guard !missing.isEmpty else { return }
 
-        let rows = accounts.map { account in
+        let rows = missing.map { account in
             AccountBalanceSnapshot(
                 id: UUID(),
                 accountId: account.id,
@@ -35,7 +40,6 @@ final class AccountBalanceStore: ObservableObject {
                 availableBalance: account.availableBalance
             )
         }
-        guard !rows.isEmpty else { return }
 
         do {
             try await SupabaseService.shared.upsertAccountBalanceSnapshots(rows, client: client)
@@ -46,5 +50,13 @@ final class AccountBalanceStore: ObservableObject {
         } catch {
             errorMessage = error.localizedDescription
         }
+    }
+
+    private static func todayString(calendar: Calendar = .current) -> String {
+        let formatter = DateFormatter()
+        formatter.calendar = calendar
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "yyyy-MM-dd"
+        return formatter.string(from: Date())
     }
 }

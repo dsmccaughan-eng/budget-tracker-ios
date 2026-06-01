@@ -104,19 +104,23 @@ enum AccountBalanceHistoryEngine {
             .filter { $0.accountId == account.id && !$0.pending }
             .sorted { $0.date < $1.date }
 
+        var amountByDate: [String: Double] = [:]
+        for txn in accountTxns {
+            amountByDate[txn.date, default: 0] += txn.amount
+        }
+
+        let startString = formatDate(calendar.startOfDay(for: startDate), calendar: calendar)
+        let referenceString = formatDate(anchor, calendar: calendar)
+        var futureSum = accountTxns
+            .filter { $0.date > startString && $0.date <= referenceString }
+            .reduce(0) { $0 + $1.amount }
+
         var points: [AccountBalancePoint] = []
         var day = calendar.startOfDay(for: startDate)
-        let end = anchor
 
-        while day <= end {
+        while day <= anchor {
             let dateString = formatDate(day, calendar: calendar)
-            let balance = balanceAtEndOfDay(
-                day: day,
-                currentBalance: current,
-                referenceDay: anchor,
-                transactions: accountTxns,
-                calendar: calendar
-            )
+            let balance = current + futureSum
             points.append(
                 AccountBalancePoint(
                     date: day,
@@ -125,11 +129,52 @@ enum AccountBalanceHistoryEngine {
                     source: .reconstructed
                 )
             )
-            guard let next = calendar.date(byAdding: .day, value: 1, to: day) else { break }
-            day = next
+            if let next = calendar.date(byAdding: .day, value: 1, to: day) {
+                futureSum -= amountByDate[formatDate(next, calendar: calendar), default: 0]
+                day = next
+            } else {
+                break
+            }
         }
 
         return points
+    }
+
+    /// Raw end-of-day balances (before display sign) for net-worth aggregation.
+    static func rawDailyBalances(
+        account: Account,
+        snapshots: [AccountBalanceSnapshot],
+        transactions: [Transaction],
+        referenceDate: Date = Date(),
+        range: NetWorthTimeRange = .oneYear,
+        calendar: Calendar = .current
+    ) -> [String: Double] {
+        let accountSnapshots = snapshots.filter { $0.accountId == account.id }
+        let reconstructed = reconstructedDailyPoints(
+            account: account,
+            transactions: transactions,
+            referenceDate: referenceDate,
+            range: range,
+            calendar: calendar
+        )
+        var merged: [String: Double] = [:]
+        for point in reconstructed {
+            merged[point.dateString] = undisplayBalance(point.balance, accountType: account.type)
+        }
+        for snapshot in accountSnapshots {
+            guard let balance = snapshot.currentBalance else { continue }
+            merged[snapshot.date] = balance
+        }
+        return merged
+    }
+
+    private static func undisplayBalance(_ value: Double, accountType: String) -> Double {
+        switch accountType.lowercased() {
+        case "credit", "loan":
+            return abs(value)
+        default:
+            return value
+        }
     }
 
     static func balanceAtEndOfDay(

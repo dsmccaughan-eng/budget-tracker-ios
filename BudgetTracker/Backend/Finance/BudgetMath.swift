@@ -21,6 +21,133 @@ struct BudgetProgress: Equatable, Identifiable {
 enum BudgetMath {
     static let excludedCategories: Set<String> = ["Income", "Transfers"]
 
+    static var budgetableCategories: [String] {
+        BudgetCategories.all.filter { !excludedCategories.contains($0) }
+    }
+
+    static func monthRows(
+        budgets: [Budget],
+        index: BudgetSpendIndex,
+        referenceDate: Date = Date(),
+        calendar: Calendar = .current
+    ) -> [BudgetMonthRow] {
+        budgets.map { budget in
+            let spent = index.spent(category: budget.category, referenceDate: referenceDate, calendar: calendar)
+            let projected = index.averageMonthlySpend(
+                category: budget.category,
+                referenceDate: referenceDate,
+                calendar: calendar
+            )
+            let progress = BudgetProgress(
+                category: budget.category,
+                monthlyLimit: budget.monthlyLimit,
+                spent: spent,
+                projectedSpend: projected,
+                isFixed: budget.isFixed,
+                isRollover: budget.isRollover,
+                color: budget.color
+            )
+            return BudgetMonthRow(
+                progress: progress,
+                recentSummary: index.recentMerchantSummary(
+                    category: budget.category,
+                    referenceDate: referenceDate,
+                    calendar: calendar
+                )
+            )
+        }
+        .sorted { $0.progress.category < $1.progress.category }
+    }
+
+    /// Split `total` across budgetable categories using recent spend weights (or equal if no history).
+    static func suggestedPlanLines(
+        total: Double,
+        transactions: [Transaction],
+        existingBudgets: [Budget] = [],
+        referenceDate: Date = Date(),
+        calendar: Calendar = .current
+    ) -> [BudgetPlanLine] {
+        let index = BudgetSpendIndex(transactions: transactions, calendar: calendar)
+        let categories = budgetableCategories
+        let existingByCategory = Dictionary(uniqueKeysWithValues: existingBudgets.map { ($0.category, $0) })
+
+        var weights: [String: Double] = [:]
+        for category in categories {
+            if let existing = existingByCategory[category], existing.monthlyLimit > 0 {
+                weights[category] = existing.monthlyLimit
+            } else {
+                let average = index.averageMonthlySpend(
+                    category: category,
+                    referenceDate: referenceDate,
+                    calendar: calendar
+                )
+                weights[category] = average
+            }
+        }
+
+        let weightSum = weights.values.reduce(0, +)
+        let evenShare = total / Double(max(categories.count, 1))
+        var lines: [BudgetPlanLine] = []
+        var assigned = 0.0
+
+        for (offset, category) in categories.enumerated() {
+            let color = BudgetPalette.color(at: offset)
+            let limit: Double
+            if weightSum > 0 {
+                let raw = total * (weights[category, default: 0] / weightSum)
+                limit = offset == categories.count - 1
+                    ? max(0, total - assigned)
+                    : (raw * 100).rounded() / 100
+            } else {
+                limit = offset == categories.count - 1
+                    ? max(0, total - assigned)
+                    : (evenShare * 100).rounded() / 100
+            }
+            assigned += limit
+            lines.append(BudgetPlanLine(category: category, monthlyLimit: limit, color: color))
+        }
+        return lines
+    }
+
+    static func scaledPlanLines(
+        _ lines: [BudgetPlanLine],
+        total: Double
+    ) -> [BudgetPlanLine] {
+        let currentTotal = lines.reduce(0) { $0 + $1.monthlyLimit }
+        guard currentTotal > 0 else {
+            let even = total / Double(max(lines.count, 1))
+            return lines.enumerated().map { offset, line in
+                BudgetPlanLine(
+                    category: line.category,
+                    monthlyLimit: offset == lines.count - 1
+                        ? max(0, total - even * Double(lines.count - 1))
+                        : (even * 100).rounded() / 100,
+                    color: line.color
+                )
+            }
+        }
+        var assigned = 0.0
+        return lines.enumerated().map { offset, line in
+            let scaled = total * (line.monthlyLimit / currentTotal)
+            let limit = offset == lines.count - 1
+                ? max(0, total - assigned)
+                : (scaled * 100).rounded() / 100
+            assigned += limit
+            return BudgetPlanLine(category: line.category, monthlyLimit: limit, color: line.color)
+        }
+    }
+
+    static func cacheKey(
+        referenceDate: Date,
+        transactionCount: Int,
+        budgets: [Budget],
+        calendar: Calendar = .current
+    ) -> String {
+        let month = BudgetSpendIndex.monthKey(from: referenceDate, calendar: calendar)
+        let budgetKey = budgets.map { "\($0.id.uuidString):\($0.monthlyLimit)" }.joined(separator: "|")
+        return "\(month)-\(transactionCount)-\(budgetKey)"
+    }
+
     static func isInMonth(
         dateString: String,
         referenceDate: Date,
@@ -101,30 +228,13 @@ enum BudgetMath {
         referenceDate: Date = Date(),
         calendar: Calendar = .current
     ) -> [BudgetProgress] {
-        budgets.map { budget in
-            let spent = spentAmount(
-                transactions: transactions,
-                category: budget.category,
-                referenceDate: referenceDate,
-                calendar: calendar
-            )
-            let projected = averageMonthlySpend(
-                transactions: transactions,
-                category: budget.category,
-                referenceDate: referenceDate,
-                calendar: calendar
-            )
-            return BudgetProgress(
-                category: budget.category,
-                monthlyLimit: budget.monthlyLimit,
-                spent: spent,
-                projectedSpend: projected,
-                isFixed: budget.isFixed,
-                isRollover: budget.isRollover,
-                color: budget.color
-            )
-        }
-        .sorted { $0.category < $1.category }
+        let index = BudgetSpendIndex(transactions: transactions, calendar: calendar)
+        return monthRows(
+            budgets: budgets,
+            index: index,
+            referenceDate: referenceDate,
+            calendar: calendar
+        ).map(\.progress)
     }
 
     static func totalBudgetUsedPercent(_ rows: [BudgetProgress]) -> Double {

@@ -73,11 +73,17 @@ struct BudgetTrackerApp: App {
         await transactionStore.loadAll(client: client)
         await budgetStore.reload(client: client, transactions: transactionStore.transactions)
         await goalsStore.reload(client: client, transactions: transactionStore.transactions)
-        await netWorthStore.reload(client: client, accounts: transactionStore.accounts)
-        await accountBalanceStore.reload(client: client)
-        await accountBalanceStore.recordTodaySnapshots(
+        await netWorthStore.reload(
+            client: client,
             accounts: transactionStore.accounts,
-            client: client
+            accountSnapshots: accountBalanceStore.snapshots,
+            transactions: transactionStore.transactions
+        )
+        await accountBalanceStore.reload(client: client)
+        await netWorthStore.recordDailySnapshotIfNeeded(
+            client: client,
+            accounts: transactionStore.accounts,
+            accountBalances: accountBalanceStore
         )
         await merchantRulesStore.reload(client: client)
         await priceHistoryStore.reload(client: client)

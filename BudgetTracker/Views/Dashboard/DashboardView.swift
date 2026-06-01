@@ -179,7 +179,7 @@ struct DashboardView: View {
                 Task { await reloadDashboardData() }
             }) {
                 NavigationStack {
-                    AddBudgetView()
+                    SetupBudgetPlanView()
                 }
             }
             .sheet(isPresented: $showSettings) {
@@ -217,9 +217,10 @@ struct DashboardView: View {
 
     private func reloadDashboardData() async {
         guard let client = auth.activeSupabaseClient else { return }
-        await transactions.loadAll(client: client)
+        if transactions.transactions.isEmpty {
+            await transactions.loadAll(client: client)
+        }
         await budgets.reload(client: client, transactions: transactions.transactions)
-        await netWorth.reload(client: client, accounts: transactions.accounts)
     }
 
     private func reloadAll() async {

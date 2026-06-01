@@ -9,13 +9,7 @@ struct NetWorthView: View {
     @State private var selectedRange: NetWorthTimeRange = .oneYear
 
     private var chartPoints: [NetWorthChartPoint] {
-        NetWorthHistoryEngine.chartPoints(
-            snapshots: netWorth.snapshots,
-            currentAssets: netWorth.currentAssets,
-            currentLiabilities: netWorth.currentLiabilities,
-            currentNetWorth: netWorth.currentNetWorth,
-            range: selectedRange
-        )
+        netWorth.chartPoints(range: selectedRange)
     }
 
     private var accountGroups: [NetWorthAccountGroup] {
@@ -44,13 +38,16 @@ struct NetWorthView: View {
                 LabeledContent("Net worth", value: FinanceFormatting.currency(netWorth.currentNetWorth))
             }
 
-            Section("Snapshots") {
+            Section("History") {
+                Text("Past year uses daily account balances from synced transactions and recorded snapshots. Today’s total is saved automatically once per day.")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
                 if netWorth.snapshots.isEmpty {
-                    Text("Tap “Capture snapshot” to save today’s balances for the trend chart.")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
+                    Text("Daily snapshots will appear after your next app open with linked accounts.")
+                        .font(.caption)
+                        .foregroundStyle(.tertiary)
                 } else {
-                    ForEach(netWorth.snapshots) { snap in
+                    ForEach(netWorth.snapshots.prefix(14)) { snap in
                         HStack {
                             Text(snap.date)
                             Spacer()
@@ -63,7 +60,7 @@ struct NetWorthView: View {
         }
         .navigationTitle("Net Worth")
         .toolbar {
-            Button("Capture snapshot") {
+            Button("Refresh snapshot") {
                 Task { await captureSnapshot() }
             }
         }
@@ -71,14 +68,29 @@ struct NetWorthView: View {
             await reload()
         }
         .task {
+            await reloadIfNeeded()
+        }
+    }
+
+    private func reloadIfNeeded() async {
+        guard let client = auth.activeSupabaseClient else { return }
+        if netWorth.snapshots.isEmpty {
             await reload()
         }
     }
 
     private func reload() async {
         guard let client = auth.activeSupabaseClient else { return }
-        await transactions.loadAll(client: client)
-        await netWorth.reload(client: client, accounts: transactions.accounts)
+        if transactions.accounts.isEmpty {
+            await transactions.loadAll(client: client)
+        }
+        await accountBalances.reload(client: client)
+        await netWorth.reload(
+            client: client,
+            accounts: transactions.accounts,
+            accountSnapshots: accountBalances.snapshots,
+            transactions: transactions.transactions
+        )
     }
 
     private func captureSnapshot() async {
