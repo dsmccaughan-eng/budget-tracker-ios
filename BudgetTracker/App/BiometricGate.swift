@@ -12,9 +12,10 @@ final class BiometricGateStore: ObservableObject {
         context.localizedCancelTitle = "Cancel"
         var error: NSError?
 
-        let hasFaceIDUsageText = !(Bundle.main.object(forInfoDictionaryKey: "NSFaceIDUsageDescription") as? String)?
+        let hasFaceIDUsageText =
+            (Bundle.main.object(forInfoDictionaryKey: "NSFaceIDUsageDescription") as? String)?
             .trimmingCharacters(in: .whitespacesAndNewlines)
-            .isEmpty ?? false
+            .isEmpty == false
         let canUseBiometrics = hasFaceIDUsageText &&
             context.canEvaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, error: &error)
         let policy: LAPolicy = canUseBiometrics ? .deviceOwnerAuthenticationWithBiometrics : .deviceOwnerAuthentication
