@@ -103,5 +103,7 @@ workflows:
         api_key: $APP_STORE_CONNECT_PRIVATE_KEY
         key_id: $APP_STORE_CONNECT_KEY_IDENTIFIER
         issuer_id: $APP_STORE_CONNECT_ISSUER_ID
-        submit_to_testflight: true
+        # Upload only until Beta App Information is complete in App Store Connect
+        # (see docs/TESTFLIGHT_SETUP.md). Set true after feedback/review contact fields exist.
+        submit_to_testflight: false
 

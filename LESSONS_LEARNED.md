@@ -120,4 +120,10 @@ Entry format
 - **Fix:** Use `Color.secondary` / `Color.red` (and `plotAreaFrame` not `plotFrame` on chart overlay). Rebuild with bumped `CURRENT_PROJECT_VERSION`.
 - **Verification:** Codemagic unit-test step + archive succeed.
 
+### 2026-06-02 - Codemagic “distribution failed” but IPA uploaded (TestFlight metadata)
+- **Symptom:** Build IPA succeeded; App Store Connect distribution failed on build 14 (`6a1ddadc`).
+- **Root cause:** `submit_to_testflight: true` tried external beta review without Beta App Information (feedback email) or Beta App Review contact (name, phone, email) in ASC for app `6775334574`.
+- **Fix:** User completes [TestFlight Test Information](https://appstoreconnect.apple.com/apps/6775334574/testflight/test-info); install build from TestFlight → iOS builds. Set `submit_to_testflight: false` in `codemagic.yaml` until metadata exists so CI does not fail post-upload.
+- **Verification:** ASC shows processed build; internal testers can install after test info + tester group.
+
 <!-- Append new entries above this line -->

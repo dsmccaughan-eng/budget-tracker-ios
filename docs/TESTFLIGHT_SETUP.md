@@ -68,7 +68,22 @@ node scripts/validate-codemagic-prereqs.mjs
 node scripts/trigger-codemagic-build.mjs
 ```
 
-IPA exports to TestFlight when `APP_STORE_APPLE_ID` and signing secrets are correct.
+IPA uploads to App Store Connect when signing secrets and API keys are correct.
+
+### F. TestFlight Beta App Information (required once)
+
+If Codemagic logs **“App Store Connect distribution failed”** but **Build IPA** succeeded, the binary is usually already on TestFlight. Apple blocked **external** beta submission because contact info is missing.
+
+In [App Store Connect → TestFlight → Test Information](https://appstoreconnect.apple.com/apps/6775334574/testflight/test-info) fill in:
+
+| Section | Required fields |
+|--------|------------------|
+| **Beta App Information** | Feedback email |
+| **Beta App Review Information** | First name, last name, phone, email |
+
+Then in **TestFlight → iOS builds**, open the latest build → add **Internal Testing** testers (your Apple ID) or submit for external testing.
+
+After that is saved, you can set `submit_to_testflight: true` in `codemagic.yaml` if you want Codemagic to auto-submit for beta review on future builds.
 
 ## Helper script
 
