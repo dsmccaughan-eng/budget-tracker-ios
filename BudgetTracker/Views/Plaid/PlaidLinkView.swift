@@ -14,6 +14,14 @@ struct PlaidLinkView: View {
 
     private var isUpdateMode: Bool { updatePlaidItemId != nil }
 
+    private var oauthHint: String {
+        """
+        Robinhood and similar banks open a website or the bank app to sign in. \
+        When finished, return to Budget Tracker (or tap Open on the redirect page). \
+        Do not force-quit the app while linking.
+        """
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             Text(statusMessage)
@@ -22,10 +30,18 @@ struct PlaidLinkView: View {
             }
             .buttonStyle(.borderedProminent)
             .disabled(isLoading)
+
+            Text(oauthHint)
+                .font(.footnote)
+                .foregroundStyle(.secondary)
         }
         .padding()
         .navigationTitle(isUpdateMode ? "Reconnect Bank" : "Link Account")
-        .sheet(isPresented: $isPresentingLink, onDismiss: { linkToken = nil }) {
+        .interactiveDismissDisabled(isPresentingLink)
+        .sheet(isPresented: $isPresentingLink, onDismiss: {
+            linkToken = nil
+            plaidLink.endSession()
+        }) {
             if let linkToken {
                 PlaidLinkPresenter(
                     linkToken: linkToken,
@@ -54,7 +70,8 @@ struct PlaidLinkView: View {
             if detail.lowercased().contains("post process") {
                 return """
                 Bank login finished but the app could not complete setup. \
-                If you use Chase, BofA, or similar, OAuth redirect must be configured in Plaid Dashboard. \
+                Confirm GitHub Pages OAuth is live (docs/PLAID_OAUTH_SETUP.md) and PLAID_REDIRECT_URI is deployed, \
+                then try again without closing Budget Tracker. \
                 (\(detail))
                 """
             }

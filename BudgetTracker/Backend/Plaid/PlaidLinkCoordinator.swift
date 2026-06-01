@@ -18,7 +18,10 @@ final class PlaidLinkCoordinator: NSObject, ObservableObject {
             onSuccess(success)
         }
         configuration.onExit = { [weak self] exit in
-            self?.linkHandler = nil
+            // Keep handler through OAuth handoff (Robinhood, Chase, etc.) until success or real error.
+            if exit.error != nil {
+                self?.linkHandler = nil
+            }
             onExit(exit)
         }
 
@@ -32,14 +35,33 @@ final class PlaidLinkCoordinator: NSObject, ObservableObject {
         }
     }
 
-    /// LinkKit 5+ resumes OAuth automatically when the handler is retained; keep for logging.
+    /// LinkKit 5 resumes OAuth when the handler is retained and iOS opens the app via Universal Link or URL scheme.
     func continueLink(from url: URL) -> Bool {
-        guard linkHandler != nil else { return false }
+        guard isPlaidOAuthReturn(url) else { return false }
         NSLog("Plaid OAuth return URL: %@", url.absoluteString)
+        guard linkHandler != nil else {
+            NSLog("Plaid OAuth return ignored — no active Link handler (re-open Connect Bank)")
+            return false
+        }
         return true
+    }
+
+    func endSession() {
+        linkHandler = nil
     }
 
     var hasActiveSession: Bool {
         linkHandler != nil
+    }
+
+    private func isPlaidOAuthReturn(_ url: URL) -> Bool {
+        if url.scheme?.lowercased() == "com.optimized.budgettracker" {
+            return url.host?.lowercased() == "plaid"
+        }
+        if url.scheme?.lowercased() == "https",
+           url.host?.lowercased() == "dsmccaughan-eng.github.io" {
+            return url.path.contains("/plaid/")
+        }
+        return false
     }
 }

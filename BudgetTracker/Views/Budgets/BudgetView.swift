@@ -22,10 +22,22 @@ struct BudgetView: View {
                         .buttonStyle(.borderedProminent)
                     }
                 } else {
+                    Section {
+                        BudgetSpendPieChart(progress: budgets.progress, referenceDate: Date())
+                    }
+                    .listRowInsets(EdgeInsets())
+                    .listRowBackground(Color.clear)
+
                     Section("This month") {
                         ForEach(budgets.budgets) { budget in
                             if let row = budgets.progress.first(where: { $0.category == budget.category }) {
-                                BudgetProgressBar(progress: row)
+                                BudgetCategorySpendRow(
+                                    progress: row,
+                                    recentSummary: BudgetMath.recentMerchantSummary(
+                                        transactions: transactions.transactions,
+                                        category: row.category
+                                    )
+                                )
                             }
                         }
                         .onDelete { indexSet in

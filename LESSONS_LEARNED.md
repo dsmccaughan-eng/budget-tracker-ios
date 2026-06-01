@@ -70,4 +70,11 @@ Entry format
 - For CI while minutes are limited, use GitHub Actions **Verify compile** with `workflow_dispatch`.
 - When adding a new lesson, include the test name(s) that cover the regression when available.
 
+### 2026-06-01 - Robinhood / OAuth stuck on website (redirect pages 404)
+- **Symptom:** Plaid Link opens Robinhood or a bank website; user never returns to Budget Tracker; linking does not complete.
+- **Root cause:** GitHub Pages OAuth assets were not deployed — `oauth.html` and `apple-app-site-association` returned **404**, so Universal Links and the “return to app” page never worked. Separately, clearing the Link `Handler` on every `onExit` could drop OAuth mid-handoff.
+- **Fix pattern:** Ship `docs/.nojekyll`, `docs/.well-known/apple-app-site-association`, `docs/plaid/oauth.html`; enable Pages on `dsmccaughan-eng/budget-tracker-ios`; run `scripts/verify-plaid-oauth-pages.ps1`; set `PLAID_REDIRECT_URI` + Plaid Dashboard redirect URI; retain `Handler` on OAuth handoff (`onExit` only clears when `exit.error != nil`).
+- **Guardrails:** Run verify script before telling user OAuth is ready; Robinhood requires Production + redirect URI (not Sandbox-only flow).
+- **Verification:** Both URLs return 200; link Robinhood on TestFlight → return page → app completes exchange; accounts sync.
+
 <!-- Append new entries above this line -->

@@ -94,6 +94,29 @@ enum BudgetMath {
         return min(spent / limit, 1.0)
     }
 
+    static func totalSpent(_ rows: [BudgetProgress]) -> Double {
+        rows.reduce(0) { $0 + $1.spent }
+    }
+
+    static func recentMerchantSummary(
+        transactions: [Transaction],
+        category: String,
+        referenceDate: Date = Date(),
+        limit: Int = 3,
+        calendar: Calendar = .current
+    ) -> String {
+        let names = transactions
+            .filter {
+                $0.category == category &&
+                isInMonth(dateString: $0.date, referenceDate: referenceDate, calendar: calendar) &&
+                !excludedCategories.contains($0.category)
+            }
+            .sorted { $0.date > $1.date }
+            .prefix(limit)
+            .map { FinanceFormatting.displayName(for: $0) }
+        return names.joined(separator: ", ")
+    }
+
     private static func parseDate(_ value: String, calendar: Calendar) -> Date? {
         let formatter = DateFormatter()
         formatter.calendar = calendar

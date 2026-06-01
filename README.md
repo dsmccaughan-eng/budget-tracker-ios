@@ -2,12 +2,17 @@
 
 Personal budget app: Plaid sync, Supabase backend, Gemini categorization.
 
-**Agent entry point (in order):**
+**Agent entry point:** [`AGENTS.md`](AGENTS.md) · **Which doc when:** [`ai/DOCUMENTATION_MAP.md`](ai/DOCUMENTATION_MAP.md)
 
 1. [`AI_PROJECT_INSTRUCTIONS.txt`](AI_PROJECT_INSTRUCTIONS.txt) — living rules and update log  
 2. [`LESSONS_LEARNED.md`](LESSONS_LEARNED.md) — resolved bugs (append after each fix)  
 3. [`docs/PROJECT_BRIEF.md`](docs/PROJECT_BRIEF.md) — full spec and build phases  
-4. [`Config/SECRETS.local.md`](Config/SECRETS.local.md) (gitignored) — credentials  
+4. [`docs/ai/writing-guide.md`](docs/ai/writing-guide.md) — commands, layout, TDD  
+5. [`ai/features/`](ai/features/) — per-feature instructions  
+6. [`docs/ai/go-bys/`](docs/ai/go-bys/) — implementation examples  
+7. [`Config/SECRETS.local.md`](Config/SECRETS.local.md) (gitignored) — credentials  
+
+**Cursor:** `.cursor/rules/` (auto-loaded scoped rules)
 
 **Sibling reference app:** `../Optimized/` (fitness) — reuse patterns, not Supabase project or bundle IDs.
 

@@ -44,6 +44,21 @@ final class BudgetMathTests: XCTestCase {
         XCTAssertEqual(spent, 40, accuracy: 0.01)
     }
 
+    func testRecentMerchantSummaryJoinsNames() {
+        let txns = [
+            txn(category: "Groceries", amount: 10, date: "2026-05-20"),
+            txn(category: "Groceries", amount: 12, date: "2026-05-18"),
+            txn(category: "Dining & Bars", amount: 8, date: "2026-05-19")
+        ]
+        let summary = BudgetMath.recentMerchantSummary(
+            transactions: txns,
+            category: "Groceries",
+            referenceDate: referenceDate,
+            calendar: calendar
+        )
+        XCTAssertTrue(summary.contains("Test"))
+    }
+
     func testProjectedSpendScalesToMonthEnd() {
         let projected = BudgetMath.projectedMonthlySpend(
             spent: 150,

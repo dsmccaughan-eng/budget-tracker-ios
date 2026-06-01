@@ -26,14 +26,18 @@ struct TransactionListView: View {
                         description: Text("Sync from your linked accounts or connect a bank.")
                     )
                 } else {
-                    ForEach(filtered) { transaction in
-                        NavigationLink {
-                            TransactionDetailView(transaction: transaction)
-                        } label: {
-                            TransactionRowView(
-                                transaction: transaction,
-                                account: transactions.account(for: transaction.accountId)
-                            )
+                    ForEach(groupedTransactions) { group in
+                        Section(group.title) {
+                            ForEach(group.transactions) { transaction in
+                                NavigationLink {
+                                    TransactionDetailView(transaction: transaction)
+                                } label: {
+                                    TransactionRowView(
+                                        transaction: transaction,
+                                        account: transactions.account(for: transaction.accountId)
+                                    )
+                                }
+                            }
                         }
                     }
                 }
@@ -83,6 +87,10 @@ struct TransactionListView: View {
 
     private var filtered: [Transaction] {
         transactions.filteredTransactions(search: searchText, category: selectedCategory)
+    }
+
+    private var groupedTransactions: [TransactionMonthGroup] {
+        TransactionMonthGrouping.groups(from: filtered)
     }
 }
 

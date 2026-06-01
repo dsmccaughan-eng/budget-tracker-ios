@@ -4,16 +4,50 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Return to Budget Tracker</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      margin: 2rem 1.25rem;
+      line-height: 1.5;
+      color: #141414;
+    }
+    a.button {
+      display: inline-block;
+      margin-top: 1rem;
+      padding: 0.75rem 1.25rem;
+      background: #3685bf;
+      color: #fff;
+      text-decoration: none;
+      border-radius: 10px;
+      font-weight: 600;
+    }
+    p.muted { color: #555; font-size: 0.95rem; }
+  </style>
 </head>
 <body>
-  <p>Returning to Budget Tracker…</p>
+  <h1>Return to Budget Tracker</h1>
+  <p class="muted">After signing in with your bank (e.g. Robinhood), open Budget Tracker to finish linking.</p>
+  <p><a id="open-app" class="button" href="#">Open Budget Tracker</a></p>
+  <p id="fallback" class="muted" hidden>
+    If nothing happens, switch to Budget Tracker manually — Link should complete if you left the bank screen open.
+  </p>
   <script>
     (function () {
-      var target = 'com.optimized.budgettracker://plaid/oauth' + (window.location.search || '') + (window.location.hash || '');
-      window.location.replace(target);
+      var qs = window.location.search || "";
+      var hash = window.location.hash || "";
+      var custom =
+        "com.optimized.budgettracker://plaid/oauth" + qs + hash;
+      var link = document.getElementById("open-app");
+      link.setAttribute("href", custom);
+      link.addEventListener("click", function (e) {
+        e.preventDefault();
+        window.location.href = custom;
+        document.getElementById("fallback").hidden = false;
+      });
       setTimeout(function () {
-        document.body.innerHTML = '<p>If the app did not open automatically, switch back to Budget Tracker and try linking your account again.</p>';
-      }, 2500);
+        window.location.href = custom;
+        document.getElementById("fallback").hidden = false;
+      }, 400);
     })();
   </script>
 </body>

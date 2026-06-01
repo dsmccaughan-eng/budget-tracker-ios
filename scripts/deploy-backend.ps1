@@ -51,6 +51,8 @@ supabase secrets set `
 
 if ($redirectUri) {
   supabase secrets set PLAID_REDIRECT_URI=$redirectUri
+} elseif ($plaidEnv -eq "production") {
+  Write-Warning "PLAID_REDIRECT_URI missing — OAuth banks (Robinhood, Chase) will fail until set in SECRETS.local.md and redeployed."
 }
 
 Write-Host "==> Deploying Edge Functions"

@@ -1,5 +1,5 @@
 Budget Tracker Project AI Instructions
-Last updated: 2026-05-31
+Last updated: 2026-06-01
 
 Repo root (REPO_ROOT)
 - Windows: `C:\Users\dsmcc\Projects\Users\m1\Desktop\BudgetTracker`
@@ -18,7 +18,31 @@ Agent read order
 1) `AI_PROJECT_INSTRUCTIONS.txt` (this file)
 2) `LESSONS_LEARNED.md` (resolved bugs — do not re-break fixes)
 3) `docs/PROJECT_BRIEF.md` (full spec, models, build phases)
-4) `Config/SECRETS.local.md` (gitignored credentials)
+4) `docs/ai/writing-guide.md` (commands, layout, TDD — how to implement)
+5) `ai/features/<area>.md` when editing that feature (see `ai/README.md`)
+6) `docs/ai/go-bys/` when mirroring an existing pattern
+7) `AGENTS.md` (short entry + Cursor read order)
+8) `ai/DOCUMENTATION_MAP.md` when unsure which file to open or update
+9) `Config/SECRETS.local.md` (gitignored credentials)
+
+AI documentation system — file scope and where to apply
+(Unsure which doc to use? Open `ai/DOCUMENTATION_MAP.md` first.)
+
+| File | Contains | Does NOT contain | Read when | Write when |
+|------|----------|------------------|-----------|------------|
+| `AI_PROJECT_INSTRUCTIONS.txt` | Canonical product/security/release rules; Update Log | Full spec detail; secrets; go-by paths | Significant product/security/release work | New non-negotiable rule → Update Log line only |
+| `LESSONS_LEARNED.md` | Resolved bugs (append-only) | Product preferences; feature specs | Every bug-fix before coding | Non-trivial bug fixed → new ### entry |
+| `docs/PROJECT_BRIEF.md` | Full spec, models, build phases | Day-to-day agent procedure | New domain/schema work | Spec-level change with user |
+| `docs/ai/writing-guide.md` | Commands, Backend/ layout, TDD, line limits | Product rules | Adding files, scripts, backend structure | New command/gate/folder convention |
+| `ai/features/*.md` | Feature rules pointer + code map + test hints | Release commands; duplicate Update Log | Editing paths listed in that feature file | New primary module in that feature |
+| `docs/ai/go-bys/*.md` | In-repo example paths; verify commands | New product rules; full TestFlight steps | Building something similar to existing code | New repeatable pattern merged |
+| `AGENTS.md` | Short read order + links | Detailed rules | Start of session | Read order changes |
+| `.cursor/rules/*.mdc` | Short auto-reminders for Cursor | Second copy of this file | (Cursor loads automatically) | New scoped rule; keep each <50 lines |
+| `../ai/cross-app-go-bys.md` | Shared infra (APIKeys, ios-build) | This app's Supabase ref or bundle ID | Core/CI work shared with Optimized | Cross-app pattern changes |
+
+Apply feature docs: open the `ai/features/<name>.md` whose code map matches your edit (e.g. Plaid → `plaid-and-sync.md`).
+Apply go-bys: before inventing a pattern, read the go-by for that topic; adapt paths for Budget Tracker only.
+Cursor: open repo root `BudgetTracker/` so `.cursor/rules/` loads; see `ai/DOCUMENTATION_MAP.md` § Cursor rules.
 
 Purpose
 - Keep Plaid sync, categorization, budgets, goals, and financial UI behavior consistent.
@@ -90,6 +114,14 @@ Engineering Standards (backend, tests, structure)
 - Do **not** upload TestFlight until unit tests pass and launch-guard tests (`AuthStoreTests`, `SupabaseConfigTests`) pass on CI.
 - When changing thresholds (budget alerts, subscription lookback, etc.), update `LaunchReadinessTests` first.
 
+2c) UI canvas preview (required before TestFlight upload)
+- Interactive preview: Cursor canvas `canvases/budget-tracker-preview.canvas.tsx` under this repo’s Cursor project folder (`.cursor/projects/<workspace-id>/canvases/` — IDE-managed, not in git).
+- **What the canvas is:** layout and navigation review with **sample data** — not the running iOS app. It does not call Supabase, Plaid, or Gemini. Buttons may open mock sheets only; real saves happen only on device/simulator.
+- **What the canvas is not:** a functional substitute for TestFlight or simulator testing.
+- **Before every TestFlight upload** (and when shipping UI changes): update the canvas so it matches current screens — five tabs; Budgets = donut + categories + mock Add sheet; Dashboard bills + BillsListView; Transactions = month sections; Goals and Insights = representative list content (not empty placeholders).
+- **Show the user the canvas link** in chat and confirm they have opened it (or they explicitly waive preview) before uploading.
+- Agents: after editing main-tab SwiftUI (`DashboardView`, `BudgetView`, `BillsListView`, `TransactionListView`, `GoalsView`, `InsightsView`), sync the canvas in the same session.
+
 3) Naming and layout
 - Use descriptive file and folder names so agents can find code by domain.
 - Backend layout (do **not** recreate `Services/`):
@@ -135,12 +167,15 @@ Documentation duties (agents)
 - Do not paste secrets into this file or `LESSONS_LEARNED.md`.
 
 Update Log
+- 2026-06-01: Added `ai/DOCUMENTATION_MAP.md`, Cursor rules index, and **AI documentation system** table in this file (scope/read/write per doc type).
+- 2026-06-01: Added `AGENTS.md`, `docs/ai/` (writing guide + go-bys), `ai/features/`, `.cursor/rules/` — canonical rules remain in this file.
 - 2026-05-31: Initial AI instructions; mandate `LESSONS_LEARNED.md` + this file alongside `PROJECT_BRIEF.md`.
 - 2026-05-31: Repo scaffold — Supabase Edge Functions, migrations, merchant seed, XcodeGen shell, Face ID gate, Phases 1–6 iOS features.
 - 2026-05-31: Supabase project ref corrected to `dldbcbituquxedlkeefu` (brief had typo `dldbcbituxuxedlkeefu`).
 - 2026-05-31: Expanded this file to mirror Optimized agent/CI/release process (Windows push, GHA verify, pkg.xcconfig, TestFlight prep).
 - 2026-05-31: **GitHub backup only**; TestFlight via **Codemagic** (see `docs/CODEMAGIC.md`, synced from `../ios-build/`).
 - 2026-06-01: Pre-ship TDD gate — `BudgetTrackerTests` launch guards, `scripts/pre-ship-gate.ps1`, Codemagic unit-test + Supabase 2.44.0 verify; `docs/TDD_AND_CRASHES.md`.
+- 2026-06-01: **Canvas before upload** — §2c requires `budget-tracker-preview.canvas.tsx` updated and shown before TestFlight; Budgets pie + categories, Dashboard/BillsListView bills, Transactions by month.
 - 2026-05-31: Plaid hardening — webhooks with JWT verification, update mode, item removal, audit log, rate limits; see `docs/PLAID_PRODUCTION_CHECKLIST.md`.
 
 Security — credential rotation (required if secrets were ever committed or pasted in chat)

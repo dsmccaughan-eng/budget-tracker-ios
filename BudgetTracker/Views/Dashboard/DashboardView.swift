@@ -33,6 +33,33 @@ struct DashboardView: View {
                     }
                 }
 
+                Section("Bills") {
+                    if monthlyBills.isEmpty {
+                        Text("Mark a budget as a fixed expense to see due dates here.")
+                            .foregroundStyle(.secondary)
+                    } else {
+                        NavigationLink {
+                            BillsListView()
+                        } label: {
+                            Label(billsSummaryLabel, systemImage: "calendar")
+                        }
+                        ForEach(monthlyBills.prefix(3)) { bill in
+                            HStack {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(bill.name)
+                                        .font(.subheadline.weight(.semibold))
+                                    Text(bill.displayDue)
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                                Spacer()
+                                Text(FinanceFormatting.currency(bill.amount))
+                                    .font(.subheadline.weight(.semibold))
+                            }
+                        }
+                    }
+                }
+
                 Section("Budget overview") {
                     if budgets.progress.isEmpty {
                         Text("Set monthly limits per category to track spending.")
@@ -103,6 +130,21 @@ struct DashboardView: View {
 
     private var recentTransactions: [Transaction] {
         Array(transactions.transactions.prefix(5))
+    }
+
+    private var monthlyBills: [BillItem] {
+        BillsEngine.bills(
+            budgets: budgets.budgets,
+            transactions: transactions.transactions
+        )
+    }
+
+    private var billsSummaryLabel: String {
+        let dueCount = monthlyBills.filter { !$0.isPaid }.count
+        if dueCount == 0 {
+            return "All bills paid this month"
+        }
+        return "\(dueCount) bill\(dueCount == 1 ? "" : "s") due this month"
     }
 
     private func reloadAll() async {
