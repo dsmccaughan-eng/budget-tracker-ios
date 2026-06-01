@@ -6,6 +6,7 @@ struct PlaidLinkView: View {
 
     @EnvironmentObject private var auth: AuthStore
     @EnvironmentObject private var transactions: TransactionStore
+    @EnvironmentObject private var plaidLink: PlaidLinkCoordinator
     @State private var linkToken: String?
     @State private var statusMessage = "Connect a bank account via Plaid Link."
     @State private var isLoading = false
@@ -28,19 +29,41 @@ struct PlaidLinkView: View {
             if let linkToken {
                 PlaidLinkPresenter(
                     linkToken: linkToken,
-                    onSuccess: { publicToken in
+                    coordinator: plaidLink,
+                    onSuccess: { success in
                         if isUpdateMode {
                             Task { await finishUpdateMode() }
                         } else {
-                            Task { await exchangeToken(publicToken) }
+                            Task { await exchangeToken(success) }
                         }
                     },
-                    onExit: {
+                    onExit: { exit in
+                        statusMessage = Self.exitMessage(exit)
+                            ?? "Could not open bank link. Try again."
                         isPresentingLink = false
                     }
                 )
             }
         }
+    }
+
+    private static func exitMessage(_ exit: LinkExit?) -> String? {
+        guard let exit else { return nil }
+        if let error = exit.error {
+            let detail = error.errorMessage
+            if detail.lowercased().contains("post process") {
+                return """
+                Bank login finished but the app could not complete setup. \
+                If you use Chase, BofA, or similar, OAuth redirect must be configured in Plaid Dashboard. \
+                (\(detail))
+                """
+            }
+            return detail
+        }
+        if exit.metadata.status == .requiresCredentials {
+            return "Bank linking was cancelled."
+        }
+        return nil
     }
 
     private func prepareLink() async {
@@ -67,23 +90,26 @@ struct PlaidLinkView: View {
         }
     }
 
-    private func exchangeToken(_ publicToken: String) async {
+    private func exchangeToken(_ success: LinkSuccess) async {
         isLoading = true
         defer { isLoading = false }
 
         do {
             let response: ExchangeTokenResponse = try await SupabaseService.shared.invokeFunction(
                 name: "plaid-exchange-token",
-                body: ExchangeTokenBody(publicToken: publicToken, institutionName: nil),
+                body: ExchangeTokenBody(
+                    publicToken: success.publicToken,
+                    institutionName: success.metadata.institution.name
+                ),
                 client: auth.supabaseClient
             )
-            statusMessage = "Linked item \(response.itemId) with \(response.accountsLinked) accounts."
+            statusMessage = "Linked \(success.metadata.institution.name) with \(response.accountsLinked) accounts."
             isPresentingLink = false
             await transactions.loadAll(client: auth.supabaseClient)
             _ = try? await SupabaseService.shared.syncTransactions(client: auth.supabaseClient)
             await transactions.loadAll(client: auth.supabaseClient)
         } catch {
-            statusMessage = error.localizedDescription
+            statusMessage = "Link succeeded but saving failed: \(error.localizedDescription)"
         }
     }
 
@@ -101,23 +127,19 @@ struct PlaidLinkView: View {
 
 private struct PlaidLinkPresenter: UIViewControllerRepresentable {
     let linkToken: String
-    let onSuccess: (String) -> Void
-    let onExit: () -> Void
+    let coordinator: PlaidLinkCoordinator
+    let onSuccess: (LinkSuccess) -> Void
+    let onExit: (LinkExit?) -> Void
 
     func makeUIViewController(context: Context) -> UIViewController {
         let controller = UIViewController()
         DispatchQueue.main.async {
-            var configuration = LinkTokenConfiguration(token: linkToken) { success in
-                onSuccess(success.publicToken)
-            }
-            configuration.onExit = { _ in onExit() }
-            let result = Plaid.create(configuration)
-            switch result {
-            case .failure:
-                onExit()
-            case .success(let handler):
-                handler.open(presentUsing: .viewController(controller))
-            }
+            coordinator.open(
+                linkToken: linkToken,
+                presenting: controller,
+                onSuccess: onSuccess,
+                onExit: onExit
+            )
         }
         return controller
     }

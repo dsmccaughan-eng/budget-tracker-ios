@@ -14,8 +14,8 @@
 	<key>GEMINI_API_KEY</key>
 	<string>$(GEMINI_API_KEY)</string>
 	<key>SUPABASE_URL</key>
-	<string>$(SUPABASE_URL)</string>
+	<string>https://dldbcbituquxedlkeefu.supabase.co</string>
 	<key>SUPABASE_ANON_KEY</key>
-	<string>$(SUPABASE_ANON_KEY)</string>
+	<string>eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRsZGJjYml0dXF1eGVkbGtlZWZ1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk2OTgxNDYsImV4cCI6MjA5NTI3NDE0Nn0.ZEKbCfVCOPd_tII-7dokUNDllqi1PGTLMxH5GCOV0d0</string>
 </dict>
 </plist>

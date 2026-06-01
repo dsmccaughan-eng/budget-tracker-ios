@@ -8,18 +8,11 @@ struct AuthView: View {
     @State private var step: Step = .email
     @State private var isLoading = false
 
-    @State private var supabaseAnonKey = ""
-    @State private var showBackendSetup = false
-
     enum Step { case email, otp }
 
     var body: some View {
         NavigationStack {
             Form {
-                if showBackendSetup {
-                    backendSection
-                }
-
                 if step == .email {
                     emailSection
                 } else {
@@ -34,34 +27,6 @@ struct AuthView: View {
                 }
             }
             .navigationTitle("Budget Tracker")
-            .onAppear {
-                showBackendSetup = false
-            }
-        }
-    }
-
-    private var backendSection: some View {
-        Section {
-            Text("Supabase anon key")
-                .font(.footnote)
-                .foregroundStyle(.secondary)
-            SecureField("Anon public key", text: $supabaseAnonKey)
-                .textInputAutocapitalization(.never)
-                .autocorrectionDisabled()
-            Text("Project URL: \(APIKeys.defaultSupabaseURL)")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-            Button("Save backend key") {
-                APIKeys.saveUserSupabaseKeys(url: APIKeys.defaultSupabaseURL, anonKey: supabaseAnonKey)
-                showBackendSetup = false
-                auth.errorMessage = nil
-                Task { await auth.bootstrap() }
-            }
-            .disabled(supabaseAnonKey.trimmingCharacters(in: .whitespacesAndNewlines).count < 20)
-        } header: {
-            Text("Backend")
-        } footer: {
-            Text("Required once per device. Find the anon key in Supabase Dashboard → Project Settings → API.")
         }
     }
 
@@ -71,21 +36,27 @@ struct AuthView: View {
                 .textInputAutocapitalization(.never)
                 .keyboardType(.emailAddress)
                 .autocorrectionDisabled()
+                .textContentType(.emailAddress)
 
             Button {
                 sendCode()
             } label: {
-                if isLoading {
-                    ProgressView()
-                } else {
-                    Text("Send sign-in code")
+                HStack {
+                    Spacer()
+                    if isLoading {
+                        ProgressView()
+                    } else {
+                        Text("Send sign-in code")
+                    }
+                    Spacer()
                 }
             }
-            .disabled(email.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isLoading || !SupabaseConfig.isConfigured)
+            .buttonStyle(.borderedProminent)
+            .disabled(email.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isLoading)
         } header: {
             Text("Sign in")
         } footer: {
-            Text("We'll email a one-time code. No password to remember.")
+            Text("We'll email a one-time code. If email is slow, your code may appear on the next screen.")
         }
     }
 
@@ -115,18 +86,24 @@ struct AuthView: View {
             Button {
                 verifyCode()
             } label: {
-                if isLoading {
-                    ProgressView()
-                } else {
-                    Text("Continue")
+                HStack {
+                    Spacer()
+                    if isLoading {
+                        ProgressView()
+                    } else {
+                        Text("Continue")
+                    }
+                    Spacer()
                 }
             }
+            .buttonStyle(.borderedProminent)
             .disabled(otp.trimmingCharacters(in: .whitespacesAndNewlines).count < 6 || isLoading)
 
             Button("Use a different email") {
                 step = .email
                 otp = ""
                 auth.pendingInAppOTP = nil
+                auth.errorMessage = nil
             }
         } header: {
             Text("Check your email")
@@ -134,24 +111,32 @@ struct AuthView: View {
     }
 
     private func sendCode() {
+        guard !isLoading else { return }
         isLoading = true
+        auth.errorMessage = nil
         Task {
             await auth.sendOTP(email: email)
-            if auth.errorMessage == nil || auth.pendingInAppOTP != nil {
-                if let code = auth.pendingInAppOTP {
-                    otp = code
+            await MainActor.run {
+                if auth.errorMessage == nil || auth.pendingInAppOTP != nil {
+                    if let code = auth.pendingInAppOTP {
+                        otp = code
+                    }
+                    step = .otp
                 }
-                step = .otp
+                isLoading = false
             }
-            isLoading = false
         }
     }
 
     private func verifyCode() {
+        guard !isLoading else { return }
         isLoading = true
+        auth.errorMessage = nil
         Task {
             await auth.verifyOTP(email: email, token: otp)
-            isLoading = false
+            await MainActor.run {
+                isLoading = false
+            }
         }
     }
 }

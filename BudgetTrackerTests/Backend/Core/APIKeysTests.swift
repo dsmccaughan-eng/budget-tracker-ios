@@ -2,22 +2,11 @@ import XCTest
 @testable import BudgetTracker
 
 final class APIKeysTests: XCTestCase {
-    private let supabaseURLKey = "supabase_url"
-    private let supabaseAnonKey = "supabase_anon_key"
-    private let supabaseUserFlag = "supabase_keys_user_provided"
-
     override func tearDown() {
-        UserDefaults.standard.removeObject(forKey: supabaseURLKey)
-        UserDefaults.standard.removeObject(forKey: supabaseAnonKey)
-        UserDefaults.standard.removeObject(forKey: supabaseUserFlag)
+        UserDefaults.standard.removeObject(forKey: "supabase_keys_user_provided")
+        UserDefaults.standard.removeObject(forKey: "supabase_url")
+        UserDefaults.standard.removeObject(forKey: "supabase_anon_key")
         super.tearDown()
-    }
-
-    override func setUp() {
-        super.setUp()
-        UserDefaults.standard.removeObject(forKey: supabaseURLKey)
-        UserDefaults.standard.removeObject(forKey: supabaseAnonKey)
-        UserDefaults.standard.removeObject(forKey: supabaseUserFlag)
     }
 
     func testValidatesKeyRejectsPlaceholders() {
@@ -35,28 +24,20 @@ final class APIKeysTests: XCTestCase {
         XCTAssertEqual(APIKeys.defaultSupabaseURL, "https://dldbcbituquxedlkeefu.supabase.co")
     }
 
-    func testSaveUserSupabaseKeysMarksConfigured() {
-        APIKeys.saveUserSupabaseKeys(
-            url: APIKeys.defaultSupabaseURL,
-            anonKey: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.test-key"
-        )
+    func testSupabaseConfigAlwaysAvailableWithoutUserInput() {
+        APIKeys.syncToUserDefaultsIfNeeded()
         XCTAssertTrue(APIKeys.hasValidSupabaseConfig)
         XCTAssertTrue(SupabaseConfig.isConfigured)
+        XCTAssertEqual(APIKeys.supabaseURL, APIKeys.defaultSupabaseURL)
+        XCTAssertEqual(APIKeys.supabaseAnonKey, APIKeys.defaultSupabaseAnonKey)
     }
 
-    func testHasValidSupabaseConfigFalseWhenPlistPlaceholdersOnly() {
-        // Test host bundle uses unresolved $(SUPABASE_*) from Info.plist unless user overrides.
-        guard !APIKeys.hasValidSupabaseConfig else {
-            throw XCTSkip("Supabase keys injected in test environment; placeholder test skipped.")
-        }
-        XCTAssertFalse(APIKeys.hasValidSupabaseConfig)
-    }
-
-    func testUserProvidedSupabaseURLWinsOverEmptyDefaults() {
-        UserDefaults.standard.set("https://example.supabase.co", forKey: supabaseURLKey)
-        UserDefaults.standard.set("eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.test", forKey: supabaseAnonKey)
-        UserDefaults.standard.set(true, forKey: supabaseUserFlag)
-        XCTAssertTrue(APIKeys.hasValidSupabaseConfig)
-        XCTAssertEqual(APIKeys.supabaseURL, "https://example.supabase.co")
+    func testLegacyUserDefaultsOverrideIsIgnored() {
+        UserDefaults.standard.set("https://example.supabase.co", forKey: "supabase_url")
+        UserDefaults.standard.set("eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.test", forKey: "supabase_anon_key")
+        UserDefaults.standard.set(true, forKey: "supabase_keys_user_provided")
+        APIKeys.syncToUserDefaultsIfNeeded()
+        XCTAssertEqual(APIKeys.supabaseURL, APIKeys.defaultSupabaseURL)
+        XCTAssertEqual(APIKeys.supabaseAnonKey, APIKeys.defaultSupabaseAnonKey)
     }
 }

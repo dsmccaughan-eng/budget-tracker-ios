@@ -38,7 +38,7 @@ final class AuthStore: ObservableObject {
         if let client { return client }
 
         guard let url = SupabaseConfig.url, SupabaseConfig.isConfigured else {
-            throw BudgetTrackerError.server(Self.missingBackendMessage)
+            throw BudgetTrackerError.server(Self.configurationErrorMessage)
         }
 
         let created = try SupabaseClientFactory.makeClient(url: url, anonKey: SupabaseConfig.anonKey)
@@ -46,18 +46,19 @@ final class AuthStore: ObservableObject {
         return created
     }
 
-    static let missingBackendMessage =
-        "Add your Supabase anon key below (Dashboard → Settings → API → anon public)."
+    private static let configurationErrorMessage =
+        "App configuration error. Install the latest TestFlight build and try again."
 
     func bootstrap() async {
         errorMessage = nil
         client = nil
         pendingInAppOTP = nil
+        APIKeys.syncToUserDefaultsIfNeeded()
 
         guard SupabaseConfig.isConfigured else {
             userId = nil
             state = .unauthenticated
-            errorMessage = Self.missingBackendMessage
+            errorMessage = Self.configurationErrorMessage
             return
         }
 
@@ -77,6 +78,7 @@ final class AuthStore: ObservableObject {
         errorMessage = nil
         pendingInAppOTP = nil
         client = nil
+        APIKeys.syncToUserDefaultsIfNeeded()
 
         let normalized = email.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         guard normalized.contains("@") else {
@@ -86,7 +88,11 @@ final class AuthStore: ObservableObject {
 
         guard SupabaseConfig.isConfigured else {
             state = .unauthenticated
-            errorMessage = Self.missingBackendMessage
+            errorMessage = Self.configurationErrorMessage
+            return
+        }
+
+        if await deliverInAppOTP(email: normalized) {
             return
         }
 
@@ -98,11 +104,11 @@ final class AuthStore: ObservableObject {
                 shouldCreateUser: true
             )
         } catch {
-            if await handleOTPDeliveryFallback(email: normalized, error: error) {
+            if await deliverInAppOTP(email: normalized) {
                 return
             }
             client = nil
-            errorMessage = error.localizedDescription
+            errorMessage = friendlyOTPError(error)
             state = .unauthenticated
         }
     }
@@ -114,7 +120,7 @@ final class AuthStore: ObservableObject {
         let code = token.trimmingCharacters(in: .whitespacesAndNewlines)
 
         guard SupabaseConfig.isConfigured else {
-            errorMessage = Self.missingBackendMessage
+            errorMessage = Self.configurationErrorMessage
             return
         }
 
@@ -160,21 +166,11 @@ final class AuthStore: ObservableObject {
         state = .unauthenticated
     }
 
-    var accessToken: String? {
-        get async {
-            guard let client else { return nil }
-            return try? await client.auth.session.accessToken
-        }
-    }
-
-    private func handleOTPDeliveryFallback(email: String, error: Error) async -> Bool {
-        let message = error.localizedDescription.lowercased()
-        let emailLikelyFailed = message.contains("email") || message.contains("smtp") || message.contains("500")
-        guard emailLikelyFailed else { return false }
-
+    private func deliverInAppOTP(email: String) async -> Bool {
         do {
             if let inApp = try await AuthOTPBridge.requestInAppOTP(email: email) {
                 pendingInAppOTP = inApp
+                errorMessage = nil
                 return true
             }
         } catch {
@@ -182,5 +178,16 @@ final class AuthStore: ObservableObject {
             return true
         }
         return false
+    }
+
+    private func friendlyOTPError(_ error: Error) -> String {
+        let message = error.localizedDescription.lowercased()
+        if message.contains("rate limit") || message.contains("too many") {
+            return "Too many sign-in attempts. Wait a few minutes, or use the code shown in the app if available."
+        }
+        if message.contains("email") || message.contains("smtp") {
+            return "Could not send email. If your address is on the allowlist, try again to get an in-app code."
+        }
+        return error.localizedDescription
     }
 }

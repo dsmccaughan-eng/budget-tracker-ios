@@ -3,6 +3,7 @@ import SwiftUI
 @main
 struct BudgetTrackerApp: App {
     @StateObject private var authStore = AuthStore()
+    @StateObject private var plaidLinkCoordinator = PlaidLinkCoordinator()
     @StateObject private var transactionStore = TransactionStore()
     @StateObject private var budgetStore = BudgetStore()
     @StateObject private var goalsStore = GoalsStore()
@@ -16,7 +17,11 @@ struct BudgetTrackerApp: App {
         WindowGroup {
             RootView()
                 .environmentObject(authStore)
+                .environmentObject(plaidLinkCoordinator)
                 .environmentObject(transactionStore)
+                .onOpenURL { url in
+                    _ = plaidLinkCoordinator.continueLink(from: url)
+                }
                 .environmentObject(budgetStore)
                 .environmentObject(goalsStore)
                 .environmentObject(netWorthStore)

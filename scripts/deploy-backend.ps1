@@ -65,7 +65,7 @@ $functions = @(
   "plaid-webhook"
 )
 foreach ($fn in $functions) {
-  if ($fn -eq "plaid-webhook") {
+  if ($fn -eq "plaid-webhook" -or $fn -eq "request-login-otp") {
     supabase functions deploy $fn --no-verify-jwt
   } else {
     supabase functions deploy $fn

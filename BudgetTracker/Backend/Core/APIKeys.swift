@@ -3,12 +3,11 @@ import Foundation
 struct APIKeys {
     /// Public project URL (safe to ship in the client).
     static let defaultSupabaseURL = "https://dldbcbituquxedlkeefu.supabase.co"
-    /// Anon public key for this project (safe in client; protected by RLS). Used when xcconfig/Settings are empty.
+    /// Anon public key (safe in client; protected by RLS). Shipped in app — never prompt the user.
     static let defaultSupabaseAnonKey =
         "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRsZGJjYml0dXF1eGVkbGtlZWZ1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk2OTgxNDYsImV4cCI6MjA5NTI3NDE0Nn0.ZEKbCfVCOPd_tII-7dokUNDllqi1PGTLMxH5GCOV0d0"
 
     private static let geminiUserProvidedFlag = "gemini_api_key_user_provided"
-    private static let supabaseUserProvidedFlag = "supabase_keys_user_provided"
 
     static var gemini: String {
         resolveKey(
@@ -16,60 +15,69 @@ struct APIKeys {
             infoPlistKey: "GEMINI_API_KEY",
             userDefaultsKey: "gemini_api_key",
             localPlistKey: "GEMINI_API_KEY",
-            userProvidedFlag: geminiUserProvidedFlag
+            userProvidedFlag: geminiUserProvidedFlag,
+            compiledDefault: ""
         )
     }
 
     static var supabaseURL: String {
-        resolveKey(
+        resolveSupabaseValue(
             envKey: "SUPABASE_URL",
             infoPlistKey: "SUPABASE_URL",
-            userDefaultsKey: "supabase_url",
             localPlistKey: "SUPABASE_URL",
-            userProvidedFlag: supabaseUserProvidedFlag
+            defaultValue: defaultSupabaseURL
         )
     }
 
     static var supabaseAnonKey: String {
-        resolveKey(
+        resolveSupabaseValue(
             envKey: "SUPABASE_ANON_KEY",
             infoPlistKey: "SUPABASE_ANON_KEY",
-            userDefaultsKey: "supabase_anon_key",
             localPlistKey: "SUPABASE_ANON_KEY",
-            userProvidedFlag: supabaseUserProvidedFlag
+            defaultValue: defaultSupabaseAnonKey
         )
     }
 
     static let missingGeminiKeyMessage =
-        "Missing Gemini API key. Add GEMINI_API_KEY to pkg.xcconfig before archiving, or enter your key in Settings."
+        "Missing Gemini API key. Add GEMINI_API_KEY to pkg.xcconfig before archiving."
 
     static var hasValidGeminiKey: Bool { !gemini.isEmpty }
     static var hasValidSupabaseConfig: Bool { !supabaseURL.isEmpty && !supabaseAnonKey.isEmpty }
 
+    /// Supabase keys are baked in — do not use in-app overrides.
+    @available(*, deprecated, message: "Supabase keys are configured in the app binary.")
     static func saveUserSupabaseKeys(url: String, anonKey: String) {
-        let trimmedURL = url.trimmingCharacters(in: .whitespacesAndNewlines)
-        let trimmedKey = anonKey.trimmingCharacters(in: .whitespacesAndNewlines)
-        UserDefaults.standard.set(trimmedURL, forKey: "supabase_url")
-        UserDefaults.standard.set(trimmedKey, forKey: "supabase_anon_key")
-        UserDefaults.standard.set(true, forKey: supabaseUserProvidedFlag)
+        _ = (url, anonKey)
     }
 
     static func syncToUserDefaultsIfNeeded() {
+        clearLegacySupabaseUserDefaults()
         seedIfNeeded(
             flag: geminiUserProvidedFlag,
             defaultsKey: "gemini_api_key",
             value: geminiFromBuildSources()
         )
-        seedIfNeeded(
-            flag: supabaseUserProvidedFlag,
-            defaultsKey: "supabase_url",
-            value: supabaseURLFromBuildSources()
+    }
+
+    private static func clearLegacySupabaseUserDefaults() {
+        UserDefaults.standard.removeObject(forKey: "supabase_keys_user_provided")
+        UserDefaults.standard.removeObject(forKey: "supabase_url")
+        UserDefaults.standard.removeObject(forKey: "supabase_anon_key")
+    }
+
+    private static func resolveSupabaseValue(
+        envKey: String,
+        infoPlistKey: String,
+        localPlistKey: String,
+        defaultValue: String
+    ) -> String {
+        let fromBuild = valueFromBuildSources(
+            envKey: envKey,
+            infoPlistKey: infoPlistKey,
+            localPlistKey: localPlistKey
         )
-        seedIfNeeded(
-            flag: supabaseUserProvidedFlag,
-            defaultsKey: "supabase_anon_key",
-            value: supabaseAnonFromBuildSources()
-        )
+        if isUsableKey(fromBuild) { return fromBuild }
+        return defaultValue
     }
 
     private static func seedIfNeeded(flag: String, defaultsKey: String, value: String) {
@@ -84,7 +92,8 @@ struct APIKeys {
         infoPlistKey: String,
         userDefaultsKey: String,
         localPlistKey: String,
-        userProvidedFlag: String
+        userProvidedFlag: String,
+        compiledDefault: String
     ) -> String {
         if UserDefaults.standard.bool(forKey: userProvidedFlag),
            let defaultsValue = UserDefaults.standard.string(forKey: userDefaultsKey) {
@@ -104,19 +113,12 @@ struct APIKeys {
             if isUsableKey(trimmed) { return trimmed }
         }
 
+        if isUsableKey(compiledDefault) { return compiledDefault }
         return ""
     }
 
     private static func geminiFromBuildSources() -> String {
         valueFromBuildSources(envKey: "GEMINI_API_KEY", infoPlistKey: "GEMINI_API_KEY", localPlistKey: "GEMINI_API_KEY")
-    }
-
-    private static func supabaseURLFromBuildSources() -> String {
-        valueFromBuildSources(envKey: "SUPABASE_URL", infoPlistKey: "SUPABASE_URL", localPlistKey: "SUPABASE_URL")
-    }
-
-    private static func supabaseAnonFromBuildSources() -> String {
-        valueFromBuildSources(envKey: "SUPABASE_ANON_KEY", infoPlistKey: "SUPABASE_ANON_KEY", localPlistKey: "SUPABASE_ANON_KEY")
     }
 
     private static func valueFromBuildSources(
@@ -133,17 +135,8 @@ struct APIKeys {
             if isUsableKey(trimmed) { return trimmed }
         }
 
-        #if DEBUG
         if let localValue = localPlistString(for: localPlistKey), isUsableKey(localValue) {
             return localValue
-        }
-        #endif
-
-        if infoPlistKey == "SUPABASE_URL", isUsableKey(defaultSupabaseURL) {
-            return defaultSupabaseURL
-        }
-        if infoPlistKey == "SUPABASE_ANON_KEY", isUsableKey(defaultSupabaseAnonKey) {
-            return defaultSupabaseAnonKey
         }
 
         return ""

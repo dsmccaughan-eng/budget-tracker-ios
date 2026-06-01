@@ -1,40 +1,31 @@
 # Email OTP sign-in (no passwords)
 
-Budget Tracker uses **email one-time codes** (same pattern as Optimized). Users never set or store a password in the app.
+Budget Tracker uses **email one-time codes**. Users never set or store a password in the app.
 
 ## Flow
 
 1. Enter email → **Send sign-in code**
-2. Enter the 6-digit code from email → signed in
+2. Enter the 6-digit code (email or in-app fallback) → signed in
 3. Session persists via Supabase (refresh token on device)
 
-## Backend key on device
+## Backend keys (no in-app setup)
 
-TestFlight builds need the **Supabase anon public key** once:
+Supabase URL and **anon public key** are baked into the app (`Info.plist`, `APIKeys`, bundled `Config/LocalAPIKeys.plist`). Users are **never** asked to paste keys.
 
-- Sign-in screen → **Backend** section, or **Settings → Backend**
-- Paste from Supabase Dashboard → Project Settings → API → `anon` `public`
-- Project URL is pre-filled (`https://dldbcbituquxedlkeefu.supabase.co`)
+Codemagic `budgettracker_secrets` should still set `SUPABASE_ANON_KEY` and `SUPABASE_URL` for Release archives when using `pkg.xcconfig`.
 
-Codemagic should also set `SUPABASE_ANON_KEY` in `budgettracker_secrets` so most users never see this step.
+## In-app code fallback
 
-## Email delivery fallback
+If Supabase email is slow or rate-limited, allowlisted addresses get a code on the next screen via `request-login-otp`:
 
-If Supabase cannot send email, allowlisted addresses can get an **in-app code** via the `request-login-otp` edge function.
+- Default allowlist includes `dsmccaughan@gmail.com`
+- Add more: `OTP_ALLOWLIST=you@example.com,friend@example.com` in Supabase Edge Function secrets
 
 Deploy:
 
 ```powershell
 .\scripts\deploy-backend.ps1
 ```
-
-Set allowlist (optional):
-
-```text
-OTP_ALLOWLIST=you@example.com,other@example.com
-```
-
-in Supabase Edge Function secrets.
 
 ## Enable email auth in Supabase
 

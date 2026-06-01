@@ -58,6 +58,13 @@ Entry format
 - **Guardrails:** Sandbox Items do not carry over; disconnect old test bank before linking real institution. OAuth banks need `PLAID_REDIRECT_URI` + Universal Link.
 - **Verification:** Supabase secrets show `PLAID_ENV=production`; link token create succeeds against `production.plaid.com`.
 
+### 2026-06-01 - Plaid Link "post process failed" on iOS
+- **Symptom:** After completing bank login in Link, UI shows post process failed (common with Production OAuth banks).
+- **Root cause:** Link `Handler` was not retained for the full session; OAuth return URL was not handled via `.onOpenURL` / `handler.continue(from:)`.
+- **Fix pattern:** `PlaidLinkCoordinator` holds `Handler`; `BudgetTrackerApp.onOpenURL` calls `continueLink(from:)`; surface `LinkExit` error text in `PlaidLinkView`.
+- **Guardrails:** OAuth institutions still need `PLAID_REDIRECT_URI` + Universal Link in Plaid Dashboard and Xcode associated domains.
+- **Verification:** Link real bank on device; no post-process error; accounts appear after exchange.
+
 ## Operational Notes
 - For release builds/uploads, follow the command chain in `AI_PROJECT_INSTRUCTIONS.txt` under **Release / TestFlight**.
 - For CI while minutes are limited, use GitHub Actions **Verify compile** with `workflow_dispatch`.

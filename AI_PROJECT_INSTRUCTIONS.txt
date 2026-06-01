@@ -149,8 +149,9 @@ Security — credential rotation (required if secrets were ever committed or pas
 - Prefer local-only secrets: `Config/SECRETS.local.md`, `pkg.xcconfig`, `LocalAPIKeys.plist` — never commit real values.
 
 Release API keys (TestFlight / Release builds)
-- Resolution order (copy Optimized pattern in `BudgetTracker/Backend/Core/APIKeys.swift`):
-  Profile/user override in UserDefaults → env → Info.plist (from xcconfig at archive) → `LocalAPIKeys.plist` (**DEBUG only**).
+- Resolution order (`BudgetTracker/Backend/Core/APIKeys.swift`):
+  Supabase URL + anon key are **compiled into the app** (Info.plist + defaults). Never prompt the user for Supabase keys.
+  Gemini: UserDefaults override → env → Info.plist → `LocalAPIKeys.plist` bundle.
 - Reject placeholders containing `$(…)`, `YOUR_*`, or empty strings.
 - Release archives must set real keys in `pkg.xcconfig` so Info.plist gets `GEMINI_API_KEY`, `SUPABASE_URL`, `SUPABASE_ANON_KEY`.
 - `scripts/ci-write-pkg-xcconfig.sh` writes CI pkg.xcconfig from GitHub Actions secrets.

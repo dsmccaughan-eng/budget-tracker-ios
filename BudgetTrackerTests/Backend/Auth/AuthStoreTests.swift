@@ -8,15 +8,12 @@ final class AuthStoreTests: XCTestCase {
         _ = AuthStore()
     }
 
-    func testBootstrapWithoutConfigLeavesUnauthenticated() async {
-        guard !SupabaseConfig.isConfigured else {
-            throw XCTSkip("Supabase configured in test environment.")
-        }
+    func testBootstrapAlwaysHasSupabaseConfigInApp() async {
+        APIKeys.syncToUserDefaultsIfNeeded()
+        XCTAssertTrue(SupabaseConfig.isConfigured)
         let store = AuthStore()
         await store.bootstrap()
-        XCTAssertEqual(store.state, .unauthenticated)
-        XCTAssertNil(store.userId)
-        XCTAssertEqual(store.errorMessage, AuthStore.missingBackendMessage)
+        XCTAssertTrue(store.state == .unauthenticated || store.state == .authenticated)
     }
 
     func testSupabaseClientFactoryDoesNotTrapWithValidHTTPSURL() throws {
