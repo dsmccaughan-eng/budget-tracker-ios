@@ -1,3 +1,5 @@
+import Foundation
+
 struct ExchangeTokenBody: Encodable {
     let publicToken: String
     let institutionName: String?

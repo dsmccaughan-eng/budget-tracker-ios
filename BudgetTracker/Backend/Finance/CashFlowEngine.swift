@@ -113,7 +113,7 @@ enum SubscriptionAuditEngine {
 
         return grouped.map { merchant, txns in
             let total = txns.reduce(0) { $0 + abs($1.amount) }
-            let months = max(Double(Set(txns.map(\.date.prefix(7))).count), 1)
+            let months = max(Double(Set(txns.map { String($0.date.prefix(7)) }).count), 1)
             return SubscriptionCharge(
                 merchant: merchant.capitalized,
                 monthlyAmount: total / months,
