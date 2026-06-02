@@ -132,6 +132,12 @@ Entry format
 - **Fix:** User completes [TestFlight Test Information](https://appstoreconnect.apple.com/apps/6775334574/testflight/test-info); install build from TestFlight → iOS builds. Set `submit_to_testflight: false` in `codemagic.yaml` until metadata exists so CI does not fail post-upload.
 - **Verification:** ASC shows processed build; internal testers can install after test info + tester group.
 
+### 2026-06-05 - Codemagic build 19: BudgetStore multiline string interpolation (again)
+- **Symptom:** Build 19 IPA failed at `BudgetStore.swift:72` and `:254`.
+- **Root cause:** `listCacheKey` reintroduced multiline `"\(...BudgetMath.cacheKey(...))"` after refactor.
+- **Fix:** Centralize `monthCacheKey(prefix:referenceDate:transactions:)` helper.
+- **Verification:** Codemagic archive succeeds.
+
 ### 2026-06-05 - Similar merchant auto-categorization from user history
 - **Symptom:** Slightly different merchant text (e.g. "MOBILE CR CARD PMT") not inheriting user's past category.
 - **Fix:** Token similarity against saved rules + user-categorized transactions (`user_similar`); Gemini receives user examples. Deployed in `plaid-sync-transactions`.
