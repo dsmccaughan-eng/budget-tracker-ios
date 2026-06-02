@@ -15,7 +15,11 @@ struct CategoryTransactionsView: View {
     }
 
     private var netSpent: Double {
-        monthTransactions.reduce(0) { $0 + $1.amount }
+        BudgetMath.spentAmount(
+            transactions: transactions.transactions,
+            category: category,
+            referenceDate: referenceMonth
+        )
     }
 
     private var title: String {

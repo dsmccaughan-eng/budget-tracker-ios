@@ -10,12 +10,13 @@ struct BudgetSpendPieChart: View {
     @State private var selectedCategory: String?
 
     private var usesSpendingSlices: Bool {
-        BudgetMath.totalSpent(progress) > 0
+        BudgetMath.monthSpendingDisplayTotal(progress: progress) > 0
     }
 
     private var slices: [BudgetProgress] {
         if usesSpendingSlices {
-            return progress.filter { $0.spent > 0 }.sorted { $0.spent > $1.spent }
+            return progress.filter { $0.listDisplaySpent > 0 }
+                .sorted { $0.listDisplaySpent > $1.listDisplaySpent }
         }
         return progress.filter { $0.monthlyLimit > 0 }.sorted { $0.monthlyLimit > $1.monthlyLimit }
     }
@@ -152,6 +153,6 @@ struct BudgetSpendPieChart: View {
     }
 
     private func sliceAmount(for row: BudgetProgress) -> Double {
-        usesSpendingSlices ? row.spent : row.monthlyLimit
+        usesSpendingSlices ? row.listDisplaySpent : row.monthlyLimit
     }
 }

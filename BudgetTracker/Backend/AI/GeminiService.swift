@@ -56,18 +56,6 @@ struct ReceiptItem: Decodable {
     let category: String?
 }
 
-struct FinanceInsightResult: Decodable {
-    let summary: String
-    let topInsight: String
-    let suggestion: String
-    let anomalies: [String]
-
-    enum CodingKeys: String, CodingKey {
-        case summary, suggestion, anomalies
-        case topInsight = "topInsight"
-    }
-}
-
 struct GeminiService {
     static let shared = GeminiService()
 
@@ -83,15 +71,6 @@ struct GeminiService {
         let prompt = "Parse this receipt image. Data:image/jpeg;base64,\(base64)"
         let text = try await generate(prompt: prompt, system: system)
         return try AIResponseNormalizer.decode(ReceiptParseResult.self, from: text)
-    }
-
-    func weeklyInsights(payloadJSON: String) async throws -> FinanceInsightResult {
-        let system = """
-        You are a personal finance advisor. Be concise and specific. Return ONLY valid JSON with fields: \
-        summary (string), topInsight (string), suggestion (string), anomalies (array of strings).
-        """
-        let text = try await generate(prompt: payloadJSON, system: system)
-        return try AIResponseNormalizer.decode(FinanceInsightResult.self, from: text)
     }
 
     private func generate(prompt: String, system: String) async throws -> String {

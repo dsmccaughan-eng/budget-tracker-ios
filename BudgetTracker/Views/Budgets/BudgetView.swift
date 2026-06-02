@@ -15,12 +15,12 @@ struct BudgetView: View {
     }
 
     private var monthSections: BudgetMonthSections {
-        budgets.displayMonthSections(referenceDate: selectedMonth, transactions: transactions.transactions)
+        _ = budgets.spendDataVersion
+        return budgets.displayMonthSections(referenceDate: selectedMonth, transactions: transactions.transactions)
     }
 
     private var chartProgress: [BudgetProgress] {
-        budgets.monthRows(referenceDate: selectedMonth, transactions: transactions.transactions)
-            .map(\.progress)
+        monthSections.spending.map(\.progress)
     }
 
     var body: some View {

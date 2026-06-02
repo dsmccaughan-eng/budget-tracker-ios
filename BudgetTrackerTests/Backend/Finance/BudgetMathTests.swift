@@ -121,6 +121,47 @@ final class BudgetMathTests: XCTestCase {
         XCTAssertEqual(sections.transfers.count, 1)
         let income = sections.income.first
         XCTAssertEqual(income?.progress.listDisplaySpent, 2000, accuracy: 0.01)
+        let spendingTotal = BudgetMath.monthSpendingDisplayTotal(rows: sections.spending)
+        XCTAssertEqual(spendingTotal, 65, accuracy: 0.01)
+    }
+
+    func testMonthSpendingDisplayTotalDropsExcludedTransactions() {
+        let budgets = [
+            Budget(
+                id: UUID(),
+                category: "Groceries",
+                monthlyLimit: 500,
+                color: "#22c55e",
+                isRollover: false,
+                isFixed: false
+            )
+        ]
+        let txns = [
+            txn(category: "Groceries", amount: 40, date: "2026-05-10"),
+            Transaction(
+                id: UUID(),
+                accountId: UUID(),
+                plaidTransactionId: UUID().uuidString,
+                amount: 100,
+                date: "2026-05-11",
+                merchantName: "Test",
+                name: "Test",
+                category: "Groceries",
+                subcategory: nil,
+                pending: false,
+                isManual: false,
+                splitItems: nil,
+                excludedFromBudget: true
+            )
+        ]
+        let index = BudgetSpendIndex(transactions: txns, calendar: calendar)
+        let sections = BudgetMath.displayMonthSections(
+            budgets: budgets,
+            index: index,
+            referenceDate: referenceDate,
+            calendar: calendar
+        )
+        XCTAssertEqual(BudgetMath.monthSpendingDisplayTotal(rows: sections.spending), 40, accuracy: 0.01)
     }
 
     func testProgressRowsSortsBySpentDescending() {

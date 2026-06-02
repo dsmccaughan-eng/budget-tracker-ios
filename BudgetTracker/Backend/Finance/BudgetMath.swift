@@ -363,12 +363,14 @@ enum BudgetMath {
         transactions: [Transaction],
         category: String,
         referenceDate: Date = Date(),
-        calendar: Calendar = .current
+        calendar: Calendar = .current,
+        includeExcludedFromBudget: Bool = false
     ) -> [Transaction] {
         transactions
             .filter {
                 $0.category == category &&
-                isInMonth(dateString: $0.date, referenceDate: referenceDate, calendar: calendar)
+                isInMonth(dateString: $0.date, referenceDate: referenceDate, calendar: calendar) &&
+                (includeExcludedFromBudget || !$0.excludedFromBudget)
             }
             .sorted { lhs, rhs in
                 if lhs.date == rhs.date {
@@ -380,6 +382,15 @@ enum BudgetMath {
 
     static func totalSpent(_ rows: [BudgetProgress]) -> Double {
         rows.reduce(0) { $0 + $1.spent }
+    }
+
+    /// Sum of amounts shown in the budget spending list (matches pie center total).
+    static func monthSpendingDisplayTotal(rows: [BudgetMonthRow]) -> Double {
+        rows.reduce(0) { $0 + $1.progress.listDisplaySpent }
+    }
+
+    static func monthSpendingDisplayTotal(progress: [BudgetProgress]) -> Double {
+        progress.reduce(0) { $0 + $1.listDisplaySpent }
     }
 
     static func recentMerchantSummary(

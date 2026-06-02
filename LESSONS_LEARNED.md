@@ -132,6 +132,12 @@ Entry format
 - **Fix:** User completes [TestFlight Test Information](https://appstoreconnect.apple.com/apps/6775334574/testflight/test-info); install build from TestFlight → iOS builds. Set `submit_to_testflight: false` in `codemagic.yaml` until metadata exists so CI does not fail post-upload.
 - **Verification:** ASC shows processed build; internal testers can install after test info + tester group.
 
+### 2026-06-05 - Budget totals stale after exclude; pie ≠ category sum
+- **Symptom:** Center “Spent” did not drop when toggling exclude from budget; category rows did not add up to pie total.
+- **Root cause:** Pie used only **budgeted** categories (`monthRows`) while the list included unbudgeted spending; month row cache key ignored transaction fingerprint; category drill-down net included excluded txns.
+- **Fix pattern:** Drive pie from `displayMonthSections.spending`; `monthSpendingDisplayTotal` for center total; include `indexedFingerprint` in cache keys; bump `spendDataVersion` on index/cache refresh; `transactionsForCategory` omits excluded by default.
+- **Verification:** Exclude a large txn → pie center and category row drop; sum of spending rows equals center total; `BudgetMathTests` `testMonthSpendingDisplayTotalDropsExcludedTransactions`.
+
 ### 2026-06-05 - Codemagic build 20: Section footer and onDelete scope
 - **Symptom:** Build 20 failed — `onDelete` not in scope on `Section`; `Section("Budget") { } footer:` invalid.
 - **Fix:** `onDelete` on `ForEach` only when `allowsDelete`; use `Section { } header:footer:` for budget exclusion toggle.

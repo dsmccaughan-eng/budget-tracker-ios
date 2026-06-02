@@ -262,41 +262,12 @@ struct SubscriptionAuditView: View {
 }
 
 struct InsightsView: View {
-    @EnvironmentObject private var auth: AuthStore
     @EnvironmentObject private var insights: InsightsStore
     @EnvironmentObject private var transactions: TransactionStore
-    @EnvironmentObject private var budgets: BudgetStore
 
     var body: some View {
         NavigationStack {
             List {
-                Section("AI summary") {
-                    if insights.isLoading {
-                        ProgressView("Generating insights…")
-                    } else if let insight = insights.latestInsight {
-                        Text(insight.summary)
-                        Label(insight.topInsight, systemImage: "lightbulb")
-                        Label(insight.suggestion, systemImage: "arrow.up.right")
-                        ForEach(insight.anomalies, id: \.self) { anomaly in
-                            Label(anomaly, systemImage: "exclamationmark.triangle")
-                                .foregroundStyle(.orange)
-                        }
-                    } else {
-                        Text("Generate a weekly AI summary from your spending.")
-                            .foregroundStyle(.secondary)
-                    }
-                    Button("Generate insights") {
-                        Task {
-                            await insights.generateWeeklyInsight(
-                                transactions: transactions.transactions,
-                                budgets: budgets.budgets,
-                                progress: budgets.progress
-                            )
-                        }
-                    }
-                    .disabled(insights.isLoading || !APIKeys.hasValidGeminiKey)
-                }
-
                 Section("Tools") {
                     NavigationLink("Subscription audit") {
                         SubscriptionAuditView()

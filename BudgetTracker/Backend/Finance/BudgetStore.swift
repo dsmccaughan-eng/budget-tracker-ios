@@ -5,6 +5,8 @@ import Supabase
 final class BudgetStore: ObservableObject {
     @Published private(set) var budgets: [Budget] = []
     @Published private(set) var progress: [BudgetProgress] = []
+    /// Bumped whenever spend index or month caches refresh (drives Budget tab UI).
+    @Published private(set) var spendDataVersion = 0
     @Published private(set) var isLoading = false
     @Published private(set) var errorMessage: String?
 
@@ -218,6 +220,8 @@ final class BudgetStore: ObservableObject {
 
     func noteTransactionsChanged(_ transactions: [Transaction]) {
         ensureIndex(transactions: transactions)
+        invalidateMonthCache()
+        spendDataVersion += 1
         recomputeProgress(transactions: transactions)
     }
 
@@ -227,6 +231,7 @@ final class BudgetStore: ObservableObject {
             spendIndex = BudgetSpendIndex(transactions: transactions)
             indexedFingerprint = fingerprint
             invalidateMonthCache()
+            spendDataVersion += 1
         }
     }
 
@@ -260,7 +265,8 @@ final class BudgetStore: ObservableObject {
             transactionCount: transactions.count,
             budgets: budgets
         )
-        return "\(prefix)-\(base)"
+        let fingerprint = indexedFingerprint ?? 0
+        return "\(prefix)-\(base)-\(fingerprint)"
     }
 
     private func invalidateMonthCache() {

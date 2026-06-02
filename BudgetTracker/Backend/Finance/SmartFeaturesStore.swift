@@ -110,43 +110,10 @@ final class PriceHistoryStore: ObservableObject {
 
 @MainActor
 final class InsightsStore: ObservableObject {
-    @Published private(set) var latestInsight: FinanceInsightResult?
     @Published private(set) var subscriptions: [SubscriptionCharge] = []
-    @Published private(set) var isLoading = false
-    @Published var errorMessage: String?
 
     func refreshLocal(transactions: [Transaction]) {
         subscriptions = SubscriptionAuditEngine.recurringCharges(transactions: transactions)
-    }
-
-    func generateWeeklyInsight(
-        transactions: [Transaction],
-        budgets: [Budget],
-        progress: [BudgetProgress]
-    ) async {
-        isLoading = true
-        errorMessage = nil
-        defer { isLoading = false }
-
-        let spendByCategory = Dictionary(grouping: transactions, by: \.category)
-            .mapValues { $0.reduce(0) { $0 + abs($1.amount) } }
-        let budgetJSON = budgets.map { ["category": $0.category, "limit": $0.monthlyLimit] }
-        let payload: [String: Any] = [
-            "spendingThisWeek": spendByCategory,
-            "budgetLimits": budgetJSON,
-            "budgetProgress": progress.map { ["category": $0.category, "spent": $0.spent] }
-        ]
-        guard let data = try? JSONSerialization.data(withJSONObject: payload),
-              let json = String(data: data, encoding: .utf8) else {
-            errorMessage = GeminiServiceError.invalidResponse.localizedDescription
-            return
-        }
-
-        do {
-            latestInsight = try await GeminiService.shared.weeklyInsights(payloadJSON: json)
-        } catch {
-            errorMessage = error.localizedDescription
-        }
     }
 }
 
