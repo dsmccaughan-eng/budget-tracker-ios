@@ -88,11 +88,13 @@ struct TransactionDetailView: View {
                 }
             }
 
-            Section("Budget") {
+            Section {
                 Toggle("Exclude from budget totals", isOn: $excludedFromBudget)
                     .onChange(of: excludedFromBudget) { _, _ in
                         Task { await saveBudgetExclusion() }
                     }
+            } header: {
+                Text("Budget")
             } footer: {
                 Text("Excluded transactions stay in your history but won't count toward category spending or the budget chart.")
             }

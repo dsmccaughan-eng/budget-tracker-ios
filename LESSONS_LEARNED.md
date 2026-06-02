@@ -132,6 +132,11 @@ Entry format
 - **Fix:** User completes [TestFlight Test Information](https://appstoreconnect.apple.com/apps/6775334574/testflight/test-info); install build from TestFlight → iOS builds. Set `submit_to_testflight: false` in `codemagic.yaml` until metadata exists so CI does not fail post-upload.
 - **Verification:** ASC shows processed build; internal testers can install after test info + tester group.
 
+### 2026-06-05 - Codemagic build 20: Section footer and onDelete scope
+- **Symptom:** Build 20 failed — `onDelete` not in scope on `Section`; `Section("Budget") { } footer:` invalid.
+- **Fix:** `onDelete` on `ForEach` only when `allowsDelete`; use `Section { } header:footer:` for budget exclusion toggle.
+- **Verification:** Codemagic archive succeeds.
+
 ### 2026-06-05 - Codemagic build 19: BudgetStore multiline string interpolation (again)
 - **Symptom:** Build 19 IPA failed at `BudgetStore.swift:72` and `:254`.
 - **Root cause:** `listCacheKey` reintroduced multiline `"\(...BudgetMath.cacheKey(...))"` after refactor.

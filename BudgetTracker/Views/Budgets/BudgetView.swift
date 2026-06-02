@@ -132,38 +132,51 @@ struct BudgetView: View {
         rows: [BudgetMonthRow],
         allowsDelete: Bool
     ) -> some View {
-        Section(title) {
-            ForEach(rows) { row in
-                NavigationLink {
-                    CategoryTransactionsView(
-                        category: row.progress.category,
-                        referenceMonth: selectedMonth
-                    )
-                } label: {
-                    BudgetCategorySpendRow(
-                        progress: row.progress,
-                        recentSummary: row.recentSummary
-                    )
+        if allowsDelete {
+            Section(title) {
+                ForEach(rows) { row in
+                    budgetCategoryRow(row)
                 }
-                .contextMenu {
-                    if let budget = budgets.budgets.first(where: { $0.category == row.progress.category }) {
-                        Button("Edit budget", systemImage: "pencil") {
-                            budgetToEdit = budget
-                        }
-                        Button("Delete budget", systemImage: "trash", role: .destructive) {
-                            Task { await deleteBudget(budget) }
+                .onDelete { indexSet in
+                    Task {
+                        for index in indexSet {
+                            let category = rows[index].progress.category
+                            if let budget = budgets.budgets.first(where: { $0.category == category }) {
+                                await deleteBudget(budget)
+                            }
                         }
                     }
                 }
             }
-            .deleteActionIf(allowsDelete) { indexSet in
-                Task {
-                    for index in indexSet {
-                        let category = rows[index].progress.category
-                        if let budget = budgets.budgets.first(where: { $0.category == category }) {
-                            await deleteBudget(budget)
-                        }
-                    }
+        } else {
+            Section(title) {
+                ForEach(rows) { row in
+                    budgetCategoryRow(row)
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func budgetCategoryRow(_ row: BudgetMonthRow) -> some View {
+        NavigationLink {
+            CategoryTransactionsView(
+                category: row.progress.category,
+                referenceMonth: selectedMonth
+            )
+        } label: {
+            BudgetCategorySpendRow(
+                progress: row.progress,
+                recentSummary: row.recentSummary
+            )
+        }
+        .contextMenu {
+            if let budget = budgets.budgets.first(where: { $0.category == row.progress.category }) {
+                Button("Edit budget", systemImage: "pencil") {
+                    budgetToEdit = budget
+                }
+                Button("Delete budget", systemImage: "trash", role: .destructive) {
+                    Task { await deleteBudget(budget) }
                 }
             }
         }
@@ -331,19 +344,5 @@ private struct BudgetColorPicker: View {
             }
         }
         .padding(.vertical, 4)
-    }
-}
-
-private extension View {
-    @ViewBuilder
-    func deleteActionIf(
-        _ condition: Bool,
-        action: @escaping (IndexSet) -> Void
-    ) -> some View {
-        if condition {
-            onDelete(perform: action)
-        } else {
-            self
-        }
     }
 }
