@@ -24,21 +24,53 @@ struct BudgetCategorySpendRow: View {
             Spacer(minLength: 8)
 
             VStack(alignment: .trailing, spacing: 4) {
-                Text(FinanceFormatting.currency(progress.spent))
+                Text(amountLabel)
                     .font(.subheadline.weight(.semibold))
-                if progress.projectedSpend > 0 {
-                    Text("Typical \(FinanceFormatting.currency(progress.projectedSpend))")
-                        .font(.caption2)
-                        .foregroundStyle(
-                            progress.projectedSpend > progress.monthlyLimit ? Color.orange : Color.secondary
-                        )
+                    .foregroundStyle(amountColor)
+                if progress.showsBudgetLimit {
+                    if progress.projectedSpend > 0 {
+                        Text("Typical \(FinanceFormatting.currency(progress.projectedSpend))")
+                            .font(.caption2)
+                            .foregroundStyle(
+                                progress.projectedSpend > progress.monthlyLimit ? Color.orange : Color.secondary
+                            )
+                    }
+                    Text(remainingLabel)
+                        .font(.caption)
+                        .foregroundStyle(progress.remaining >= 0 ? Color.secondary : Color.red)
+                } else {
+                    Text(informationalSubtitle)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
-                Text(remainingLabel)
-                    .font(.caption)
-                    .foregroundStyle(progress.remaining >= 0 ? Color.secondary : Color.red)
             }
         }
         .padding(.vertical, 4)
+    }
+
+    private var amountLabel: String {
+        let value = progress.listDisplaySpent
+        switch progress.category {
+        case "Income":
+            return "+\(FinanceFormatting.currency(value))"
+        default:
+            return FinanceFormatting.currency(value)
+        }
+    }
+
+    private var amountColor: Color {
+        progress.category == "Income" ? .green : .primary
+    }
+
+    private var informationalSubtitle: String {
+        switch progress.category {
+        case "Income":
+            return "Received this month"
+        case "Transfers":
+            return "Not in budget chart"
+        default:
+            return "No budget set"
+        }
     }
 
     private var remainingLabel: String {

@@ -29,6 +29,20 @@ private struct TransactionCategoryPatch: Encodable {
     }
 }
 
+private struct TransactionBillPatch: Encodable {
+    let isFixedBill: Bool
+    let billNickname: String?
+    let billDueDay: Int?
+    let billAmount: Double?
+
+    enum CodingKeys: String, CodingKey {
+        case billNickname = "bill_nickname"
+        case billDueDay = "bill_due_day"
+        case billAmount = "bill_amount"
+        case isFixedBill = "is_fixed_bill"
+    }
+}
+
 extension SupabaseService {
     func syncTransactions(client: SupabaseClient) async throws -> SyncTransactionsResponse {
         try await invokeFunction(
@@ -184,6 +198,27 @@ extension SupabaseService {
             category: category,
             subcategory: subcategory,
             categorySource: categorySource
+        )
+        try await client
+            .from("transactions")
+            .update(patch)
+            .eq("id", value: id.uuidString)
+            .execute()
+    }
+
+    func updateTransactionBillSettings(
+        id: UUID,
+        isFixedBill: Bool,
+        billNickname: String?,
+        billDueDay: Int?,
+        billAmount: Double?,
+        client: SupabaseClient
+    ) async throws {
+        let patch = TransactionBillPatch(
+            isFixedBill: isFixedBill,
+            billNickname: billNickname,
+            billDueDay: billDueDay,
+            billAmount: billAmount
         )
         try await client
             .from("transactions")

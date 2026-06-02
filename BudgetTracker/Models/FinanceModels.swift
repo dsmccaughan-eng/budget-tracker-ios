@@ -14,6 +14,10 @@ struct Transaction: Codable, Identifiable, Hashable {
     var isManual: Bool
     var splitItems: [SplitItem]?
     var categorySource: String? = nil
+    var isFixedBill: Bool = false
+    var billNickname: String? = nil
+    var billDueDay: Int? = nil
+    var billAmount: Double? = nil
 
     enum CodingKeys: String, CodingKey {
         case id
@@ -24,6 +28,10 @@ struct Transaction: Codable, Identifiable, Hashable {
         case isManual = "is_manual"
         case splitItems = "split_items"
         case categorySource = "category_source"
+        case isFixedBill = "is_fixed_bill"
+        case billNickname = "bill_nickname"
+        case billDueDay = "bill_due_day"
+        case billAmount = "bill_amount"
     }
 }
 

@@ -121,13 +121,13 @@ struct SetupBudgetPlanView: View {
                     return BudgetPlanLine(
                         category: category,
                         monthlyLimit: existing.monthlyLimit,
-                        color: existing.color
+                        color: BudgetPalette.color(forCategory: category)
                     )
                 }
                 return BudgetPlanLine(
                     category: category,
                     monthlyLimit: 0,
-                    color: BudgetPalette.color(at: offset)
+                    color: BudgetPalette.color(forCategory: category)
                 )
             }
             totalBudget = lines.reduce(0) { $0 + $1.monthlyLimit }

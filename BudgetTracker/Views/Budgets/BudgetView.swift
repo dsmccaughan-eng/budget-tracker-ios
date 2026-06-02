@@ -7,14 +7,20 @@ struct BudgetView: View {
 
     @State private var showBudgetPlan = false
     @State private var budgetToEdit: Budget?
-    @State private var selectedMonth = BudgetMath.startOfMonth(Date())
+    @State private var monthOffset = 0
 
-    private var monthRows: [BudgetMonthRow] {
-        budgets.monthRows(referenceDate: selectedMonth, transactions: transactions.transactions)
+    private var selectedMonth: Date {
+        let current = BudgetMath.startOfMonth(Date())
+        return Calendar.current.date(byAdding: .month, value: -monthOffset, to: current) ?? current
     }
 
-    private var monthProgress: [BudgetProgress] {
-        monthRows.map(\.progress)
+    private var monthRows: [BudgetMonthRow] {
+        budgets.displayMonthRows(referenceDate: selectedMonth, transactions: transactions.transactions)
+    }
+
+    private var chartProgress: [BudgetProgress] {
+        budgets.monthRows(referenceDate: selectedMonth, transactions: transactions.transactions)
+            .map(\.progress)
     }
 
     var body: some View {
@@ -33,9 +39,9 @@ struct BudgetView: View {
                     }
                 } else {
                     Section {
-                        BudgetMonthNavigator(selectedMonth: $selectedMonth)
+                        BudgetMonthNavigator(monthOffset: $monthOffset)
                         BudgetSpendPieChart(
-                            progress: monthProgress,
+                            progress: chartProgress,
                             referenceDate: selectedMonth,
                             hasTransactions: !transactions.transactions.isEmpty
                         )
@@ -51,17 +57,21 @@ struct BudgetView: View {
                                 Label(billsSummaryLabel, systemImage: "calendar")
                             }
                             ForEach(fixedBills.prefix(3)) { bill in
-                                HStack {
-                                    VStack(alignment: .leading, spacing: 2) {
-                                        Text(bill.name)
+                                NavigationLink {
+                                    EditBillView(transactionId: bill.transactionId)
+                                } label: {
+                                    HStack {
+                                        VStack(alignment: .leading, spacing: 2) {
+                                            Text(bill.name)
+                                                .font(.subheadline.weight(.semibold))
+                                            Text(bill.displayDue)
+                                                .font(.caption)
+                                                .foregroundStyle(.secondary)
+                                        }
+                                        Spacer()
+                                        Text(FinanceFormatting.currency(bill.amount))
                                             .font(.subheadline.weight(.semibold))
-                                        Text(bill.displayDue)
-                                            .font(.caption)
-                                            .foregroundStyle(.secondary)
                                     }
-                                    Spacer()
-                                    Text(FinanceFormatting.currency(bill.amount))
-                                        .font(.subheadline.weight(.semibold))
                                 }
                             }
                         }
@@ -143,6 +153,9 @@ struct BudgetView: View {
             .task {
                 await reloadBudgetsTabIfNeeded()
             }
+            .onChange(of: transactions.transactions) { _, newTransactions in
+                budgets.noteTransactionsChanged(newTransactions)
+            }
         }
     }
 
@@ -157,8 +170,8 @@ struct BudgetView: View {
 
     private var fixedBills: [BillItem] {
         BillsEngine.bills(
-            budgets: budgets.budgets,
             transactions: transactions.transactions,
+            budgets: budgets.budgets,
             referenceDate: selectedMonth
         )
     }
@@ -208,7 +221,6 @@ struct EditBudgetView: View {
 
     @State private var monthlyLimit: Double
     @State private var color: String
-    @State private var isFixed: Bool
     @State private var isRollover: Bool
     @State private var isSaving = false
     @State private var showSaveError = false
@@ -218,7 +230,6 @@ struct EditBudgetView: View {
         self.budget = budget
         _monthlyLimit = State(initialValue: budget.monthlyLimit)
         _color = State(initialValue: budget.color)
-        _isFixed = State(initialValue: budget.isFixed)
         _isRollover = State(initialValue: budget.isRollover)
     }
 
@@ -232,7 +243,6 @@ struct EditBudgetView: View {
             Section("Limit") {
                 TextField("Monthly limit", value: $monthlyLimit, format: .currency(code: "USD"))
                     .keyboardType(.decimalPad)
-                Toggle("Fixed expense", isOn: $isFixed)
                 Toggle("Rollover unused", isOn: $isRollover)
             }
 
@@ -294,7 +304,6 @@ struct EditBudgetView: View {
         var updated = budget
         updated.monthlyLimit = monthlyLimit
         updated.color = color
-        updated.isFixed = isFixed
         updated.isRollover = isRollover
         await budgets.updateBudget(updated, client: client, transactions: transactions.transactions)
         if budgets.errorMessage == nil {

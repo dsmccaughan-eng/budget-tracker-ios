@@ -60,6 +60,9 @@ struct BudgetTrackerApp: App {
                           appLockStore.canAccessFinancialData else { return }
                     Task { await reloadFinancialData() }
                 }
+                .onChange(of: transactionStore.transactions) { _, newTransactions in
+                    budgetStore.noteTransactionsChanged(newTransactions)
+                }
         }
     }
 

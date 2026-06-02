@@ -9,9 +9,8 @@ final class BudgetStore: ObservableObject {
     @Published private(set) var errorMessage: String?
 
     private var spendIndex: BudgetSpendIndex?
-    private var indexedTransactionCount = -1
-    private var cachedMonthKey: String?
-    private var cachedMonthRows: [BudgetMonthRow] = []
+    private var indexedFingerprint: Int?
+    private var cachedMonthRowsByKey: [String: [BudgetMonthRow]] = [:]
 
     func setClientError(_ message: String) {
         errorMessage = message
@@ -32,23 +31,51 @@ final class BudgetStore: ObservableObject {
     }
 
     func monthRows(referenceDate: Date, transactions: [Transaction]) -> [BudgetMonthRow] {
+        rows(referenceDate: referenceDate, transactions: transactions, displayMode: .chart)
+    }
+
+    func displayMonthRows(referenceDate: Date, transactions: [Transaction]) -> [BudgetMonthRow] {
+        rows(referenceDate: referenceDate, transactions: transactions, displayMode: .list)
+    }
+
+    private enum MonthRowDisplayMode {
+        case chart
+        case list
+    }
+
+    private func rows(
+        referenceDate: Date,
+        transactions: [Transaction],
+        displayMode: MonthRowDisplayMode
+    ) -> [BudgetMonthRow] {
         ensureIndex(transactions: transactions)
-        let key = BudgetMath.cacheKey(
+        let modeKey = displayMode == .chart ? "chart" : "list"
+        let key = "\(modeKey)-\(BudgetMath.cacheKey(
             referenceDate: referenceDate,
             transactionCount: transactions.count,
             budgets: budgets
-        )
-        if key == cachedMonthKey {
-            return cachedMonthRows
+        ))"
+        if let cached = cachedMonthRowsByKey[key] {
+            return cached
         }
         guard let index = spendIndex else { return [] }
-        cachedMonthKey = key
-        cachedMonthRows = BudgetMath.monthRows(
-            budgets: budgets,
-            index: index,
-            referenceDate: referenceDate
-        )
-        return cachedMonthRows
+        let rows: [BudgetMonthRow]
+        switch displayMode {
+        case .chart:
+            rows = BudgetMath.monthRows(
+                budgets: budgets,
+                index: index,
+                referenceDate: referenceDate
+            )
+        case .list:
+            rows = BudgetMath.displayMonthRows(
+                budgets: budgets,
+                index: index,
+                referenceDate: referenceDate
+            )
+        }
+        cachedMonthRowsByKey[key] = rows
+        return rows
     }
 
     func monthProgress(referenceDate: Date, transactions: [Transaction]) -> [BudgetProgress] {
@@ -105,7 +132,7 @@ final class BudgetStore: ObservableObject {
                 if let existing = updatedBudgets.first(where: { $0.category == line.category }) {
                     var budget = existing
                     budget.monthlyLimit = line.monthlyLimit
-                    budget.color = line.color
+                    budget.color = BudgetPalette.color(forCategory: line.category)
                     let saved = try await SupabaseService.shared.updateBudget(budget, client: client)
                     if let index = updatedBudgets.firstIndex(where: { $0.id == saved.id }) {
                         updatedBudgets[index] = saved
@@ -115,7 +142,7 @@ final class BudgetStore: ObservableObject {
                         id: UUID(),
                         category: line.category,
                         monthlyLimit: line.monthlyLimit,
-                        color: line.color,
+                        color: BudgetPalette.color(forCategory: line.category),
                         isRollover: false,
                         isFixed: false
                     )
@@ -174,17 +201,37 @@ final class BudgetStore: ObservableObject {
         ).map(\.progress)
     }
 
+    func noteTransactionsChanged(_ transactions: [Transaction]) {
+        ensureIndex(transactions: transactions)
+        recomputeProgress(transactions: transactions)
+    }
+
     private func ensureIndex(transactions: [Transaction]) {
-        if spendIndex == nil || indexedTransactionCount != transactions.count {
+        let fingerprint = Self.transactionsFingerprint(transactions)
+        if spendIndex == nil || indexedFingerprint != fingerprint {
             spendIndex = BudgetSpendIndex(transactions: transactions)
-            indexedTransactionCount = transactions.count
+            indexedFingerprint = fingerprint
             invalidateMonthCache()
         }
     }
 
+    private static func transactionsFingerprint(_ transactions: [Transaction]) -> Int {
+        var hasher = Hasher()
+        hasher.combine(transactions.count)
+        for txn in transactions {
+            hasher.combine(txn.id)
+            hasher.combine(txn.category)
+            hasher.combine(txn.amount)
+            hasher.combine(txn.date)
+            hasher.combine(txn.isFixedBill)
+            hasher.combine(txn.billDueDay)
+            hasher.combine(txn.billAmount)
+        }
+        return hasher.finalize()
+    }
+
     private func invalidateMonthCache() {
-        cachedMonthKey = nil
-        cachedMonthRows = []
+        cachedMonthRowsByKey = [:]
     }
 }
 
@@ -197,13 +244,22 @@ struct BudgetDraft {
 }
 
 enum BudgetPalette {
-    static let defaultColor = "#3b82f6"
+    static let defaultColor = "#2563eb"
     static let colors = [
-        "#3b82f6", "#22c55e", "#f97316", "#a855f7",
-        "#ef4444", "#14b8a6", "#eab308", "#64748b"
+        "#2563eb", "#16a34a", "#ea580c", "#9333ea", "#dc2626",
+        "#0891b2", "#ca8a04", "#64748b", "#db2777", "#059669",
+        "#7c3aed", "#c2410c", "#0d9488", "#4f46e5", "#b45309",
+        "#0369a1", "#be123c", "#15803d", "#57534e"
     ]
 
     static func color(at index: Int) -> String {
         colors[index % colors.count]
+    }
+
+    static func color(forCategory category: String) -> String {
+        guard let index = BudgetCategories.all.firstIndex(of: category) else {
+            return defaultColor
+        }
+        return color(at: index)
     }
 }

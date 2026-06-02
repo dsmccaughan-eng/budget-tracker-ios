@@ -85,6 +85,77 @@ final class BudgetMathTests: XCTestCase {
         XCTAssertEqual(average, 220.0 / 6.0, accuracy: 0.01)
     }
 
+    func testDisplayMonthRowsIncludesUnbudgetedCategoriesWithActivity() {
+        let budgets = [
+            Budget(
+                id: UUID(),
+                category: "Groceries",
+                monthlyLimit: 500,
+                color: "#22c55e",
+                isRollover: false,
+                isFixed: false
+            )
+        ]
+        let txns = [
+            txn(category: "Groceries", amount: 40, date: "2026-05-10"),
+            txn(category: "Other", amount: 25, date: "2026-05-11"),
+            txn(category: "Income", amount: -2000, date: "2026-05-01"),
+            txn(category: "Transfers", amount: 500, date: "2026-05-02")
+        ]
+        let index = BudgetSpendIndex(transactions: txns, calendar: calendar)
+        let chartRows = BudgetMath.monthRows(
+            budgets: budgets,
+            index: index,
+            referenceDate: referenceDate,
+            calendar: calendar
+        )
+        let displayRows = BudgetMath.displayMonthRows(
+            budgets: budgets,
+            index: index,
+            referenceDate: referenceDate,
+            calendar: calendar
+        )
+        XCTAssertEqual(chartRows.map(\.progress.category), ["Groceries"])
+        XCTAssertEqual(
+            Set(displayRows.map(\.progress.category)),
+            Set(["Groceries", "Other", "Income", "Transfers"])
+        )
+        let income = displayRows.first { $0.progress.category == "Income" }
+        XCTAssertEqual(income?.progress.listDisplaySpent, 2000, accuracy: 0.01)
+    }
+
+    func testProgressRowsSortsBySpentDescending() {
+        let budgets = [
+            Budget(
+                id: UUID(),
+                category: "Groceries",
+                monthlyLimit: 500,
+                color: "#22c55e",
+                isRollover: false,
+                isFixed: false
+            ),
+            Budget(
+                id: UUID(),
+                category: "Dining & Bars",
+                monthlyLimit: 300,
+                color: "#ea580c",
+                isRollover: false,
+                isFixed: false
+            )
+        ]
+        let txns = [
+            txn(category: "Groceries", amount: 50, date: "2026-05-01"),
+            txn(category: "Dining & Bars", amount: 200, date: "2026-05-02")
+        ]
+        let rows = BudgetMath.progressRows(
+            budgets: budgets,
+            transactions: txns,
+            referenceDate: referenceDate,
+            calendar: calendar
+        )
+        XCTAssertEqual(rows.first?.category, "Dining & Bars")
+    }
+
     func testProgressRowsUsesSixMonthAverageForProjection() {
         let budgets = [
             Budget(

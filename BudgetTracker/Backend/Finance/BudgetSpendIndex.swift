@@ -25,7 +25,6 @@ struct BudgetSpendIndex {
         var recent: [String: [String: [(date: String, name: String)]]] = [:]
 
         for txn in transactions {
-            guard !BudgetMath.excludedCategories.contains(txn.category) else { continue }
             let monthKey = Self.monthKey(from: txn.date)
             spent[txn.category, default: [:]][monthKey, default: 0] += txn.amount
             let name = FinanceFormatting.displayName(for: txn)
@@ -75,6 +74,19 @@ struct BudgetSpendIndex {
     ) -> String {
         let key = Self.monthKey(from: referenceDate, calendar: calendar)
         return (recentNamesByCategoryMonth[category]?[key] ?? []).joined(separator: ", ")
+    }
+
+    func categoriesWithActivity(referenceDate: Date, calendar: Calendar = .current) -> [String] {
+        let key = Self.monthKey(from: referenceDate, calendar: calendar)
+        return spentByCategoryMonth.compactMap { category, byMonth in
+            guard let amount = byMonth[key], amount != 0 else { return nil }
+            return category
+        }
+        .sorted()
+    }
+
+    func hasActivity(category: String, referenceDate: Date, calendar: Calendar = .current) -> Bool {
+        spent(category: category, referenceDate: referenceDate, calendar: calendar) != 0
     }
 
     static func monthKey(from dateString: String) -> String {

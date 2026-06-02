@@ -1,52 +1,53 @@
 import SwiftUI
 
 struct BudgetMonthNavigator: View {
-    @Binding var selectedMonth: Date
+    @Binding var monthOffset: Int
     var calendar: Calendar = .current
 
-    private var canGoForward: Bool {
-        let selected = BudgetMath.startOfMonth(selectedMonth, calendar: calendar)
+    private var selectedMonth: Date {
         let current = BudgetMath.startOfMonth(Date(), calendar: calendar)
-        return selected < current
+        return calendar.date(byAdding: .month, value: -monthOffset, to: current) ?? current
+    }
+
+    private var canGoForward: Bool {
+        monthOffset > 0
     }
 
     var body: some View {
         HStack {
             Button {
-                shiftMonth(by: -1)
+                monthOffset += 1
             } label: {
                 Image(systemName: "chevron.left.circle.fill")
                     .font(.title2)
                     .symbolRenderingMode(.hierarchical)
                     .foregroundStyle(.secondary)
             }
+            .buttonStyle(.plain)
             .accessibilityLabel("Previous month")
 
             Spacer()
 
-            Text(BudgetMath.startOfMonth(selectedMonth, calendar: calendar), format: .dateTime.month(.wide).year())
+            Text(selectedMonth, format: .dateTime.month(.wide).year())
                 .font(.headline)
+                .id(monthOffset)
 
             Spacer()
 
             Button {
-                shiftMonth(by: 1)
+                if monthOffset > 0 {
+                    monthOffset -= 1
+                }
             } label: {
                 Image(systemName: "chevron.right.circle.fill")
                     .font(.title2)
                     .symbolRenderingMode(.hierarchical)
                     .foregroundStyle(canGoForward ? Color.secondary : Color.secondary.opacity(0.35))
             }
+            .buttonStyle(.plain)
             .disabled(!canGoForward)
             .accessibilityLabel("Next month")
         }
         .padding(.horizontal, 4)
-    }
-
-    private func shiftMonth(by value: Int) {
-        let anchor = BudgetMath.startOfMonth(selectedMonth, calendar: calendar)
-        if let next = calendar.date(byAdding: .month, value: value, to: anchor) {
-            selectedMonth = next
-        }
     }
 }

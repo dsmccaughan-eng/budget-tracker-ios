@@ -16,6 +16,11 @@ struct BudgetProgress: Equatable, Identifiable {
         return min(spent / monthlyLimit, 1.5)
     }
     var isOverBudget: Bool { spent > monthlyLimit }
+    var showsBudgetLimit: Bool { monthlyLimit > 0 }
+
+    var listDisplaySpent: Double {
+        BudgetMath.listDisplaySpent(category: category, netAmount: spent)
+    }
 }
 
 enum BudgetMath {
@@ -23,6 +28,17 @@ enum BudgetMath {
 
     static var budgetableCategories: [String] {
         BudgetCategories.all.filter { !excludedCategories.contains($0) }
+    }
+
+    static func listDisplaySpent(category: String, netAmount: Double) -> Double {
+        switch category {
+        case "Income":
+            return max(0, -netAmount)
+        case "Transfers":
+            return abs(netAmount)
+        default:
+            return netAmount
+        }
     }
 
     static func monthRows(
@@ -56,7 +72,72 @@ enum BudgetMath {
                 )
             )
         }
-        .sorted { $0.progress.category < $1.progress.category }
+        .sorted { lhs, rhs in
+            if lhs.progress.spent == rhs.progress.spent {
+                return lhs.progress.category < rhs.progress.category
+            }
+            return lhs.progress.spent > rhs.progress.spent
+        }
+    }
+
+    /// Budget rows plus unbudgeted, Income, and Transfers categories with activity this month.
+    static func displayMonthRows(
+        budgets: [Budget],
+        index: BudgetSpendIndex,
+        referenceDate: Date = Date(),
+        calendar: Calendar = .current
+    ) -> [BudgetMonthRow] {
+        let budgetedRows = monthRows(
+            budgets: budgets,
+            index: index,
+            referenceDate: referenceDate,
+            calendar: calendar
+        )
+        let budgetedCategories = Set(budgets.map(\.category))
+        let supplemental = index.categoriesWithActivity(referenceDate: referenceDate, calendar: calendar)
+            .filter { !budgetedCategories.contains($0) }
+            .map {
+                informationalMonthRow(
+                    category: $0,
+                    index: index,
+                    referenceDate: referenceDate,
+                    calendar: calendar
+                )
+            }
+        return (budgetedRows + supplemental).sorted { lhs, rhs in
+            let left = lhs.progress.listDisplaySpent
+            let right = rhs.progress.listDisplaySpent
+            if left == right {
+                return lhs.progress.category < rhs.progress.category
+            }
+            return left > right
+        }
+    }
+
+    private static func informationalMonthRow(
+        category: String,
+        index: BudgetSpendIndex,
+        referenceDate: Date,
+        calendar: Calendar
+    ) -> BudgetMonthRow {
+        let spent = index.spent(category: category, referenceDate: referenceDate, calendar: calendar)
+        let progress = BudgetProgress(
+            category: category,
+            monthlyLimit: 0,
+            spent: spent,
+            projectedSpend: 0,
+            isFixed: false,
+            isRollover: false,
+            color: BudgetPalette.color(forCategory: category)
+        )
+        return BudgetMonthRow(
+            progress: progress,
+            recentSummary: index.recentMerchantSummary(
+                category: category,
+                referenceDate: referenceDate,
+                calendar: calendar
+            )
+        )
     }
 
     /// Split `total` across budgetable categories using recent spend weights (or equal if no history).
@@ -91,7 +172,7 @@ enum BudgetMath {
         var assigned = 0.0
 
         for (offset, category) in categories.enumerated() {
-            let color = BudgetPalette.color(at: offset)
+            let color = BudgetPalette.color(forCategory: category)
             let limit: Double
             if weightSum > 0 {
                 let raw = total * (weights[category, default: 0] / weightSum)

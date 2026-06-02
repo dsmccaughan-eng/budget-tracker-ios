@@ -58,7 +58,7 @@ struct DashboardView: View {
 
                 Section("Bills") {
                     if monthlyBills.isEmpty {
-                        Text("Mark a budget as a fixed expense to see due dates here.")
+                        Text("Mark a transaction as a fixed monthly expense to see due dates here.")
                             .foregroundStyle(.secondary)
                     } else {
                         NavigationLink {
@@ -203,8 +203,8 @@ struct DashboardView: View {
 
     private var monthlyBills: [BillItem] {
         BillsEngine.bills(
-            budgets: budgets.budgets,
-            transactions: transactions.transactions
+            transactions: transactions.transactions,
+            budgets: budgets.budgets
         )
     }
 

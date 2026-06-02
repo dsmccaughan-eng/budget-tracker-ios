@@ -6,12 +6,11 @@ struct BillsListView: View {
     @EnvironmentObject private var budgets: BudgetStore
 
     @State private var selectedDay: Int?
-    @State private var showAddBudget = false
 
     private var bills: [BillItem] {
         BillsEngine.bills(
-            budgets: budgets.budgets,
-            transactions: transactions.transactions
+            transactions: transactions.transactions,
+            budgets: budgets.budgets
         )
     }
 
@@ -29,12 +28,7 @@ struct BillsListView: View {
                 ContentUnavailableView {
                     Label("No bills yet", systemImage: "calendar")
                 } description: {
-                    Text("Turn on “Fixed expense” when adding a budget to track rent, utilities, and other monthly bills with due dates.")
-                } actions: {
-                    Button("Add budget") {
-                        showAddBudget = true
-                    }
-                    .buttonStyle(.borderedProminent)
+                    Text("Open a transaction and turn on “Fixed monthly expense” to track rent, subscriptions, and other recurring charges.")
                 }
             } else {
                 Section {
@@ -45,10 +39,14 @@ struct BillsListView: View {
 
                 Section {
                     ForEach(bills) { bill in
-                        BillRowView(
-                            bill: bill,
-                            isHighlighted: selectedDay == bill.dueDay
-                        )
+                        NavigationLink {
+                            EditBillView(transactionId: bill.transactionId)
+                        } label: {
+                            BillRowView(
+                                bill: bill,
+                                isHighlighted: selectedDay == bill.dueDay
+                            )
+                        }
                     }
                 } header: {
                     HStack {
@@ -61,11 +59,6 @@ struct BillsListView: View {
             }
         }
         .navigationTitle("Bills")
-        .sheet(isPresented: $showAddBudget) {
-            NavigationStack {
-                SetupBudgetPlanView()
-            }
-        }
         .refreshable {
             guard let client = auth.activeSupabaseClient else { return }
             await transactions.loadAll(client: client)

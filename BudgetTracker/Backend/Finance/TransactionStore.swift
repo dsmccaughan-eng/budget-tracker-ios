@@ -90,9 +90,9 @@ final class TransactionStore: ObservableObject {
                 subcategory: transaction.subcategory,
                 client: client
             )
-            if let index = transactions.firstIndex(where: { $0.id == transaction.id }) {
-                transactions[index].category = category
-                transactions[index].categorySource = CategorySource.user.rawValue
+            replaceTransaction(id: transaction.id) { txn in
+                txn.category = category
+                txn.categorySource = CategorySource.user.rawValue
             }
             if saveMerchantRule, let merchantRules {
                 try await merchantRules.upsertRule(for: transaction, category: category, client: client)
@@ -100,6 +100,42 @@ final class TransactionStore: ObservableObject {
         } catch {
             errorMessage = error.localizedDescription
         }
+    }
+
+    func updateBillSettings(
+        transaction: Transaction,
+        isFixedBill: Bool,
+        billNickname: String?,
+        billDueDay: Int?,
+        billAmount: Double?,
+        client: SupabaseClient
+    ) async {
+        errorMessage = nil
+        do {
+            try await SupabaseService.shared.updateTransactionBillSettings(
+                id: transaction.id,
+                isFixedBill: isFixedBill,
+                billNickname: billNickname,
+                billDueDay: billDueDay,
+                billAmount: billAmount,
+                client: client
+            )
+            replaceTransaction(id: transaction.id) { txn in
+                txn.isFixedBill = isFixedBill
+                txn.billNickname = billNickname
+                txn.billDueDay = billDueDay
+                txn.billAmount = billAmount
+            }
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    private func replaceTransaction(id: UUID, mutate: (inout Transaction) -> Void) {
+        guard let index = transactions.firstIndex(where: { $0.id == id }) else { return }
+        var updated = transactions
+        mutate(&updated[index])
+        transactions = updated
     }
 
     func account(for id: UUID) -> Account? {
@@ -156,8 +192,8 @@ final class TransactionStore: ObservableObject {
                 splitItems: splitItems,
                 client: client
             )
-            if let index = transactions.firstIndex(where: { $0.id == transaction.id }) {
-                transactions[index].splitItems = splitItems
+            replaceTransaction(id: transaction.id) { txn in
+                txn.splitItems = splitItems
             }
         } catch {
             errorMessage = error.localizedDescription

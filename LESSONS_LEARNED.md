@@ -132,6 +132,12 @@ Entry format
 - **Fix:** User completes [TestFlight Test Information](https://appstoreconnect.apple.com/apps/6775334574/testflight/test-info); install build from TestFlight → iOS builds. Set `submit_to_testflight: false` in `codemagic.yaml` until metadata exists so CI does not fail post-upload.
 - **Verification:** ASC shows processed build; internal testers can install after test info + tester group.
 
+### 2026-06-04 - Budget month nav, live totals, transaction-based bills
+- **Symptom:** Category colors duplicated; month arrows stuck after first tap; budget totals stale after recategorizing; bills tied to budget categories.
+- **Root cause:** Palette reused 8 colors across 17 categories; month cache + in-place transaction mutation did not refresh UI; `BillsEngine` read `budget.isFixed`.
+- **Fix:** Distinct per-category palette; month navigator uses offset + multi-key cache; transaction fingerprint + array reassignment; bills anchored on `transactions.is_fixed_bill` with nickname/due day/amount.
+- **Verification:** Unit tests for bill engine + spend sort; save plan reapplies distinct colors.
+
 ### 2026-06-03 - Codemagic archive failed: MerchantRulesStore upsert extension
 - **Symptom:** Build IPA failed on commit `8d87b3a`; Swift error at `MerchantRulesStore+Upsert.swift:23`.
 - **Root cause:** `upsertRule` lived in a separate file but assigned to `@Published private(set) var rules`, whose setter is private to the declaring file only.
