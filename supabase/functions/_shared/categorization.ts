@@ -1,3 +1,12 @@
+import {
+  looksLikeTransfer,
+  matchSimilarCategorization,
+  merchantSimilarityScore,
+  matchesMerchantPattern,
+  plaidHintsTransfer,
+  type UserCategorizationHint,
+} from "./merchant-similarity.ts";
+
 export const VALID_CATEGORIES = [
   "Housing & Utilities",
   "Groceries",
@@ -25,7 +34,7 @@ export type Category = typeof VALID_CATEGORIES[number];
 export type CategorizationResult = {
   category: string;
   subcategory: string | null;
-  source: "merchant_rule" | "merchant_db" | "gemini" | "plaid";
+  source: "merchant_rule" | "merchant_db" | "gemini" | "plaid" | "user_similar";
 };
 
 const PLAID_PRIMARY_MAP: Record<string, Category> = {
@@ -62,37 +71,34 @@ type MerchantDbRow = {
   subcategory: string | null;
 };
 
+const FUZZY_RULE_MIN_SCORE = 0.68;
+
 export async function categorizeTransaction(
-  admin: {
-    from: (table: string) => {
-      select: (cols: string) => {
-        eq: (
-          col: string,
-          val: string,
-        ) => {
-          ilike?: (
-            col: string,
-            pattern: string,
-          ) => Promise<{ data: MerchantRuleRow[] | null }>;
-        };
-      };
-    };
-  },
+  admin: unknown,
   userId: string,
   merchantName: string | null,
   transactionName: string,
   amount: number,
   plaidCategory: string | null,
+  userHints: UserCategorizationHint[] = [],
 ): Promise<CategorizationResult> {
   const searchText = (merchantName ?? transactionName).toLowerCase();
+  const displayName = merchantName ?? transactionName;
 
-  const { data: rules } = await admin
+  const { data: rules } = await (admin as {
+    from: (table: string) => {
+      select: (cols: string) => {
+        eq: (col: string, val: string) => Promise<{ data: MerchantRuleRow[] | null }>;
+      };
+    };
+  })
     .from("merchant_rules")
     .select("merchant_contains, category, subcategory")
-    .eq("user_id", userId) as { data: MerchantRuleRow[] | null };
+    .eq("user_id", userId);
 
   for (const rule of rules ?? []) {
-    if (searchText.includes(rule.merchant_contains.toLowerCase())) {
+    const pattern = rule.merchant_contains.toLowerCase();
+    if (searchText.includes(pattern)) {
       return {
         category: rule.category,
         subcategory: rule.subcategory,
@@ -101,14 +107,53 @@ export async function categorizeTransaction(
     }
   }
 
-  const { data: merchants } = await admin
-    .from("merchant_db")
-    .select("merchant_pattern, category, subcategory") as {
-      data: MerchantDbRow[] | null;
+  let bestFuzzyRule: MerchantRuleRow | null = null;
+  let bestFuzzyScore = FUZZY_RULE_MIN_SCORE;
+  for (const rule of rules ?? []) {
+    const score = merchantSimilarityScore(searchText, rule.merchant_contains);
+    if (score >= bestFuzzyScore) {
+      bestFuzzyRule = rule;
+      bestFuzzyScore = score;
+    }
+  }
+  if (bestFuzzyRule) {
+    return {
+      category: bestFuzzyRule.category,
+      subcategory: bestFuzzyRule.subcategory,
+      source: "merchant_rule",
     };
+  }
 
-  for (const merchant of merchants ?? []) {
-    if (searchText.includes(merchant.merchant_pattern.toLowerCase())) {
+  const similar = matchSimilarCategorization(searchText, userHints);
+  if (similar) {
+    return {
+      category: similar.category,
+      subcategory: similar.subcategory,
+      source: "user_similar",
+    };
+  }
+
+  if (looksLikeTransfer(searchText, plaidCategory)) {
+    return {
+      category: "Transfers",
+      subcategory: plaidCategory,
+      source: "merchant_db",
+    };
+  }
+
+  const { data: merchants } = await (admin as {
+    from: (table: string) => {
+      select: (cols: string) => Promise<{ data: MerchantDbRow[] | null }>;
+    };
+  })
+    .from("merchant_db")
+    .select("merchant_pattern, category, subcategory");
+
+  const sortedMerchants = (merchants ?? []).slice().sort(
+    (a, b) => b.merchant_pattern.length - a.merchant_pattern.length,
+  );
+  for (const merchant of sortedMerchants) {
+    if (matchesMerchantPattern(searchText, merchant.merchant_pattern)) {
       return {
         category: merchant.category,
         subcategory: merchant.subcategory,
@@ -118,9 +163,10 @@ export async function categorizeTransaction(
   }
 
   const geminiResult = await categorizeWithGemini(
-    merchantName ?? transactionName,
+    displayName,
     amount,
     plaidCategory,
+    userHints,
   );
   if (geminiResult) {
     return { ...geminiResult, source: "gemini" };
@@ -135,6 +181,7 @@ export async function categorizeTransaction(
 
 function mapPlaidCategory(raw: string | null): string {
   if (!raw) return "Other";
+  if (plaidHintsTransfer(raw)) return "Transfers";
   const key = raw.toUpperCase().replace(/\s+/g, "_");
   return PLAID_PRIMARY_MAP[key] ?? "Other";
 }
@@ -143,14 +190,24 @@ async function categorizeWithGemini(
   name: string,
   amount: number,
   plaidCategory: string | null,
+  userHints: UserCategorizationHint[],
 ): Promise<{ category: string; subcategory: string | null } | null> {
   const apiKey = Deno.env.get("GEMINI_API_KEY");
   if (!apiKey) return null;
 
+  const examples = userHints
+    .slice(0, 12)
+    .map((hint) => `- "${hint.merchantText}" → ${hint.category}`)
+    .join("\n");
+
   const systemPrompt =
-    "You are a transaction categorizer. Return ONLY valid JSON with 'category' and 'subcategory' fields. Category must be one of: [Housing & Utilities, Groceries, Dining & Bars, Transport, Shopping, Health & Wellness, Travel, Entertainment, Subscriptions, Personal Care, Education, Pets, Gifts & Donations, Insurance, Investments, Business, Income, Transfers, Other]";
-  const userPrompt =
-    `Merchant: ${name}, Amount: $${amount}, Raw category: ${plaidCategory ?? "unknown"}`;
+    "You are a transaction categorizer. Return ONLY valid JSON with 'category' and 'subcategory' fields. Category must be one of: [Housing & Utilities, Groceries, Dining & Bars, Transport, Shopping, Health & Wellness, Travel, Entertainment, Subscriptions, Personal Care, Education, Pets, Gifts & Donations, Insurance, Investments, Business, Income, Transfers, Other]. Credit card payments, bill pay, and account transfers are always Transfers — never Transport. When the merchant text is similar to a user example below, use that same category.";
+  const userPrompt = [
+    `Merchant: ${name}, Amount: $${amount}, Raw category: ${plaidCategory ?? "unknown"}`,
+    examples.length > 0
+      ? `\nUser's past categorizations (prefer these when the merchant is similar):\n${examples}`
+      : "",
+  ].join("");
 
   const endpoint =
     "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent";

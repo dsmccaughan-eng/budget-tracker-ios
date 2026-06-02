@@ -131,6 +131,26 @@ final class TransactionStore: ObservableObject {
         }
     }
 
+    func updateBudgetExclusion(
+        transaction: Transaction,
+        excludedFromBudget: Bool,
+        client: SupabaseClient
+    ) async {
+        errorMessage = nil
+        do {
+            try await SupabaseService.shared.updateTransactionBudgetExclusion(
+                id: transaction.id,
+                excludedFromBudget: excludedFromBudget,
+                client: client
+            )
+            replaceTransaction(id: transaction.id) { txn in
+                txn.excludedFromBudget = excludedFromBudget
+            }
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
     private func replaceTransaction(id: UUID, mutate: (inout Transaction) -> Void) {
         guard let index = transactions.firstIndex(where: { $0.id == id }) else { return }
         var updated = transactions

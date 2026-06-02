@@ -40,6 +40,30 @@ final class BudgetSpendIndexTests: XCTestCase {
         XCTAssertEqual(spent, 40, accuracy: 0.01)
     }
 
+    func testIndexIgnoresExcludedTransactions() {
+        let txns = [
+            txn(category: "Groceries", amount: 40, date: "2026-05-10"),
+            Transaction(
+                id: UUID(),
+                accountId: UUID(),
+                plaidTransactionId: UUID().uuidString,
+                amount: 100,
+                date: "2026-05-11",
+                merchantName: "Store",
+                name: "Store",
+                category: "Groceries",
+                subcategory: nil,
+                pending: false,
+                isManual: false,
+                splitItems: nil,
+                excludedFromBudget: true
+            )
+        ]
+        let index = BudgetSpendIndex(transactions: txns, calendar: calendar)
+        let spent = index.spent(category: "Groceries", referenceDate: referenceDate, calendar: calendar)
+        XCTAssertEqual(spent, 40, accuracy: 0.01)
+    }
+
     func testSuggestedPlanLinesSumToTotal() {
         let txns = [
             txn(category: "Groceries", amount: 300, date: "2026-05-01"),

@@ -14,8 +14,8 @@ struct BudgetView: View {
         return Calendar.current.date(byAdding: .month, value: -monthOffset, to: current) ?? current
     }
 
-    private var monthRows: [BudgetMonthRow] {
-        budgets.displayMonthRows(referenceDate: selectedMonth, transactions: transactions.transactions)
+    private var monthSections: BudgetMonthSections {
+        budgets.displayMonthSections(referenceDate: selectedMonth, transactions: transactions.transactions)
     }
 
     private var chartProgress: [BudgetProgress] {
@@ -49,68 +49,26 @@ struct BudgetView: View {
                     .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
                     .listRowBackground(Color.clear)
 
-                    if !fixedBills.isEmpty {
-                        Section("Bills this month") {
-                            NavigationLink {
-                                BillsListView()
-                            } label: {
-                                Label(billsSummaryLabel, systemImage: "calendar")
-                            }
-                            ForEach(fixedBills.prefix(3)) { bill in
-                                NavigationLink {
-                                    EditBillView(transactionId: bill.transactionId)
-                                } label: {
-                                    HStack {
-                                        VStack(alignment: .leading, spacing: 2) {
-                                            Text(bill.name)
-                                                .font(.subheadline.weight(.semibold))
-                                            Text(bill.displayDue)
-                                                .font(.caption)
-                                                .foregroundStyle(.secondary)
-                                        }
-                                        Spacer()
-                                        Text(FinanceFormatting.currency(bill.amount))
-                                            .font(.subheadline.weight(.semibold))
-                                    }
-                                }
-                            }
-                        }
+                    budgetCategorySection(
+                        title: monthSectionTitle,
+                        rows: monthSections.spending,
+                        allowsDelete: true
+                    )
+
+                    if !monthSections.income.isEmpty {
+                        budgetCategorySection(
+                            title: "Income",
+                            rows: monthSections.income,
+                            allowsDelete: false
+                        )
                     }
 
-                    Section(monthSectionTitle) {
-                        ForEach(monthRows) { row in
-                            NavigationLink {
-                                CategoryTransactionsView(
-                                    category: row.progress.category,
-                                    referenceMonth: selectedMonth
-                                )
-                            } label: {
-                                BudgetCategorySpendRow(
-                                    progress: row.progress,
-                                    recentSummary: row.recentSummary
-                                )
-                            }
-                            .contextMenu {
-                                if let budget = budgets.budgets.first(where: { $0.category == row.progress.category }) {
-                                    Button("Edit budget", systemImage: "pencil") {
-                                        budgetToEdit = budget
-                                    }
-                                    Button("Delete budget", systemImage: "trash", role: .destructive) {
-                                        Task { await deleteBudget(budget) }
-                                    }
-                                }
-                            }
-                        }
-                        .onDelete { indexSet in
-                            Task {
-                                for index in indexSet {
-                                    let category = monthRows[index].progress.category
-                                    if let budget = budgets.budgets.first(where: { $0.category == category }) {
-                                        await deleteBudget(budget)
-                                    }
-                                }
-                            }
-                        }
+                    if !monthSections.transfers.isEmpty {
+                        budgetCategorySection(
+                            title: "Transfers",
+                            rows: monthSections.transfers,
+                            allowsDelete: false
+                        )
                     }
                 }
 
@@ -168,20 +126,47 @@ struct BudgetView: View {
         return selected.formatted(.dateTime.month(.wide).year())
     }
 
-    private var fixedBills: [BillItem] {
-        BillsEngine.bills(
-            transactions: transactions.transactions,
-            budgets: budgets.budgets,
-            referenceDate: selectedMonth
-        )
-    }
-
-    private var billsSummaryLabel: String {
-        let dueCount = fixedBills.filter { !$0.isPaid }.count
-        if dueCount == 0 {
-            return "View all bills"
+    @ViewBuilder
+    private func budgetCategorySection(
+        title: String,
+        rows: [BudgetMonthRow],
+        allowsDelete: Bool
+    ) -> some View {
+        Section(title) {
+            ForEach(rows) { row in
+                NavigationLink {
+                    CategoryTransactionsView(
+                        category: row.progress.category,
+                        referenceMonth: selectedMonth
+                    )
+                } label: {
+                    BudgetCategorySpendRow(
+                        progress: row.progress,
+                        recentSummary: row.recentSummary
+                    )
+                }
+                .contextMenu {
+                    if let budget = budgets.budgets.first(where: { $0.category == row.progress.category }) {
+                        Button("Edit budget", systemImage: "pencil") {
+                            budgetToEdit = budget
+                        }
+                        Button("Delete budget", systemImage: "trash", role: .destructive) {
+                            Task { await deleteBudget(budget) }
+                        }
+                    }
+                }
+            }
+            .deleteActionIf(allowsDelete) { indexSet in
+                Task {
+                    for index in indexSet {
+                        let category = rows[index].progress.category
+                        if let budget = budgets.budgets.first(where: { $0.category == category }) {
+                            await deleteBudget(budget)
+                        }
+                    }
+                }
+            }
         }
-        return "\(dueCount) bill\(dueCount == 1 ? "" : "s") due"
     }
 
     private func deleteBudget(_ budget: Budget) async {
@@ -346,5 +331,19 @@ private struct BudgetColorPicker: View {
             }
         }
         .padding(.vertical, 4)
+    }
+}
+
+private extension View {
+    @ViewBuilder
+    func deleteActionIf(
+        _ condition: Bool,
+        action: @escaping (IndexSet) -> Void
+    ) -> some View {
+        if condition {
+            onDelete(perform: action)
+        } else {
+            self
+        }
     }
 }

@@ -109,18 +109,17 @@ final class BudgetMathTests: XCTestCase {
             referenceDate: referenceDate,
             calendar: calendar
         )
-        let displayRows = BudgetMath.displayMonthRows(
+        let sections = BudgetMath.displayMonthSections(
             budgets: budgets,
             index: index,
             referenceDate: referenceDate,
             calendar: calendar
         )
         XCTAssertEqual(chartRows.map(\.progress.category), ["Groceries"])
-        XCTAssertEqual(
-            Set(displayRows.map(\.progress.category)),
-            Set(["Groceries", "Other", "Income", "Transfers"])
-        )
-        let income = displayRows.first { $0.progress.category == "Income" }
+        XCTAssertEqual(sections.spending.count, 2)
+        XCTAssertEqual(sections.income.count, 1)
+        XCTAssertEqual(sections.transfers.count, 1)
+        let income = sections.income.first
         XCTAssertEqual(income?.progress.listDisplaySpent, 2000, accuracy: 0.01)
     }
 

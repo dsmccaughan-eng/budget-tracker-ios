@@ -26,6 +26,27 @@ final class CategorizationEngineTests: XCTestCase {
         XCTAssertEqual(amazonMatch?.category, "Shopping")
     }
 
+    func testMerchantDBDoesNotMatchMobilInsideMobileCreditCard() {
+        let merchants = [
+            (pattern: "mobil", category: "Transport", subcategory: Optional<String>.none),
+            (pattern: "mobile credit card", category: "Transfers", subcategory: Optional<String>.none)
+        ]
+        let match = CategorizationEngine.matchMerchantDB(
+            merchantText: "MOBILE CREDIT CARD PAYMENT",
+            merchants: merchants
+        )
+        XCTAssertEqual(match?.category, "Transfers")
+    }
+
+    func testMobilGasMatchesWithWordBoundary() {
+        let merchants = [(pattern: "mobil", category: "Transport", subcategory: Optional<String>.none)]
+        let match = CategorizationEngine.matchMerchantDB(
+            merchantText: "Mobil Gas",
+            merchants: merchants
+        )
+        XCTAssertEqual(match?.category, "Transport")
+    }
+
     func testInvalidCategoryIsIgnored() {
         let rules = [(contains: "foo", category: "Not A Category", subcategory: Optional<String>.none)]
         let match = CategorizationEngine.matchMerchantRules(

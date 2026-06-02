@@ -14,6 +14,7 @@ struct TransactionDetailView: View {
     @State private var billAmount: Double
     @State private var isSavingCategory = false
     @State private var isSavingBill = false
+    @State private var excludedFromBudget = false
     @State private var showSavedConfirmation = false
     @State private var showBillSavedConfirmation = false
 
@@ -24,6 +25,7 @@ struct TransactionDetailView: View {
         _billNickname = State(initialValue: BillsEngine.displayName(for: transaction))
         _billDueDay = State(initialValue: transaction.billDueDay ?? BillsEngine.defaultDueDay(for: transaction))
         _billAmount = State(initialValue: BillsEngine.resolvedAmount(for: transaction))
+        _excludedFromBudget = State(initialValue: transaction.excludedFromBudget)
     }
 
     private var liveTransaction: Transaction {
@@ -84,6 +86,15 @@ struct TransactionDetailView: View {
                 NavigationLink("Split transaction") {
                     SplitTransactionView(transaction: liveTransaction)
                 }
+            }
+
+            Section("Budget") {
+                Toggle("Exclude from budget totals", isOn: $excludedFromBudget)
+                    .onChange(of: excludedFromBudget) { _, _ in
+                        Task { await saveBudgetExclusion() }
+                    }
+            } footer: {
+                Text("Excluded transactions stay in your history but won't count toward category spending or the budget chart.")
             }
 
             Section {
@@ -153,6 +164,16 @@ struct TransactionDetailView: View {
         billDueDay = BillsEngine.resolvedDueDay(for: txn, transactions: transactions.transactions)
         billAmount = BillsEngine.resolvedAmount(for: txn)
         selectedCategory = txn.category
+        excludedFromBudget = txn.excludedFromBudget
+    }
+
+    private func saveBudgetExclusion() async {
+        guard let client = auth.activeSupabaseClient else { return }
+        await transactions.updateBudgetExclusion(
+            transaction: liveTransaction,
+            excludedFromBudget: excludedFromBudget,
+            client: client
+        )
     }
 
     private func saveCategory() async {

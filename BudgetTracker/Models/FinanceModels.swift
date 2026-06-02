@@ -18,6 +18,7 @@ struct Transaction: Codable, Identifiable, Hashable {
     var billNickname: String? = nil
     var billDueDay: Int? = nil
     var billAmount: Double? = nil
+    var excludedFromBudget: Bool = false
 
     enum CodingKeys: String, CodingKey {
         case id
@@ -32,6 +33,7 @@ struct Transaction: Codable, Identifiable, Hashable {
         case billNickname = "bill_nickname"
         case billDueDay = "bill_due_day"
         case billAmount = "bill_amount"
+        case excludedFromBudget = "excluded_from_budget"
     }
 }
 

@@ -67,7 +67,10 @@ $categories = @{
     "direct deposit", "payroll", "gusto", "adp", "paychex", "employer", "salary"
   )
   "Transfers" = @(
-    "zelle", "venmo", "paypal transfer", "cash app", "wire transfer", "ach transfer"
+    "zelle", "venmo", "paypal transfer", "cash app", "wire transfer", "ach transfer",
+    "mobile credit card", "credit card payment", "credit card transfer", "card payment",
+    "autopay payment", "bill pay", "loan payment", "mortgage payment", "payment thank you",
+    "apple card", "apple card payment", "payment to chase", "payment to amex"
   )
   "Other" = @(
     "atm fee", "bank fee", "service charge", "misc", "unknown merchant"

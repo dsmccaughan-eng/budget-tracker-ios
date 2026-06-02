@@ -11,6 +11,7 @@ final class BudgetStore: ObservableObject {
     private var spendIndex: BudgetSpendIndex?
     private var indexedFingerprint: Int?
     private var cachedMonthRowsByKey: [String: [BudgetMonthRow]] = [:]
+    private var cachedMonthSectionsByKey: [String: BudgetMonthSections] = [:]
 
     func setClientError(_ message: String) {
         errorMessage = message
@@ -38,6 +39,24 @@ final class BudgetStore: ObservableObject {
         rows(referenceDate: referenceDate, transactions: transactions, displayMode: .list)
     }
 
+    func displayMonthSections(referenceDate: Date, transactions: [Transaction]) -> BudgetMonthSections {
+        ensureIndex(transactions: transactions)
+        let cacheKey = listCacheKey(referenceDate: referenceDate, transactions: transactions)
+        if let cached = cachedMonthSectionsByKey[cacheKey] {
+            return cached
+        }
+        guard let index = spendIndex else {
+            return BudgetMonthSections(spending: [], income: [], transfers: [])
+        }
+        let sections = BudgetMath.displayMonthSections(
+            budgets: budgets,
+            index: index,
+            referenceDate: referenceDate
+        )
+        cachedMonthSectionsByKey[cacheKey] = sections
+        return sections
+    }
+
     private enum MonthRowDisplayMode {
         case chart
         case list
@@ -50,12 +69,11 @@ final class BudgetStore: ObservableObject {
     ) -> [BudgetMonthRow] {
         ensureIndex(transactions: transactions)
         let modeKey = displayMode == .chart ? "chart" : "list"
-        let cacheKey = BudgetMath.cacheKey(
+        let key = "\(modeKey)-\(BudgetMath.cacheKey(
             referenceDate: referenceDate,
             transactionCount: transactions.count,
             budgets: budgets
-        )
-        let key = "\(modeKey)-\(cacheKey)"
+        ))"
         if let cached = cachedMonthRowsByKey[key] {
             return cached
         }
@@ -227,12 +245,22 @@ final class BudgetStore: ObservableObject {
             hasher.combine(txn.isFixedBill)
             hasher.combine(txn.billDueDay)
             hasher.combine(txn.billAmount)
+            hasher.combine(txn.excludedFromBudget)
         }
         return hasher.finalize()
     }
 
+    private func listCacheKey(referenceDate: Date, transactions: [Transaction]) -> String {
+        "list-\(BudgetMath.cacheKey(
+            referenceDate: referenceDate,
+            transactionCount: transactions.count,
+            budgets: budgets
+        ))"
+    }
+
     private func invalidateMonthCache() {
         cachedMonthRowsByKey = [:]
+        cachedMonthSectionsByKey = [:]
     }
 }
 

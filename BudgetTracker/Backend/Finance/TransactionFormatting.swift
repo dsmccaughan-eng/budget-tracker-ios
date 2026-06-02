@@ -42,6 +42,7 @@ enum CategorySource: String, Codable, CaseIterable {
     case gemini
     case plaid
     case user
+    case userSimilar = "user_similar"
 
     var displayLabel: String {
         switch self {
@@ -50,6 +51,7 @@ enum CategorySource: String, Codable, CaseIterable {
         case .gemini: return "AI categorized"
         case .plaid: return "Bank category"
         case .user: return "You set this"
+        case .userSimilar: return "Similar to your past"
         }
     }
 
@@ -57,6 +59,8 @@ enum CategorySource: String, Codable, CaseIterable {
         switch self {
         case .gemini:
             return "Gemini assigned this category because no rule or bank mapping matched."
+        case .userSimilar:
+            return "Matched a similar merchant you categorized before."
         default:
             return nil
         }

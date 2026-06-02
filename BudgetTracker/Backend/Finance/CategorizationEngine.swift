@@ -45,7 +45,16 @@ enum CategorizationEngine {
                 return MerchantRuleMatch(category: rule.category, subcategory: rule.subcategory)
             }
         }
-        return nil
+        var best: MerchantRuleMatch?
+        var bestScore = 0.68
+        for rule in rules {
+            let score = MerchantSimilarity.similarityScore(normalized, rule.contains)
+            if score >= bestScore, BudgetCategories.isValid(rule.category) {
+                best = MerchantRuleMatch(category: rule.category, subcategory: rule.subcategory)
+                bestScore = score
+            }
+        }
+        return best
     }
 
     static func matchMerchantDB(
@@ -53,12 +62,28 @@ enum CategorizationEngine {
         merchants: [(pattern: String, category: String, subcategory: String?)]
     ) -> MerchantRuleMatch? {
         let normalized = merchantText.lowercased()
-        for merchant in merchants {
-            if normalized.contains(merchant.pattern.lowercased()) {
+        if TransferHeuristics.looksLikeTransfer(merchantText: merchantText) {
+            return MerchantRuleMatch(category: "Transfers", subcategory: nil)
+        }
+        let sorted = merchants.sorted { $0.pattern.count > $1.pattern.count }
+        for merchant in sorted {
+            if matchesMerchantPattern(normalized, pattern: merchant.pattern.lowercased()) {
                 guard BudgetCategories.isValid(merchant.category) else { continue }
                 return MerchantRuleMatch(category: merchant.category, subcategory: merchant.subcategory)
             }
         }
         return nil
+    }
+
+    private static func matchesMerchantPattern(_ text: String, pattern: String) -> Bool {
+        if pattern.count <= 5, !pattern.contains(" ") {
+            let escaped = NSRegularExpression.escapedPattern(for: pattern)
+            guard let regex = try? NSRegularExpression(pattern: "\\b\(escaped)\\b", options: .caseInsensitive) else {
+                return false
+            }
+            let range = NSRange(text.startIndex..<text.endIndex, in: text)
+            return regex.firstMatch(in: text, options: [], range: range) != nil
+        }
+        return text.contains(pattern)
     }
 }

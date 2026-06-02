@@ -3,6 +3,7 @@ import {
   categorizeTransaction,
   normalizePlaidCategory,
 } from "./categorization.ts";
+import { loadUserCategorizationHints } from "./user-categorization-history.ts";
 import { plaidRequest, PlaidTransaction } from "./plaid.ts";
 
 type SyncResponse = {
@@ -69,6 +70,8 @@ export async function syncPlaidItemsForUser(
     ]),
   );
 
+  const userHints = await loadUserCategorizationHints(admin, userId);
+
   let synced = 0;
   let categorized = 0;
   let itemsProcessed = 0;
@@ -124,6 +127,7 @@ export async function syncPlaidItemsForUser(
               txn.name,
               txn.amount,
               plaidCategory,
+              userHints,
             );
             category = result.category;
             subcategory = result.subcategory;

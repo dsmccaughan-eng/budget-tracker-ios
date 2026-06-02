@@ -43,6 +43,14 @@ private struct TransactionBillPatch: Encodable {
     }
 }
 
+private struct TransactionBudgetPatch: Encodable {
+    let excludedFromBudget: Bool
+
+    enum CodingKeys: String, CodingKey {
+        case excludedFromBudget = "excluded_from_budget"
+    }
+}
+
 extension SupabaseService {
     func syncTransactions(client: SupabaseClient) async throws -> SyncTransactionsResponse {
         try await invokeFunction(
@@ -220,6 +228,19 @@ extension SupabaseService {
             billDueDay: billDueDay,
             billAmount: billAmount
         )
+        try await client
+            .from("transactions")
+            .update(patch)
+            .eq("id", value: id.uuidString)
+            .execute()
+    }
+
+    func updateTransactionBudgetExclusion(
+        id: UUID,
+        excludedFromBudget: Bool,
+        client: SupabaseClient
+    ) async throws {
+        let patch = TransactionBudgetPatch(excludedFromBudget: excludedFromBudget)
         try await client
             .from("transactions")
             .update(patch)

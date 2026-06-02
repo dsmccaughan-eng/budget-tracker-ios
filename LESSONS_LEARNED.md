@@ -132,6 +132,17 @@ Entry format
 - **Fix:** User completes [TestFlight Test Information](https://appstoreconnect.apple.com/apps/6775334574/testflight/test-info); install build from TestFlight → iOS builds. Set `submit_to_testflight: false` in `codemagic.yaml` until metadata exists so CI does not fail post-upload.
 - **Verification:** ASC shows processed build; internal testers can install after test info + tester group.
 
+### 2026-06-05 - Similar merchant auto-categorization from user history
+- **Symptom:** Slightly different merchant text (e.g. "MOBILE CR CARD PMT") not inheriting user's past category.
+- **Fix:** Token similarity against saved rules + user-categorized transactions (`user_similar`); Gemini receives user examples. Deployed in `plaid-sync-transactions`.
+- **Verification:** `MerchantSimilarityTests`; sync assigns `category_source=user_similar` when matched.
+
+### 2026-06-05 - Mobile credit card mis-tagged as Transport
+- **Symptom:** "Mobile credit card transfer" categorized as Transport.
+- **Root cause:** `mobil` gas-station pattern matched as substring inside `mobile`; Plaid `TRANSPORTATION` fallback.
+- **Fix:** Transfer heuristics before merchant_db; word-boundary match for short patterns; expanded transfer merchant_db + seed script; Gemini prompt clarification.
+- **Verification:** `TransferHeuristicsTests`, `CategorizationEngineTests`; redeploy `plaid-sync-transactions`.
+
 ### 2026-06-04 - Codemagic archive failed: BillsEngine.resolvedDueDay calendar arg
 - **Symptom:** Build 18 IPA failed; `EditBillView` / `TransactionDetailView` missing `calendar` argument.
 - **Root cause:** `resolvedDueDay` required `calendar` with no default; call sites omitted it.

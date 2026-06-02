@@ -11,14 +11,32 @@ struct TransactionRowView: View {
                     .font(.headline)
                 HStack(spacing: 6) {
                     Text(transaction.category)
-                    if let source = CategorySource.from(transaction.categorySource),
-                       source == .gemini {
-                        Text("AI")
+                    if let source = CategorySource.from(transaction.categorySource) {
+                        if source == .gemini {
+                            Text("AI")
+                                .font(.caption2.weight(.semibold))
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                                .background(Color.purple.opacity(0.15))
+                                .foregroundStyle(.purple)
+                                .clipShape(Capsule())
+                        } else if source == .userSimilar {
+                            Text("Similar")
+                                .font(.caption2.weight(.semibold))
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                                .background(Color.blue.opacity(0.12))
+                                .foregroundStyle(.blue)
+                                .clipShape(Capsule())
+                        }
+                    }
+                    if transaction.excludedFromBudget {
+                        Text("Excluded")
                             .font(.caption2.weight(.semibold))
                             .padding(.horizontal, 6)
                             .padding(.vertical, 2)
-                            .background(Color.purple.opacity(0.15))
-                            .foregroundStyle(.purple)
+                            .background(Color.orange.opacity(0.15))
+                            .foregroundStyle(.orange)
                             .clipShape(Capsule())
                     }
                 }
@@ -65,6 +83,7 @@ struct CategorySourceBadge: View {
         switch source {
         case .gemini: return "sparkles"
         case .merchantRule, .user: return "bookmark.fill"
+        case .userSimilar: return "clock.arrow.circlepath"
         case .merchantDb: return "books.vertical.fill"
         case .plaid: return "building.columns.fill"
         }

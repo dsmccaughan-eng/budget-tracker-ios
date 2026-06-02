@@ -114,6 +114,39 @@ enum BudgetMath {
         }
     }
 
+    static func groupMonthRows(_ rows: [BudgetMonthRow]) -> BudgetMonthSections {
+        var spending: [BudgetMonthRow] = []
+        var income: [BudgetMonthRow] = []
+        var transfers: [BudgetMonthRow] = []
+        for row in rows {
+            switch row.progress.category {
+            case "Income":
+                income.append(row)
+            case "Transfers":
+                transfers.append(row)
+            default:
+                spending.append(row)
+            }
+        }
+        return BudgetMonthSections(spending: spending, income: income, transfers: transfers)
+    }
+
+    static func displayMonthSections(
+        budgets: [Budget],
+        index: BudgetSpendIndex,
+        referenceDate: Date = Date(),
+        calendar: Calendar = .current
+    ) -> BudgetMonthSections {
+        groupMonthRows(
+            displayMonthRows(
+                budgets: budgets,
+                index: index,
+                referenceDate: referenceDate,
+                calendar: calendar
+            )
+        )
+    }
+
     private static func informationalMonthRow(
         category: String,
         index: BudgetSpendIndex,
@@ -250,6 +283,7 @@ enum BudgetMath {
             .filter {
                 $0.category == category &&
                 isInMonth(dateString: $0.date, referenceDate: referenceDate, calendar: calendar) &&
+                !$0.excludedFromBudget &&
                 !excludedCategories.contains($0.category)
             }
             .reduce(0) { $0 + $1.amount }
@@ -359,6 +393,7 @@ enum BudgetMath {
             .filter {
                 $0.category == category &&
                 isInMonth(dateString: $0.date, referenceDate: referenceDate, calendar: calendar) &&
+                !$0.excludedFromBudget &&
                 !excludedCategories.contains($0.category)
             }
             .sorted { $0.date > $1.date }

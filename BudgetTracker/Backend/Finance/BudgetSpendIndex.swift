@@ -6,6 +6,12 @@ struct BudgetMonthRow: Equatable, Identifiable {
     let recentSummary: String
 }
 
+struct BudgetMonthSections: Equatable {
+    let spending: [BudgetMonthRow]
+    let income: [BudgetMonthRow]
+    let transfers: [BudgetMonthRow]
+}
+
 struct BudgetPlanLine: Equatable, Identifiable {
     var id: String { category }
     let category: String
@@ -25,6 +31,7 @@ struct BudgetSpendIndex {
         var recent: [String: [String: [(date: String, name: String)]]] = [:]
 
         for txn in transactions {
+            guard !txn.excludedFromBudget else { continue }
             let monthKey = Self.monthKey(from: txn.date)
             spent[txn.category, default: [:]][monthKey, default: 0] += txn.amount
             let name = FinanceFormatting.displayName(for: txn)
