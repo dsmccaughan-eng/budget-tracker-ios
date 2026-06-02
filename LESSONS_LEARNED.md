@@ -132,6 +132,12 @@ Entry format
 - **Fix:** User completes [TestFlight Test Information](https://appstoreconnect.apple.com/apps/6775334574/testflight/test-info); install build from TestFlight → iOS builds. Set `submit_to_testflight: false` in `codemagic.yaml` until metadata exists so CI does not fail post-upload.
 - **Verification:** ASC shows processed build; internal testers can install after test info + tester group.
 
+### 2026-06-04 - Codemagic archive failed: BudgetStore string interpolation
+- **Symptom:** Build 17 IPA failed; Swift errors in `BudgetStore.swift:53`.
+- **Root cause:** Multi-line function call inside `"\(...)"` string interpolation is invalid Swift.
+- **Fix:** Compute `BudgetMath.cacheKey(...)` in a local variable before building the cache key string.
+- **Verification:** Codemagic archive succeeds.
+
 ### 2026-06-04 - Budget month nav, live totals, transaction-based bills
 - **Symptom:** Category colors duplicated; month arrows stuck after first tap; budget totals stale after recategorizing; bills tied to budget categories.
 - **Root cause:** Palette reused 8 colors across 17 categories; month cache + in-place transaction mutation did not refresh UI; `BillsEngine` read `budget.isFixed`.

@@ -50,11 +50,12 @@ final class BudgetStore: ObservableObject {
     ) -> [BudgetMonthRow] {
         ensureIndex(transactions: transactions)
         let modeKey = displayMode == .chart ? "chart" : "list"
-        let key = "\(modeKey)-\(BudgetMath.cacheKey(
+        let cacheKey = BudgetMath.cacheKey(
             referenceDate: referenceDate,
             transactionCount: transactions.count,
             budgets: budgets
-        ))"
+        )
+        let key = "\(modeKey)-\(cacheKey)"
         if let cached = cachedMonthRowsByKey[key] {
             return cached
         }
