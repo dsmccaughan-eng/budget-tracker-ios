@@ -83,7 +83,7 @@ enum BillsEngine {
     static func resolvedDueDay(
         for anchor: Transaction,
         transactions: [Transaction],
-        calendar: Calendar
+        calendar: Calendar = .current
     ) -> Int {
         if let day = anchor.billDueDay, (1...31).contains(day) {
             return day
