@@ -15,6 +15,7 @@ workflows:
         APP_STORE_APPLE_ID: "6775334574"
         CM_CLONE_DEPTH: "1"
         CM_PRE_IPA_STEP_TIMEOUT_SEC: "60"
+        CM_TEST_DESTINATION: "platform=iOS Simulator,name=iPhone 17"
       xcode: "26.4"
     scripts:
       - name: Install XcodeGen

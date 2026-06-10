@@ -9,6 +9,7 @@ SCHEME="${XCODE_SCHEME:-BudgetTracker}"
 PROJECT="${XCODE_PROJECT:-BudgetTracker.xcodeproj}"
 if [[ -z "${CM_TEST_DESTINATION:-}" ]]; then
   CM_TEST_DESTINATION=$(
+    set +o pipefail
     xcodebuild -project "$PROJECT" -scheme "$SCHEME" -showdestinations 2>/dev/null \
       | grep "platform:iOS Simulator" \
       | grep -v "placeholder" \
@@ -17,9 +18,15 @@ if [[ -z "${CM_TEST_DESTINATION:-}" ]]; then
       | tr -d ' '
   )
 fi
-DESTINATION="${CM_TEST_DESTINATION:-generic/platform=iOS Simulator}"
-if [[ "$DESTINATION" != generic/* ]]; then
-  DESTINATION="platform=iOS Simulator,id=$DESTINATION"
+
+if [[ -n "${CM_TEST_DESTINATION:-}" ]]; then
+  if [[ "$CM_TEST_DESTINATION" == platform=* ]]; then
+    DESTINATION="$CM_TEST_DESTINATION"
+  else
+    DESTINATION="platform=iOS Simulator,id=$CM_TEST_DESTINATION"
+  fi
+else
+  DESTINATION="platform=iOS Simulator,name=iPhone 17"
 fi
 
 echo "Running unit tests: scheme=$SCHEME destination=$DESTINATION"
