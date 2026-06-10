@@ -33,8 +33,8 @@ struct TellerLinkView: View {
     private var tellerConfig: Teller.Config {
         Teller.Config(
             appId: applicationId,
-            environment: tellerEnvironment,
             enrollmentId: reconnectEnrollmentId,
+            environment: tellerEnvironment,
             selectAccount: .disabled,
             products: [.transactions]
         ) { completion in
