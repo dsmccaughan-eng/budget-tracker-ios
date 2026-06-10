@@ -220,3 +220,9 @@ Entry format
 - **Root cause:** Upstream TellerKit repo ships only `TellerKit.xcframework` (no SPM manifest); `ci-step-timeout.sh` masked non-zero exits so resolve failures looked green.
 - **Fix:** Vend `Vendor/TellerKitSPM` local binary package; point `project.yml` at local path; fix `wait` exit propagation in `ci-step-timeout.sh`.
 - **Verification:** Codemagic resolve packages succeeds; unit tests + IPA build complete.
+
+### 2026-06-10 - CI unit tests picked simulator placeholder
+- **Symptom:** Codemagic `Run unit tests` failed with destination `iphonesimulator:placeholder` on Xcode 26.4.
+- **Root cause:** `run-unit-tests.sh` used the first `platform:iOS Simulator` line from `-showdestinations`, which is a placeholder entry on newer Xcode.
+- **Fix:** Skip lines containing `placeholder`; pick the first real simulator id (e.g. iPhone 17).
+- **Verification:** Codemagic unit test step completes; IPA build proceeds.

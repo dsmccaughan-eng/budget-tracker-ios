@@ -10,7 +10,9 @@ PROJECT="${XCODE_PROJECT:-BudgetTracker.xcodeproj}"
 if [[ -z "${CM_TEST_DESTINATION:-}" ]]; then
   CM_TEST_DESTINATION=$(
     xcodebuild -project "$PROJECT" -scheme "$SCHEME" -showdestinations 2>/dev/null \
-      | grep -m1 "platform:iOS Simulator" \
+      | grep "platform:iOS Simulator" \
+      | grep -v "placeholder" \
+      | head -1 \
       | sed -n 's/.*id:\([^,}]*\).*/\1/p' \
       | tr -d ' '
   )
