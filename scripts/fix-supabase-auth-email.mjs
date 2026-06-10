@@ -50,6 +50,24 @@ if (!resendKey?.startsWith('re_') && !googleAppPassword) {
   process.exit(1);
 }
 
+function magicLinkEmailTemplate() {
+  const templatePath = path.join(repoRoot, 'supabase', 'templates', 'magic_link.html');
+  return fs.readFileSync(templatePath, 'utf8').trim();
+}
+
+const MAGIC_LINK_SUBJECT = 'Your Budget Tracker sign-in code';
+
+async function applyOtpEmailTemplate() {
+  const body = {
+    mailer_otp_length: 6,
+    mailer_subjects_magic_link: MAGIC_LINK_SUBJECT,
+    mailer_templates_magic_link_content: magicLinkEmailTemplate(),
+  };
+  const r = await mgmt('/config/auth', { method: 'PATCH', body: JSON.stringify(body) });
+  if (!r.ok) throw new Error(`PATCH magic link template failed: ${await r.text()}`);
+  console.log('Magic link email template updated (shows {{ .Token }} OTP in email)');
+}
+
 const mgmt = (p, opts = {}) =>
   fetch(`https://api.supabase.com/v1/projects/${PROJECT_REF}${p}`, {
     ...opts,
@@ -79,6 +97,8 @@ async function enableSendEmailHook(hookSecret) {
     hook_send_email_secrets: hookSecret,
     external_email_enabled: true,
     mailer_otp_length: 6,
+    mailer_subjects_magic_link: MAGIC_LINK_SUBJECT,
+    mailer_templates_magic_link_content: magicLinkEmailTemplate(),
   };
   const r = await mgmt('/config/auth', { method: 'PATCH', body: JSON.stringify(body) });
   if (!r.ok) throw new Error(`PATCH auth failed: ${await r.text()}`);
@@ -96,6 +116,8 @@ async function patchGmailSmtp() {
     external_email_enabled: true,
     hook_send_email_enabled: false,
     mailer_otp_length: 6,
+    mailer_subjects_magic_link: MAGIC_LINK_SUBJECT,
+    mailer_templates_magic_link_content: magicLinkEmailTemplate(),
   };
   const r = await mgmt('/config/auth', { method: 'PATCH', body: JSON.stringify(body) });
   if (!r.ok) throw new Error(`PATCH Gmail SMTP failed: ${await r.text()}`);
@@ -126,8 +148,9 @@ async function main() {
   } else {
     await patchGmailSmtp();
   }
+  await applyOtpEmailTemplate();
   await testOtp();
-  console.log('Done. Sign-in codes should arrive by email.');
+  console.log('Done. Sign-in emails should show the 6-digit code in the message body.');
 }
 
 main().catch((e) => {

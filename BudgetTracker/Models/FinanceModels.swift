@@ -45,6 +45,7 @@ struct SplitItem: Codable, Hashable {
 
 struct Account: Codable, Identifiable, Hashable {
     var id: UUID
+    var provider: String = "plaid"
     var plaidItemId: String
     var plaidAccountId: String
     var name: String
@@ -56,7 +57,7 @@ struct Account: Codable, Identifiable, Hashable {
     var availableBalance: Double?
 
     enum CodingKeys: String, CodingKey {
-        case id, name, type, subtype, mask
+        case id, name, type, subtype, mask, provider
         case plaidItemId = "plaid_item_id"
         case plaidAccountId = "plaid_account_id"
         case officialName = "official_name"

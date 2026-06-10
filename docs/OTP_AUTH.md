@@ -23,3 +23,13 @@ node scripts/fix-supabase-auth-email.mjs
 ## Enable email in Supabase
 
 Dashboard → Authentication → Providers → **Email** → enable Email OTP.
+
+The **Magic Link** email template must include `{{ .Token }}` so users see the 6-digit code (not only a confirmation link). This repo ships `supabase/templates/magic_link.html`; apply to hosted project with:
+
+```powershell
+node scripts/fix-supabase-auth-email.mjs
+```
+
+Or in Dashboard → Authentication → Email Templates → **Magic Link**, paste the template body from that file.
+
+**OTP length:** Hosted auth must use `mailer_otp_length: 6` (Dashboard → Auth → Providers → Email, or the fix script). Default on some projects is 8, which mismatches the app’s 6-digit field.

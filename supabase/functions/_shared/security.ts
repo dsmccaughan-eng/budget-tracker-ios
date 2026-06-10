@@ -80,3 +80,21 @@ export async function assertPlaidItemOwnership(
   }
   return data;
 }
+
+export async function assertTellerItemOwnership(
+  admin: SupabaseClient,
+  userId: string,
+  tellerEnrollmentId: string,
+): Promise<{ user_id: string; status: string }> {
+  const { data, error } = await admin
+    .from("teller_items")
+    .select("user_id, status")
+    .eq("teller_enrollment_id", tellerEnrollmentId)
+    .maybeSingle();
+
+  if (error) throw new Error(error.message);
+  if (!data || data.user_id !== userId) {
+    throw new Error("Teller item not found");
+  }
+  return data;
+}

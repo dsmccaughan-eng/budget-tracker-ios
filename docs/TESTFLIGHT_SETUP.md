@@ -70,20 +70,45 @@ node scripts/trigger-codemagic-build.mjs
 
 IPA uploads to App Store Connect when signing secrets and API keys are correct.
 
-### F. TestFlight Beta App Information (required once)
+### F. TestFlight Test Information (required once — usually in browser)
 
-If Codemagic logs **“App Store Connect distribution failed”** but **Build IPA** succeeded, the binary is usually already on TestFlight. Apple blocked **external** beta submission because contact info is missing.
+**Symptom:** Codemagic “distribution failed,” or TestFlight → Test Information won’t save / looks empty, or the TestFlight iPhone app shows no build.
 
-In [App Store Connect → TestFlight → Test Information](https://appstoreconnect.apple.com/apps/6775334574/testflight/test-info) fill in:
+**Checks (API):**
 
-| Section | Required fields |
-|--------|------------------|
-| **Beta App Information** | Feedback email |
-| **Beta App Review Information** | First name, last name, phone, email |
+```powershell
+node scripts/setup-asc-testflight-info.mjs --inspect
+node scripts/fetch-asc-crashes.mjs   # lists processed builds
+```
 
-Then in **TestFlight → iOS builds**, open the latest build → add **Internal Testing** testers (your Apple ID) or submit for external testing.
+| API field | Meaning |
+|-----------|---------|
+| `betaAppLocalizations` count **0** | Test Information has no language yet — web UI often cannot save until you complete the form once as **Account Holder** or **Admin** |
+| `internalBuildState: READY_FOR_BETA_TESTING` | Build **is** on TestFlight for **internal** team members (App Store Connect users) |
+| `externalBuildState: READY_FOR_BETA_SUBMISSION` | External testers blocked until Test Information + review contact exist |
+| API key `POST betaAppLocalizations` → **403** | Key `N99V63R65U` can upload IPAs but **cannot** edit Test Information — use browser or regenerate key as **Admin** / **App Manager** |
 
-After that is saved, you can set `submit_to_testflight: true` in `codemagic.yaml` if you want Codemagic to auto-submit for beta review on future builds.
+**Fill in (browser, ~2 min):** [TestFlight → Test Information](https://appstoreconnect.apple.com/apps/6775334574/testflight/test-info)
+
+1. Language: **English (U.S.)** (app primary locale).
+2. **Beta App Description** (required): e.g. `Personal finance and budget tracking with Plaid sync, budgets, and net worth.`
+3. **Feedback Email:** `dsmccaughan@gmail.com`
+4. **Beta App Review Information:** Dylan McCaughan, your phone (E.164, e.g. `+1…`), `dsmccaughan@gmail.com`
+
+**Install internally (no external review):**
+
+1. [Users and Access](https://appstoreconnect.apple.com/access/users) — your Apple ID must be on the team with access to this app.
+2. On iPhone: TestFlight app, signed in as **dsmccaughan@gmail.com** → **Optimized Budget Tracker** → build **32** (or latest).
+3. Internal group **Budget Testers** already exists; internal builds with `hasAccessToAllBuilds` do not need manual build assignment.
+
+**Automation (after Admin API key or Test Information exists):**
+
+```powershell
+$env:ASC_CONTACT_PHONE = "+1XXXXXXXXXX"   # your real number
+node scripts/setup-asc-testflight-info.mjs
+```
+
+Then set `submit_to_testflight: true` in `codemagic.yaml` if you want Codemagic to submit external beta review on future builds.
 
 ## Helper script
 

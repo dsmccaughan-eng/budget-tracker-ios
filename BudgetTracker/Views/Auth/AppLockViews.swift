@@ -18,8 +18,13 @@ struct AppLockGateView<Content: View>: View {
             }
         }
         .onChange(of: scenePhase) { _, newPhase in
-            if newPhase == .background {
-                lock.lock()
+            switch newPhase {
+            case .background:
+                lock.handleEnterBackground()
+            case .active:
+                lock.handleEnterForeground()
+            default:
+                break
             }
         }
     }

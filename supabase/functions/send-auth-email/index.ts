@@ -68,11 +68,13 @@ Deno.serve(async (req) => {
   const subject = subjectFor(action);
 
   const html = `
-    <h2>Your sign-in code</h2>
-    <p>Enter this code in Budget Tracker:</p>
-    <p style="font-size:32px;font-weight:bold;letter-spacing:6px">${token}</p>
+    <h2>Your Budget Tracker sign-in code</h2>
+    <p>Enter this code in the app:</p>
+    <p style="font-size:32px;font-weight:bold;letter-spacing:6px;margin:16px 0">${token}</p>
     <p>This code expires soon. If you did not request it, you can ignore this email.</p>
   `;
+  const text =
+    `Your Budget Tracker sign-in code is ${token}.\n\nEnter this code in the app. This code expires soon. If you did not request it, ignore this email.`;
 
   const res = await fetch("https://api.resend.com/emails", {
     method: "POST",
@@ -85,6 +87,7 @@ Deno.serve(async (req) => {
       to: [user.email],
       subject,
       html,
+      text,
     }),
   });
 

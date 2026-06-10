@@ -37,4 +37,14 @@ final class AppLockPolicyTests: XCTestCase {
         )
         XCTAssertEqual(challenge.mode, .pinAfterBiometricFailures)
     }
+
+    func testBackgroundGracePeriodIsThirtySeconds() {
+        XCTAssertEqual(AppLockPolicy.backgroundLockGracePeriod, 30)
+    }
+
+    func testShouldLockAfterGracePeriod() {
+        XCTAssertFalse(AppLockPolicyEngine.shouldLockAfterBackgroundDuration(29))
+        XCTAssertTrue(AppLockPolicyEngine.shouldLockAfterBackgroundDuration(30))
+        XCTAssertTrue(AppLockPolicyEngine.shouldLockAfterBackgroundDuration(120))
+    }
 }

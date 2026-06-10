@@ -41,6 +41,7 @@ enum CategorySource: String, Codable, CaseIterable {
     case merchantDb = "merchant_db"
     case gemini
     case plaid
+    case teller
     case user
     case userSimilar = "user_similar"
 
@@ -50,6 +51,7 @@ enum CategorySource: String, Codable, CaseIterable {
         case .merchantDb: return "Known merchant"
         case .gemini: return "AI categorized"
         case .plaid: return "Bank category"
+        case .teller: return "Teller category"
         case .user: return "You set this"
         case .userSimilar: return "Similar to your past"
         }

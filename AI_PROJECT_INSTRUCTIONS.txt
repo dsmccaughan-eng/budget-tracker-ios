@@ -77,7 +77,8 @@ Core Product Rules
 - Edge Functions: 7 total — link, update-link, exchange, accounts, sync, remove-item, webhook (webhook uses Plaid JWT verification, not Supabase JWT).
 
 2) Auth and privacy
-- Face ID / Touch ID required before any financial screen (cold open and return from background or app switcher).
+- Face ID / Touch ID required before any financial screen (cold open and after 30+ seconds in background).
+- Privacy shield covers financial UI immediately when inactive or in the app switcher.
 - 6-digit app PIN required on first use; after 3 biometric failures (or user choice), PIN unlock. Verifier in Keychain (PBKDF2), never plaintext PIN.
 - `NSAllowsArbitraryLoads` = false in Info.plist.
 
@@ -87,7 +88,7 @@ Core Product Rules
 
 4) Tabs and information architecture
 - Bottom tabs: Dashboard, Transactions, Budgets, Goals, Insights.
-- Bank link via Edge Functions only (`PlaidLinkView`); settings (rules, notifications) from gear / Profile path.
+- Bank link via Edge Functions only (`BankLinkView` → Plaid or Teller); settings (rules, notifications) from gear / Profile path.
 
 5) Budgets and goals
 - Budget math and alert thresholds must stay deterministic and tested (`BudgetMath`, `BudgetAlertEngine`).
@@ -168,6 +169,8 @@ Documentation duties (agents)
 - Do not paste secrets into this file or `LESSONS_LEARNED.md`.
 
 Update Log
+- 2026-06-03: **Plaid + Teller aggregation** — `BankLinkView` routes new links to Teller when Plaid Trial cap reached; shared accounts/transactions; see `docs/AGGREGATION_SETUP.md`.
+- 2026-06-03: Dashboard **Unreviewed transactions** (confirm-all review flow); app lock **30s background grace** before re-auth; Net Worth tab hides History list (chart still uses snapshots).
 - 2026-06-01: Added `ai/DOCUMENTATION_MAP.md`, Cursor rules index, and **AI documentation system** table in this file (scope/read/write per doc type).
 - 2026-06-01: Added `AGENTS.md`, `docs/ai/` (writing guide + go-bys), `ai/features/`, `.cursor/rules/` — canonical rules remain in this file.
 - 2026-05-31: Initial AI instructions; mandate `LESSONS_LEARNED.md` + this file alongside `PROJECT_BRIEF.md`.

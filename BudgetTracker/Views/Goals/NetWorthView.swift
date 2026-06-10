@@ -25,9 +25,29 @@ struct NetWorthView: View {
             .listRowBackground(Color.clear)
 
             if !accountGroups.isEmpty {
-                Section("Accounts") {
-                    ForEach(accountGroups) { group in
-                        NetWorthAccountGroupSection(group: group)
+                ForEach(accountGroups) { group in
+                    Section {
+                        ForEach(group.accounts) { account in
+                            if let linked = transactions.account(for: account.id) {
+                                NavigationLink {
+                                    AccountDetailView(account: linked)
+                                } label: {
+                                    NetWorthAccountRowLabel(
+                                        name: account.name,
+                                        balance: displayBalance(account.balance, groupTitle: group.title)
+                                    )
+                                }
+                                .listRowInsets(Self.accountRowInsets)
+                            } else {
+                                NetWorthAccountRowLabel(
+                                    name: account.name,
+                                    balance: displayBalance(account.balance, groupTitle: group.title)
+                                )
+                                .listRowInsets(Self.accountRowInsets)
+                            }
+                        }
+                    } header: {
+                        NetWorthAccountGroupHeader(title: group.title, total: group.total)
                     }
                 }
             }
@@ -38,23 +58,11 @@ struct NetWorthView: View {
                 LabeledContent("Net worth", value: FinanceFormatting.currency(netWorth.currentNetWorth))
             }
 
-            Section("History") {
-                Text("Past year uses daily account balances from synced transactions and recorded snapshots. Today’s total is saved automatically once per day.")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                if netWorth.snapshots.isEmpty {
-                    Text("Daily snapshots will appear after your next app open with linked accounts.")
-                        .font(.caption)
-                        .foregroundStyle(.tertiary)
-                } else {
-                    ForEach(netWorth.snapshots.prefix(14)) { snap in
-                        HStack {
-                            Text(snap.date)
-                            Spacer()
-                            Text(FinanceFormatting.currency(snap.netWorth))
-                                .foregroundStyle(.secondary)
-                        }
-                    }
+            if let error = netWorth.errorMessage {
+                Section {
+                    Text(error)
+                        .foregroundStyle(.red)
+                        .font(.footnote)
                 }
             }
         }
@@ -68,28 +76,24 @@ struct NetWorthView: View {
             await reload()
         }
         .task {
-            await reloadIfNeeded()
-        }
-    }
-
-    private func reloadIfNeeded() async {
-        guard let client = auth.activeSupabaseClient else { return }
-        if netWorth.snapshots.isEmpty {
             await reload()
         }
     }
 
     private func reload() async {
         guard let client = auth.activeSupabaseClient else { return }
-        if transactions.accounts.isEmpty {
-            await transactions.loadAll(client: client)
-        }
+        await transactions.loadAll(client: client)
         await accountBalances.reload(client: client)
         await netWorth.reload(
             client: client,
             accounts: transactions.accounts,
             accountSnapshots: accountBalances.snapshots,
             transactions: transactions.transactions
+        )
+        await netWorth.recordDailySnapshotIfNeeded(
+            client: client,
+            accounts: transactions.accounts,
+            accountBalances: accountBalances
         )
     }
 
@@ -101,51 +105,51 @@ struct NetWorthView: View {
             accountBalances: accountBalances
         )
     }
+
+    private func displayBalance(_ balance: Double, groupTitle: String) -> Double {
+        groupTitle == "Loan" ? -abs(balance) : balance
+    }
+
+    private static let accountRowInsets = EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16)
 }
 
-private struct NetWorthAccountGroupSection: View {
-    @EnvironmentObject private var transactions: TransactionStore
-    let group: NetWorthAccountGroup
+private struct NetWorthAccountGroupHeader: View {
+    let title: String
+    let total: Double
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            HStack {
-                Text(group.title)
-                    .font(.subheadline.weight(.bold))
-                Spacer()
-                Text(FinanceFormatting.currency(group.total))
-                    .font(.subheadline.weight(.bold))
-            }
-            .padding(.vertical, 10)
-
-            ForEach(Array(group.accounts.enumerated()), id: \.element.id) { index, account in
-                NavigationLink {
-                    if let linked = linkedAccount(account) {
-                        AccountDetailView(account: linked)
-                    }
-                } label: {
-                    HStack {
-                        Text(account.name)
-                            .font(.subheadline)
-                        Spacer()
-                        Text(FinanceFormatting.currency(displayBalance(account.balance)))
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                    }
-                    .padding(.vertical, 10)
-                    .padding(.leading, 8)
-                    .background(index.isMultiple(of: 2) ? Color(.systemGray6).opacity(0.5) : Color.clear)
-                }
-            }
+        HStack(alignment: .firstTextBaseline, spacing: 12) {
+            Text(title)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.secondary)
+            Spacer(minLength: 8)
+            Text(FinanceFormatting.currency(total))
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.secondary)
         }
-        .listRowInsets(EdgeInsets())
+        .padding(.horizontal, 4)
+        .padding(.bottom, 4)
+        .textCase(nil)
     }
+}
 
-    private func displayBalance(_ balance: Double) -> Double {
-        group.title == "Loan" ? -abs(balance) : balance
-    }
+private struct NetWorthAccountRowLabel: View {
+    let name: String
+    let balance: Double
 
-    private func linkedAccount(_ row: NetWorthAccountRow) -> Account? {
-        transactions.accounts.first { $0.id == row.id }
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 12) {
+            Text(name)
+                .font(.subheadline)
+                .foregroundStyle(.primary)
+                .lineLimit(2)
+                .multilineTextAlignment(.leading)
+            Spacer(minLength: 8)
+            Text(FinanceFormatting.currency(balance))
+                .font(.subheadline.weight(.medium))
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.trailing)
+        }
+        .padding(.vertical, 2)
     }
 }

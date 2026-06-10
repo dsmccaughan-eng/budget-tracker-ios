@@ -132,6 +132,12 @@ Entry format
 - **Fix:** User completes [TestFlight Test Information](https://appstoreconnect.apple.com/apps/6775334574/testflight/test-info); install build from TestFlight → iOS builds. Set `submit_to_testflight: false` in `codemagic.yaml` until metadata exists so CI does not fail post-upload.
 - **Verification:** ASC shows processed build; internal testers can install after test info + tester group.
 
+### 2026-06-05 - Sign-in email showed 8-digit code, app expects 6
+- **Symptom:** Email OTP was 8 digits; app UI asks for 6 (still worked if user entered full code).
+- **Root cause:** Hosted Supabase `mailer_otp_length` was 8; repo `config.toml` and app assume 6.
+- **Fix:** PATCH Management API `mailer_otp_length: 6`; `fix-supabase-auth-email.mjs` `applyOtpEmailTemplate()` sets it.
+- **Verification:** Request new code — email shows 6 digits; `verifyOTP` succeeds.
+
 ### 2026-06-05 - Budget totals stale after exclude; pie ≠ category sum
 - **Symptom:** Center “Spent” did not drop when toggling exclude from budget; category rows did not add up to pie total.
 - **Root cause:** Pie used only **budgeted** categories (`monthRows`) while the list included unbudgeted spending; month row cache key ignored transaction fingerprint; category drill-down net included excluded txns.
@@ -196,3 +202,15 @@ Entry format
 - **Root cause:** `BudgetView` recomputed `progressRows` and per-row `recentMerchantSummary` on every SwiftUI body pass (O(budgets × months × transactions)); tab `.task` also re-fetched all transactions each visit.
 - **Fix:** `BudgetSpendIndex` single-pass index, `BudgetStore.monthRows` cache keyed by month/budgets, light tab reload; unified `SetupBudgetPlanView` for total + category breakdown with auto colors.
 - **Verification:** `BudgetSpendIndexTests`; scroll/month navigation should stay responsive with full transaction history loaded.
+
+### 2026-06-10 - Net worth dashboard frozen after bank sync
+- **Symptom:** Dashboard net worth and chart stayed at day-one values while new transactions kept syncing.
+- **Root cause:** Net worth reads `accounts.current_balance`, but `NetWorthStore` only reloaded on cold unlock; sync updated accounts without refreshing net worth. Daily `net_worth_snapshots` / `account_balance_snapshots` were recorded once and skipped later updates when rows already existed for today.
+- **Fix:** Reload net worth when linked accounts change; load account balance snapshots before net worth; upsert today's per-account and net-worth snapshots when totals change; dashboard pull-to-refresh and Net Worth screen always reload.
+- **Verification:** Sync or pull to refresh → dashboard headline and Net Worth chart/today section reflect current balances; historical chart gains new daily points after sync.
+
+### 2026-06-10 - Net worth reload races and stale account detail
+- **Symptom:** Duplicate net-worth reloads on unlock; auto Plaid refresh showed Accounts spinner; account detail could show stale balances after refresh; Net Worth pull-to-refresh skipped `loadAll` when accounts existed.
+- **Root cause:** Overlapping `onChange` + `.task` reload hooks; `loadAll` always toggled `isLoading`; navigation captured a static `Account` value; Net Worth refresh path omitted daily snapshots.
+- **Fix:** Single app-level financial reload via `.task(id:)`; `loadAll(showsLoading:)`; live account resolution in `AccountDetailView`; unified net-worth refresh helpers across Dashboard/Accounts/Net Worth; shared `FinanceDate.todayString`.
+- **Verification:** Unlock once → one reload cycle; silent daily Plaid refresh; manual ↻ updates net worth; Net Worth pull refresh fetches latest balances.

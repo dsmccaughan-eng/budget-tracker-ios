@@ -5,9 +5,19 @@ struct AccountDetailView: View {
     @EnvironmentObject private var transactions: TransactionStore
     @EnvironmentObject private var accountBalances: AccountBalanceStore
 
-    let account: Account
+    private let accountId: UUID
+    private let fallbackAccount: Account
 
     @State private var selectedRange: NetWorthTimeRange = .oneYear
+
+    init(account: Account) {
+        accountId = account.id
+        fallbackAccount = account
+    }
+
+    private var account: Account {
+        transactions.account(for: accountId) ?? fallbackAccount
+    }
 
     private var historyPoints: [AccountBalancePoint] {
         AccountBalanceHistoryEngine.historyPoints(
@@ -51,9 +61,6 @@ struct AccountDetailView: View {
         .navigationTitle(account.name)
         .navigationBarTitleDisplayMode(.inline)
         .refreshable {
-            await reload()
-        }
-        .task {
             await reload()
         }
     }

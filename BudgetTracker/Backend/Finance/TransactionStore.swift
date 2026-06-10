@@ -5,20 +5,36 @@ import Supabase
 final class TransactionStore: ObservableObject {
     @Published private(set) var accounts: [Account] = []
     @Published private(set) var plaidItems: [PlaidItem] = []
+    @Published private(set) var tellerItems: [TellerItem] = []
     @Published private(set) var transactions: [Transaction] = []
     @Published private(set) var isLoading = false
     @Published private(set) var isSyncing = false
     @Published var errorMessage: String?
     @Published var lastSyncSummary: String?
 
-    func loadAll(client: SupabaseClient) async {
-        isLoading = true
+    private let plaidAccountRefreshStore = PlaidAccountRefreshStore()
+
+    private var loadingRequestCount = 0
+
+    func loadAll(client: SupabaseClient, showsLoading: Bool = true) async {
+        if showsLoading {
+            loadingRequestCount += 1
+            isLoading = true
+        }
         errorMessage = nil
-        defer { isLoading = false }
+        defer {
+            if showsLoading {
+                loadingRequestCount = max(loadingRequestCount - 1, 0)
+                if loadingRequestCount == 0 {
+                    isLoading = false
+                }
+            }
+        }
 
         do {
             async let accountRows = SupabaseService.shared.fetchAccounts(client: client)
             async let plaidItemRows = SupabaseService.shared.fetchPlaidItems(client: client)
+            async let tellerItemRows = SupabaseService.shared.fetchTellerItems(client: client)
             let since = SupabaseService.transactionHistorySinceDate()
             async let transactionRows = SupabaseService.shared.fetchTransactions(
                 client: client,
@@ -26,6 +42,7 @@ final class TransactionStore: ObservableObject {
             )
             accounts = try await accountRows
             plaidItems = try await plaidItemRows
+            tellerItems = (try? await tellerItemRows) ?? []
             transactions = try await transactionRows
         } catch {
             errorMessage = error.localizedDescription
@@ -38,7 +55,7 @@ final class TransactionStore: ObservableObject {
         defer { isSyncing = false }
 
         do {
-            let result = try await SupabaseService.shared.syncTransactions(client: client)
+            let result = try await SupabaseService.shared.syncAllTransactions(client: client)
             lastSyncSummary = "Synced \(result.synced) transactions (\(result.categorized) newly categorized)."
             await loadAll(client: client)
         } catch {
@@ -46,13 +63,76 @@ final class TransactionStore: ObservableObject {
         }
     }
 
-    func refreshAccountsFromPlaid(client: SupabaseClient) async {
+    func refreshPlaidAccountsIfNeeded(
+        client: SupabaseClient,
+        userId: String?,
+        now: Date = Date(),
+        calendar: Calendar = .current
+    ) async {
+        guard let userId else { return }
+        guard PlaidAccountRefreshPolicy.hasRefreshablePlaidItems(plaidItems) else { return }
+        let lastRefreshAt = plaidAccountRefreshStore.lastRefreshAt(userId: userId)
+        guard PlaidAccountRefreshPolicy.shouldRefreshAutomatically(
+            lastRefreshAt: lastRefreshAt,
+            now: now,
+            calendar: calendar
+        ) else { return }
+        await refreshAccountsFromPlaid(client: client, userId: userId, showsLoading: false)
+    }
+
+    func refreshAccountsFromPlaid(
+        client: SupabaseClient,
+        userId: String?,
+        showsLoading: Bool = true
+    ) async {
+        if showsLoading {
+            isLoading = true
+        }
+        errorMessage = nil
+        defer {
+            if showsLoading {
+                isLoading = false
+            }
+        }
+
+        do {
+            try await SupabaseService.shared.refreshPlaidAccounts(client: client)
+            await loadAll(client: client, showsLoading: false)
+            if let userId {
+                plaidAccountRefreshStore.markRefreshed(userId: userId, at: Date())
+            }
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    var bankConnections: [BankConnection] {
+        plaidItems.map(BankConnection.from(plaid:)) +
+            tellerItems.map(BankConnection.from(teller:))
+    }
+
+    func removeBankConnection(_ connection: BankConnection, client: SupabaseClient) async {
+        switch connection.provider {
+        case .plaid:
+            guard let plaidItemId = connection.plaidItemId,
+                  let item = plaidItems.first(where: { $0.plaidItemId == plaidItemId }) else { return }
+            await removePlaidItem(item, client: client)
+        case .teller:
+            guard let enrollmentId = connection.tellerEnrollmentId else { return }
+            await removeTellerItem(enrollmentId: enrollmentId, client: client)
+        }
+    }
+
+    func removeTellerItem(enrollmentId: String, client: SupabaseClient) async {
         isLoading = true
         errorMessage = nil
         defer { isLoading = false }
 
         do {
-            try await SupabaseService.shared.refreshPlaidAccounts(client: client)
+            try await SupabaseService.shared.removeTellerItem(
+                tellerEnrollmentId: enrollmentId,
+                client: client
+            )
             await loadAll(client: client)
         } catch {
             errorMessage = error.localizedDescription

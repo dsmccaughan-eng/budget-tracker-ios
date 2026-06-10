@@ -42,13 +42,6 @@ Write-Host "==> Plaid environment: $plaidEnv"
 $webhookUrl = "https://$projectRef.supabase.co/functions/v1/plaid-webhook"
 $redirectUri = Get-SecretValue "PLAID_REDIRECT_URI"
 
-supabase secrets set `
-  PLAID_CLIENT_ID=$plaidClientId `
-  PLAID_SECRET=$plaidSecret `
-  PLAID_ENV=$plaidEnv `
-  PLAID_WEBHOOK_URL=$webhookUrl `
-  GEMINI_API_KEY=$geminiKey
-
 if ($redirectUri) {
   supabase secrets set PLAID_REDIRECT_URI=$redirectUri
 } elseif ($plaidEnv -eq "production") {
@@ -56,6 +49,26 @@ if ($redirectUri) {
 }
 
 Write-Host "==> Deploying Edge Functions"
+$tellerAppId = Get-SecretValue "TELLER_APPLICATION_ID"
+$tellerEnv = Get-SecretValue "TELLER_ENV"
+if (-not $tellerEnv) { $tellerEnv = "sandbox" }
+$plaidTrialLimit = Get-SecretValue "PLAID_TRIAL_ITEM_LIMIT"
+if (-not $plaidTrialLimit) { $plaidTrialLimit = "10" }
+
+$secretArgs = @(
+  "PLAID_CLIENT_ID=$plaidClientId",
+  "PLAID_SECRET=$plaidSecret",
+  "PLAID_ENV=$plaidEnv",
+  "PLAID_WEBHOOK_URL=$webhookUrl",
+  "GEMINI_API_KEY=$geminiKey",
+  "PLAID_TRIAL_ITEM_LIMIT=$plaidTrialLimit",
+  "TELLER_ENV=$tellerEnv"
+)
+if ($tellerAppId) {
+  $secretArgs += "TELLER_APPLICATION_ID=$tellerAppId"
+}
+supabase secrets set @secretArgs
+
 $functions = @(
   "send-auth-email",
   "request-login-otp",
@@ -65,7 +78,12 @@ $functions = @(
   "plaid-get-accounts",
   "plaid-sync-transactions",
   "plaid-remove-item",
-  "plaid-webhook"
+  "plaid-webhook",
+  "aggregation-link-policy",
+  "aggregation-sync-transactions",
+  "teller-exchange-enrollment",
+  "teller-sync-transactions",
+  "teller-remove-item"
 )
 foreach ($fn in $functions) {
   if ($fn -eq "plaid-webhook" -or $fn -eq "request-login-otp" -or $fn -eq "send-auth-email") {

@@ -170,12 +170,21 @@ final class NetWorthStore: ObservableObject {
         accounts: [Account],
         accountBalances: AccountBalanceStore
     ) async {
-        let today = Self.todayString()
-        if snapshots.contains(where: { $0.date == today }) {
-            await accountBalances.recordTodaySnapshots(accounts: accounts, client: client)
+        let totals = NetWorthCalculator.totals(from: accounts)
+        currentAssets = totals.assets
+        currentLiabilities = totals.liabilities
+        currentNetWorth = totals.net
+
+        await accountBalances.recordTodaySnapshots(accounts: accounts, client: client)
+
+        let today = FinanceDate.todayString()
+        if let existing = snapshots.first(where: { $0.date == today }),
+           existing.netWorth == totals.net,
+           existing.totalAssets == totals.assets,
+           existing.totalLiabilities == totals.liabilities {
             return
         }
-        await captureSnapshot(client: client, accounts: accounts, accountBalances: accountBalances)
+        await captureSnapshot(client: client, accounts: accounts, accountBalances: nil)
     }
 
     func captureSnapshot(
@@ -186,7 +195,7 @@ final class NetWorthStore: ObservableObject {
         let totals = NetWorthCalculator.totals(from: accounts)
         let snapshot = NetWorthSnapshot(
             id: UUID(),
-            date: Self.todayString(),
+            date: FinanceDate.todayString(),
             totalAssets: totals.assets,
             totalLiabilities: totals.liabilities,
             netWorth: totals.net
@@ -213,11 +222,4 @@ final class NetWorthStore: ObservableObject {
     }
 
     private var cachedChartInputs: ChartInputs?
-
-    private static func todayString() -> String {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.dateFormat = "yyyy-MM-dd"
-        return formatter.string(from: Date())
-    }
 }

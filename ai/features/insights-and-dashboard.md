@@ -5,6 +5,7 @@
 ## Behavior
 
 - Dashboard is primary overview tab
+- **Unreviewed transactions:** show synced transactions not yet confirmed on the dashboard; user reviews categories then taps **Confirm all categorized**
 - Insights may use Gemini when it materially helps; keep deterministic fallbacks
 - Smart features must not override user categorization rules
 
@@ -13,6 +14,7 @@
 | Area | Path |
 |------|------|
 | Dashboard UI | `BudgetTracker/Views/Dashboard/DashboardView.swift` |
+| Transaction review | `BudgetTracker/Backend/Finance/TransactionReviewEngine.swift`, `TransactionReviewStore.swift` |
 | Insights UI | `BudgetTracker/Views/Insights/InsightsViews.swift` |
 | Smart features | `BudgetTracker/Backend/Finance/SmartFeaturesStore.swift` |
 | Aggregates | `CashFlowEngine.swift`, `TransactionStore.swift` |

@@ -14,6 +14,7 @@ struct BudgetTrackerApp: App {
     @StateObject private var insightsStore = InsightsStore()
     @StateObject private var notificationSettingsStore = NotificationSettingsStore()
     @StateObject private var appLockStore = AppLockStore()
+    @StateObject private var transactionReviewStore = TransactionReviewStore()
 
     var body: some Scene {
         WindowGroup {
@@ -37,6 +38,7 @@ struct BudgetTrackerApp: App {
                 .environmentObject(priceHistoryStore)
                 .environmentObject(insightsStore)
                 .environmentObject(notificationSettingsStore)
+                .environmentObject(transactionReviewStore)
                 .task {
                     APIKeys.syncToUserDefaultsIfNeeded()
                 }
@@ -49,16 +51,6 @@ struct BudgetTrackerApp: App {
                     if newState != .authenticated {
                         appLockStore.lock()
                     }
-                }
-                .onChange(of: appLockStore.hasPIN) { _, _ in
-                    guard authStore.state == .authenticated,
-                          appLockStore.canAccessFinancialData else { return }
-                    Task { await reloadFinancialData() }
-                }
-                .onChange(of: appLockStore.isUnlocked) { _, _ in
-                    guard authStore.state == .authenticated,
-                          appLockStore.canAccessFinancialData else { return }
-                    Task { await reloadFinancialData() }
                 }
                 .onChange(of: transactionStore.transactions) { _, newTransactions in
                     budgetStore.noteTransactionsChanged(newTransactions)
@@ -74,22 +66,34 @@ struct BudgetTrackerApp: App {
     private func reloadFinancialData() async {
         guard authStore.state == .authenticated, let client = authStore.activeSupabaseClient else { return }
         await transactionStore.loadAll(client: client)
+        await transactionStore.refreshPlaidAccountsIfNeeded(
+            client: client,
+            userId: authStore.userId
+        )
         await budgetStore.reload(client: client, transactions: transactionStore.transactions)
         await goalsStore.reload(client: client, transactions: transactionStore.transactions)
+        await reloadNetWorthData()
+        await merchantRulesStore.reload(client: client)
+        await priceHistoryStore.reload(client: client)
+        insightsStore.refreshLocal(transactions: transactionStore.transactions)
+    }
+
+    @MainActor
+    private func reloadNetWorthData() async {
+        guard authStore.state == .authenticated,
+              appLockStore.canAccessFinancialData,
+              let client = authStore.activeSupabaseClient else { return }
+        await accountBalanceStore.reload(client: client)
         await netWorthStore.reload(
             client: client,
             accounts: transactionStore.accounts,
             accountSnapshots: accountBalanceStore.snapshots,
             transactions: transactionStore.transactions
         )
-        await accountBalanceStore.reload(client: client)
         await netWorthStore.recordDailySnapshotIfNeeded(
             client: client,
             accounts: transactionStore.accounts,
             accountBalances: accountBalanceStore
         )
-        await merchantRulesStore.reload(client: client)
-        await priceHistoryStore.reload(client: client)
-        insightsStore.refreshLocal(transactions: transactionStore.transactions)
     }
 }

@@ -13,7 +13,11 @@
 
 | Area | Path |
 |------|------|
-| Link UI | `BudgetTracker/Views/Plaid/PlaidLinkView.swift` |
+| Link UI (unified) | `BudgetTracker/Views/Plaid/BankLinkView.swift` |
+| Plaid Link | `BudgetTracker/Views/Plaid/PlaidLinkView.swift` |
+| Teller Connect | `BudgetTracker/Views/Plaid/TellerLinkView.swift` |
+| Link policy | `BudgetTracker/Backend/Finance/ConnectionPolicyEngine.swift` |
+| Aggregation API | `supabase/functions/aggregation-*`, `teller-*` |
 | Coordinator | `BudgetTracker/Backend/Plaid/PlaidLinkCoordinator.swift` |
 | Models | `BudgetTracker/Backend/Plaid/PlaidModels.swift` |
 | Transactions | `BudgetTracker/Backend/Finance/TransactionStore.swift` |

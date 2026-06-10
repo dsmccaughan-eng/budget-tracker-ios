@@ -5,6 +5,8 @@ enum AppLockPolicy {
     static let maxBiometricFailures = 3
     static let maxPINFailures = 10
     static let pinLength = 6
+    /// Re-lock only after the app has stayed in background at least this long.
+    static let backgroundLockGracePeriod: TimeInterval = 30
 }
 
 enum AppLockUnlockMode: Equatable {
@@ -47,5 +49,9 @@ enum AppLockPolicyEngine {
         default:
             return true
         }
+    }
+
+    static func shouldLockAfterBackgroundDuration(_ elapsed: TimeInterval) -> Bool {
+        elapsed >= AppLockPolicy.backgroundLockGracePeriod
     }
 }

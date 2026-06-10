@@ -4,11 +4,12 @@
 
 ## Behavior
 
-- Face ID / Touch ID before any financial screen (cold start and return from background or app switcher)
+- Face ID / Touch ID before any financial screen (cold start and after 30+ seconds in background)
+- Privacy shield covers financial UI immediately when inactive or in the app switcher
 - Auto-prompt biometrics on unlock; after 3 failed attempts (or user chooses PIN), require 6-digit app PIN
 - PIN verifier stored in Keychain (`kSecAttrAccessibleWhenUnlockedThisDeviceOnly`) as PBKDF2-HMAC-SHA256 (120k iterations) — never plaintext
 - First-time PIN optional: use **Settings → Security → Set up app lock** (or Dashboard banner) when already signed in
-- After PIN exists: Face ID / PIN required when returning to the app
+- After PIN exists: Face ID / PIN required when returning after the background grace period
 - Financial Supabase loads only when authenticated, PIN configured, and app unlocked
 - `NSAllowsArbitraryLoads` = false
 
@@ -20,6 +21,7 @@
 | App lock UI | `BudgetTracker/Views/Auth/AppLockViews.swift` |
 | Session store | `BudgetTracker/Backend/Auth/AuthStore.swift` |
 | App lock store | `BudgetTracker/Backend/Auth/AppLockStore.swift` |
+| App lock policy | `BudgetTracker/Backend/Auth/AppLockPolicy.swift` |
 | PIN Keychain | `BudgetTracker/Backend/Auth/PINKeychainStore.swift` |
 | PIN hashing | `BudgetTracker/Backend/Auth/PINHasher.swift` |
 | OTP bridge | `BudgetTracker/Backend/Auth/AuthOTPBridge.swift` |

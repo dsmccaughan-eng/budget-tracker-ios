@@ -5,11 +5,14 @@ struct DashboardView: View {
     @EnvironmentObject private var transactions: TransactionStore
     @EnvironmentObject private var budgets: BudgetStore
     @EnvironmentObject private var netWorth: NetWorthStore
+    @EnvironmentObject private var accountBalances: AccountBalanceStore
     @EnvironmentObject private var notifications: NotificationSettingsStore
     @EnvironmentObject private var appLock: AppLockStore
+    @EnvironmentObject private var transactionReview: TransactionReviewStore
 
     @State private var showAddBudget = false
     @State private var showSettings = false
+    @State private var showReviewConfirmed = false
 
     var body: some View {
         NavigationStack {
@@ -126,12 +129,12 @@ struct DashboardView: View {
                     }
                 }
 
-                Section("Recent transactions") {
-                    if recentTransactions.isEmpty {
-                        Text("Sync transactions from the Transactions tab.")
+                Section {
+                    if unreviewedTransactions.isEmpty {
+                        Text("You're caught up. New synced transactions will appear here for review.")
                             .foregroundStyle(.secondary)
                     } else {
-                        ForEach(recentTransactions) { transaction in
+                        ForEach(unreviewedTransactions) { transaction in
                             NavigationLink {
                                 TransactionDetailView(transaction: transaction)
                             } label: {
@@ -149,6 +152,18 @@ struct DashboardView: View {
                                 }
                             }
                         }
+
+                        Button("Confirm all categorized") {
+                            transactionReview.markAllReviewed(transactions: transactions.transactions)
+                            showReviewConfirmed = true
+                        }
+                        .buttonStyle(.borderedProminent)
+                    }
+                } header: {
+                    Text("Unreviewed transactions")
+                } footer: {
+                    if !unreviewedTransactions.isEmpty {
+                        Text("Tap each transaction to verify its category, then confirm when you're done.")
                     }
                 }
 
@@ -159,7 +174,7 @@ struct DashboardView: View {
                         Label("\(transactions.accounts.count) linked accounts", systemImage: "building.columns")
                     }
                     NavigationLink {
-                        PlaidLinkView()
+                        BankLinkView()
                     } label: {
                         Label("Connect bank", systemImage: "link")
                     }
@@ -191,14 +206,19 @@ struct DashboardView: View {
             .refreshable {
                 await reloadAll()
             }
-            .task {
-                await reloadDashboardData()
+            .task(id: auth.userId) {
+                transactionReview.setActiveUser(auth.userId)
+            }
+            .alert("Review complete", isPresented: $showReviewConfirmed) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text("New transactions will appear here after your next sync.")
             }
         }
     }
 
-    private var recentTransactions: [Transaction] {
-        Array(transactions.transactions.prefix(5))
+    private var unreviewedTransactions: [Transaction] {
+        transactionReview.unreviewed(from: transactions.transactions)
     }
 
     private var monthlyBills: [BillItem] {
@@ -218,10 +238,28 @@ struct DashboardView: View {
 
     private func reloadDashboardData() async {
         guard let client = auth.activeSupabaseClient else { return }
-        if transactions.transactions.isEmpty {
-            await transactions.loadAll(client: client)
-        }
+        await transactions.loadAll(client: client)
+        await transactions.refreshPlaidAccountsIfNeeded(
+            client: client,
+            userId: auth.userId
+        )
         await budgets.reload(client: client, transactions: transactions.transactions)
+        await reloadNetWorth(client: client)
+    }
+
+    private func reloadNetWorth(client: SupabaseClient) async {
+        await accountBalances.reload(client: client)
+        await netWorth.reload(
+            client: client,
+            accounts: transactions.accounts,
+            accountSnapshots: accountBalances.snapshots,
+            transactions: transactions.transactions
+        )
+        await netWorth.recordDailySnapshotIfNeeded(
+            client: client,
+            accounts: transactions.accounts,
+            accountBalances: accountBalances
+        )
     }
 
     private func reloadAll() async {

@@ -17,6 +17,7 @@ final class AppLockStore: ObservableObject {
     private static let biometricsEnabledKey = "appLock.biometricsEnabled"
 
     private var cachedVerifier: PINKeychainStore.Verifier?
+    private var backgroundLockTask: Task<Void, Never>?
 
     init() {
         if UserDefaults.standard.object(forKey: Self.biometricsEnabledKey) != nil {
@@ -151,6 +152,21 @@ final class AppLockStore: ObservableObject {
 
     func lock() {
         isUnlocked = false
+    }
+
+    func handleEnterBackground() {
+        backgroundLockTask?.cancel()
+        backgroundLockTask = Task { [weak self] in
+            let delay = AppLockPolicy.backgroundLockGracePeriod
+            try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+            guard !Task.isCancelled else { return }
+            await self?.lock()
+        }
+    }
+
+    func handleEnterForeground() {
+        backgroundLockTask?.cancel()
+        backgroundLockTask = nil
     }
 
     func unlock() {
