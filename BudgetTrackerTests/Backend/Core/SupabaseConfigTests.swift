@@ -24,7 +24,7 @@ final class SupabaseConfigTests: XCTestCase {
         XCTAssertEqual(SupabaseClientFactory.storageKeyHostComponent(from: url), "dldbcbituquxedlkeefu")
     }
 
-    func testIsConfiguredFalseWhenOnlyXcconfigPlaceholdersPresent() {
+    func testIsConfiguredFalseWhenOnlyXcconfigPlaceholdersPresent() throws {
         guard !SupabaseConfig.isConfigured else {
             throw XCTSkip("Supabase configured in test environment.")
         }

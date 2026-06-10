@@ -37,8 +37,8 @@ final class NetWorthHistoryEngineTests: XCTestCase {
             calendar: calendar
         )
         XCTAssertEqual(points.count, 3)
-        XCTAssertEqual(points.first?.netWorth, 100_000, accuracy: 0.01)
-        XCTAssertEqual(points.last?.netWorth, 500_000, accuracy: 0.01)
+        XCTAssertEqual(points.first?.netWorth ?? 0, 100_000, accuracy: 0.01)
+        XCTAssertEqual(points.last?.netWorth ?? 0, 500_000, accuracy: 0.01)
         XCTAssertEqual(points.last?.dateString, "2026-06-15")
     }
 
@@ -78,8 +78,8 @@ final class NetWorthHistoryEngineTests: XCTestCase {
             )
         ]
         let change = NetWorthHistoryEngine.changeFromStart(selected: series[1], series: series)
-        XCTAssertEqual(change?.amount, 50_000, accuracy: 0.01)
-        XCTAssertEqual(change?.percent, 50, accuracy: 0.01)
+        XCTAssertEqual(change?.amount ?? 0, 50_000, accuracy: 0.01)
+        XCTAssertEqual(change?.percent ?? 0, 50, accuracy: 0.01)
     }
 
     func testChartPointsFromAccountHistoryBuildsDailySeries() {
@@ -121,6 +121,6 @@ final class NetWorthHistoryEngineTests: XCTestCase {
             calendar: calendar
         )
         XCTAssertFalse(points.isEmpty)
-        XCTAssertEqual(points.last?.netWorth, 1000, accuracy: 0.01)
+        XCTAssertEqual(points.last?.netWorth ?? 0, 1000, accuracy: 0.01)
     }
 }
