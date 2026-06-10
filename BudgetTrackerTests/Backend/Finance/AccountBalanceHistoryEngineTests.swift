@@ -12,7 +12,7 @@ final class AccountBalanceHistoryEngineTests: XCTestCase {
         calendar.date(from: DateComponents(year: 2026, month: 6, day: 15))!
     }
 
-    private var accountId: UUID { UUID() }
+    private let accountId = UUID()
 
     private func account(type: String = "depository", balance: Double = 1000) -> Account {
         Account(

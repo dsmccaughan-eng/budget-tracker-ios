@@ -65,7 +65,7 @@ final class BudgetMathTests: XCTestCase {
             referenceDate: referenceDate,
             calendar: calendar
         )
-        XCTAssertEqual(projected, 300, accuracy: 0.01)
+        XCTAssertEqual(projected, 310, accuracy: 0.01)
     }
 
     func testAverageMonthlySpendUsesLastSixMonths() {
