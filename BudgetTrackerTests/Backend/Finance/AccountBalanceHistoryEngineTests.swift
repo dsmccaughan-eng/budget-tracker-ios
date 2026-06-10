@@ -87,7 +87,7 @@ final class AccountBalanceHistoryEngineTests: XCTestCase {
             calendar: calendar
         )
         let snapPoint = points.first { $0.dateString == "2026-06-10" }
-        XCTAssertEqual(snapPoint?.balance, 888, accuracy: 0.01)
+        XCTAssertEqual(snapPoint?.balance ?? 0, 888, accuracy: 0.01)
         XCTAssertEqual(snapPoint?.source, .snapshot)
     }
 }

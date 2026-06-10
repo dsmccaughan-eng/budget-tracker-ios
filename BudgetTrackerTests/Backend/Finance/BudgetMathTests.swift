@@ -120,7 +120,7 @@ final class BudgetMathTests: XCTestCase {
         XCTAssertEqual(sections.income.count, 1)
         XCTAssertEqual(sections.transfers.count, 1)
         let income = sections.income.first
-        XCTAssertEqual(income?.progress.listDisplaySpent, 2000, accuracy: 0.01)
+        XCTAssertEqual(income?.progress.listDisplaySpent ?? 0, 2000, accuracy: 0.01)
         let spendingTotal = BudgetMath.monthSpendingDisplayTotal(rows: sections.spending)
         XCTAssertEqual(spendingTotal, 65, accuracy: 0.01)
     }
@@ -219,7 +219,7 @@ final class BudgetMathTests: XCTestCase {
             calendar: calendar
         )
         let groceries = rows.first { $0.category == "Groceries" }
-        XCTAssertEqual(groceries?.spent, 100, accuracy: 0.01)
-        XCTAssertEqual(groceries?.projectedSpend, 100, accuracy: 0.01)
+        XCTAssertEqual(groceries?.spent ?? 0, 100, accuracy: 0.01)
+        XCTAssertEqual(groceries?.projectedSpend ?? 0, 100, accuracy: 0.01)
     }
 }
