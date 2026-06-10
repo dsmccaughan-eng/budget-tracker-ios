@@ -37,12 +37,12 @@ struct TellerLinkView: View {
             enrollmentId: reconnectEnrollmentId,
             selectAccount: .disabled,
             products: [.transactions]
-        ) { registration in
-            handleRegistration(registration)
+        ) { completion in
+            handleCompletion(completion)
         }
     }
 
-    private var tellerEnvironment: Teller.Environment {
+    private var tellerEnvironment: Teller.Config.Environment {
         switch environmentName.lowercased() {
         case "production":
             return .production
@@ -53,19 +53,22 @@ struct TellerLinkView: View {
         }
     }
 
-    private func handleRegistration(_ registration: Teller.ConnectRegistration) {
-        switch registration {
+    private func handleCompletion(_ completion: Teller.Config.Completion) {
+        switch completion {
         case .exit:
             isPresenting = false
         case .enrollment(let authorization):
             isPresenting = false
             Task { await saveEnrollment(authorization) }
+        case .failure(let error):
+            isPresenting = false
+            statusMessage = error.message
         default:
             isPresenting = false
         }
     }
 
-    private func saveEnrollment(_ authorization: Teller.ConnectAuthorization) async {
+    private func saveEnrollment(_ authorization: Teller.Authorization) async {
         guard let client = auth.activeSupabaseClient else { return }
         isLoading = true
         statusMessage = "Saving your bank connection…"

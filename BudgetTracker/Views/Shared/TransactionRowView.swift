@@ -86,6 +86,7 @@ struct CategorySourceBadge: View {
         case .userSimilar: return "clock.arrow.circlepath"
         case .merchantDb: return "books.vertical.fill"
         case .plaid: return "building.columns.fill"
+        case .teller: return "link"
         }
     }
 }

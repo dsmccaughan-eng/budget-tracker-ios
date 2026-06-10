@@ -1,4 +1,5 @@
 import SwiftUI
+import Supabase
 
 struct DashboardView: View {
     @EnvironmentObject private var auth: AuthStore
