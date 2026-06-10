@@ -214,3 +214,9 @@ Entry format
 - **Root cause:** Overlapping `onChange` + `.task` reload hooks; `loadAll` always toggled `isLoading`; navigation captured a static `Account` value; Net Worth refresh path omitted daily snapshots.
 - **Fix:** Single app-level financial reload via `.task(id:)`; `loadAll(showsLoading:)`; live account resolution in `AccountDetailView`; unified net-worth refresh helpers across Dashboard/Accounts/Net Worth; shared `FinanceDate.todayString`.
 - **Verification:** Unlock once → one reload cycle; silent daily Plaid refresh; manual ↻ updates net worth; Net Worth pull refresh fetches latest balances.
+
+### 2026-06-10 - Codemagic IPA failed on TellerKit SPM
+- **Symptom:** Build #43 failed at `Build IPA` / `showBuildSettings`; `Resolve Swift packages` logged missing `Package.swift` in `tellerhq/tellerkit`.
+- **Root cause:** Upstream TellerKit repo ships only `TellerKit.xcframework` (no SPM manifest); `ci-step-timeout.sh` masked non-zero exits so resolve failures looked green.
+- **Fix:** Vend `Vendor/TellerKitSPM` local binary package; point `project.yml` at local path; fix `wait` exit propagation in `ci-step-timeout.sh`.
+- **Verification:** Codemagic resolve packages succeeds; unit tests + IPA build complete.

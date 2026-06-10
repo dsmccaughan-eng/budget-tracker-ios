@@ -24,7 +24,7 @@ child=$!
   fi
 ) &
 watcher=$!
-wait "$child" 2>/dev/null || true
+wait "$child"
 status=$?
 kill "$watcher" 2>/dev/null || true
 wait "$watcher" 2>/dev/null || true
