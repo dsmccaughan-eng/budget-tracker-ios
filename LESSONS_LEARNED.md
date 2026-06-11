@@ -226,3 +226,9 @@ Entry format
 - **Root cause:** `run-unit-tests.sh` used the first `platform:iOS Simulator` line from `-showdestinations`, which is a placeholder entry on newer Xcode.
 - **Fix:** Skip lines containing `placeholder`; pick the first real simulator id (e.g. iPhone 17).
 - **Verification:** Codemagic unit test step completes; IPA build proceeds.
+
+### 2026-06-10 - Link account 404 after build 51 (aggregation functions not deployed)
+- **Symptom:** Build 51 shows no linked accounts / cannot link; Link Account error `non-2xx status code: 404`.
+- **Root cause:** `BankLinkView` calls undeployed Edge Function `aggregation-link-policy`; sync also targets `aggregation-sync-transactions`. Backend migration/functions from Teller aggregation were never deployed to Supabase.
+- **Fix:** Client fallback to Plaid link policy + `plaid-sync-transactions` when aggregation functions 404; resilient `loadAll` so accounts/transactions still load if item metadata fetch fails. Deploy with `.\scripts\deploy-backend.ps1`.
+- **Verification:** Link Account opens Plaid without 404; existing accounts reappear after pull-to-refresh; deploy aggregation functions for full Teller routing.

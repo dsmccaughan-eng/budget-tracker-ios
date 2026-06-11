@@ -15,6 +15,33 @@ struct LinkPolicyResponse: Decodable {
         case tellerConfigured = "teller_configured"
         case plaid, teller
     }
+
+    init(
+        provider: AggregationProvider,
+        plaidItemCount: Int,
+        plaidTrialLimit: Int,
+        tellerConfigured: Bool,
+        plaid: LinkPolicyPlaidConfig?,
+        teller: LinkPolicyTellerConfig?
+    ) {
+        self.provider = provider
+        self.plaidItemCount = plaidItemCount
+        self.plaidTrialLimit = plaidTrialLimit
+        self.tellerConfigured = tellerConfigured
+        self.plaid = plaid
+        self.teller = teller
+    }
+
+    static func plaidFallback(plaidItemCount: Int) -> LinkPolicyResponse {
+        LinkPolicyResponse(
+            provider: .plaid,
+            plaidItemCount: plaidItemCount,
+            plaidTrialLimit: ConnectionPolicyEngine.defaultPlaidTrialLimit,
+            tellerConfigured: false,
+            plaid: nil,
+            teller: nil
+        )
+    }
 }
 
 struct LinkPolicyPlaidConfig: Decodable {

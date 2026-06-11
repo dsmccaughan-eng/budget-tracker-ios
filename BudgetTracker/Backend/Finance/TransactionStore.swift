@@ -31,22 +31,28 @@ final class TransactionStore: ObservableObject {
             }
         }
 
+        let since = SupabaseService.transactionHistorySinceDate()
+
         do {
-            async let accountRows = SupabaseService.shared.fetchAccounts(client: client)
-            async let plaidItemRows = SupabaseService.shared.fetchPlaidItems(client: client)
-            async let tellerItemRows = SupabaseService.shared.fetchTellerItems(client: client)
-            let since = SupabaseService.transactionHistorySinceDate()
-            async let transactionRows = SupabaseService.shared.fetchTransactions(
-                client: client,
-                since: since
-            )
-            accounts = try await accountRows
-            plaidItems = try await plaidItemRows
-            tellerItems = (try? await tellerItemRows) ?? []
-            transactions = try await transactionRows
+            accounts = try await SupabaseService.shared.fetchAccounts(client: client)
         } catch {
             errorMessage = error.localizedDescription
         }
+
+        do {
+            transactions = try await SupabaseService.shared.fetchTransactions(
+                client: client,
+                since: since
+            )
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+
+        if let rows = try? await SupabaseService.shared.fetchPlaidItems(client: client) {
+            plaidItems = rows
+        }
+
+        tellerItems = (try? await SupabaseService.shared.fetchTellerItems(client: client)) ?? []
     }
 
     func sync(client: SupabaseClient) async {

@@ -3,7 +3,13 @@ import Supabase
 
 extension SupabaseService {
     func fetchLinkPolicy(client: SupabaseClient) async throws -> LinkPolicyResponse {
-        try await invokeFunction(name: "aggregation-link-policy", client: client)
+        do {
+            return try await invokeFunction(name: "aggregation-link-policy", client: client)
+        } catch {
+            guard EdgeFunctionFallback.isMissingFunction(error) else { throw error }
+            let plaidItems = try await fetchPlaidItems(client: client)
+            return LinkPolicyResponse.plaidFallback(plaidItemCount: plaidItems.count)
+        }
     }
 
     func fetchTellerItems(client: SupabaseClient) async throws -> [TellerItem] {
@@ -44,9 +50,14 @@ extension SupabaseService {
     }
 
     func syncAllTransactions(client: SupabaseClient) async throws -> SyncTransactionsResponse {
-        try await invokeFunction(
-            name: "aggregation-sync-transactions",
-            client: client
-        )
+        do {
+            return try await invokeFunction(
+                name: "aggregation-sync-transactions",
+                client: client
+            )
+        } catch {
+            guard EdgeFunctionFallback.isMissingFunction(error) else { throw error }
+            return try await syncTransactions(client: client)
+        }
     }
 }
