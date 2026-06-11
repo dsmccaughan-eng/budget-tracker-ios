@@ -172,6 +172,7 @@ struct CategoryRulesView: View {
 struct NotificationSettingsView: View {
     @EnvironmentObject private var notifications: NotificationSettingsStore
     @EnvironmentObject private var budgets: BudgetStore
+    @EnvironmentObject private var transactions: TransactionStore
 
     var body: some View {
         Form {
@@ -180,13 +181,14 @@ struct NotificationSettingsView: View {
                 Slider(value: $notifications.alertThreshold, in: 0.5...1.0, step: 0.05) {
                     Text("Threshold")
                 }
-                Text("Notify when a category reaches \(Int(notifications.alertThreshold * 100))% of its budget.")
+                Text("Notify when a variable category reaches \(Int(notifications.alertThreshold * 100))% of its budget. Fixed costs and monthly bills are excluded.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
             Button("Send test alert") {
                 let alerts = BudgetAlertEngine.alerts(
                     progress: budgets.progress,
+                    transactions: transactions.transactions,
                     threshold: notifications.alertThreshold
                 )
                 notifications.scheduleBudgetAlerts(messages: alerts.isEmpty ? ["Budget alerts are configured."] : alerts)

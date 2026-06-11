@@ -15,8 +15,23 @@ final class TransactionStore: ObservableObject {
     private let plaidAccountRefreshStore = PlaidAccountRefreshStore()
 
     private var loadingRequestCount = 0
+    private var inFlightLoadAll: Task<Void, Never>?
 
     func loadAll(client: SupabaseClient, showsLoading: Bool = true) async {
+        if let inFlightLoadAll {
+            await inFlightLoadAll.value
+            return
+        }
+
+        let task = Task { @MainActor in
+            await self.performLoadAll(client: client, showsLoading: showsLoading)
+        }
+        inFlightLoadAll = task
+        await task.value
+        inFlightLoadAll = nil
+    }
+
+    private func performLoadAll(client: SupabaseClient, showsLoading: Bool) async {
         if showsLoading {
             loadingRequestCount += 1
             isLoading = true

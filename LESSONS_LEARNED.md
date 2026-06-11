@@ -232,3 +232,21 @@ Entry format
 - **Root cause:** `BankLinkView` calls undeployed Edge Function `aggregation-link-policy`; sync also targets `aggregation-sync-transactions`. Backend migration/functions from Teller aggregation were never deployed to Supabase.
 - **Fix:** Client fallback to Plaid link policy + `plaid-sync-transactions` when aggregation functions 404; resilient `loadAll` so accounts/transactions still load if item metadata fetch fails. Deploy with `.\scripts\deploy-backend.ps1`.
 - **Verification:** Link Account opens Plaid without 404; existing accounts reappear after pull-to-refresh; deploy aggregation functions for full Teller routing.
+
+### 2026-06-10 - Dashboard shows 0 linked accounts while Accounts has connections
+- **Symptom:** Dashboard Accounts row says "0 linked accounts" but Accounts screen shows bank connections (and often account rows after opening). Net Worth tab had no account sections despite synced transactions.
+- **Root cause:** Dashboard `.task` reload was removed to dedupe app-level reload; `accounts` can still be empty when `plaidItems`/`transactions` already loaded (partial `loadAll` or timing). Net Worth account groups derive from `transactions.accounts`; net-worth snapshot reload ran before accounts arrived.
+- **Fix:** Restore Dashboard `.task` reload; show connection count when `accounts` is empty but `bankConnections` is not; reload accounts on Accounts/Net Worth when empty; app `onChange(accounts.count)` refreshes net worth when accounts go from 0 → N; collapsible unreviewed transactions via `DisclosureGroup`.
+- **Verification:** Dashboard label matches connections or account count after open; Net Worth lists grouped accounts after sync; long unreviewed list collapses by default (>3 items).
+
+### 2026-06-10 - Budget alerts for fixed costs (housing, bills)
+- **Symptom:** Dashboard Alerts warned when Housing & Utilities neared 100% after rent/utilities payments — expected for fixed monthly costs.
+- **Root cause:** `BudgetAlertEngine` treated every category the same at the alert threshold (and when over budget).
+- **Fix:** Skip alerts when `BudgetProgress.isFixed` or the category has a transaction marked **Fixed monthly expense** (`isFixedBill`). Pass transactions into alert calls from Dashboard and notification settings.
+- **Verification:** Fixed budget or fixed-bill category at 95% → no alert; Groceries at 85% with threshold 0.8 → alert still shown.
+
+### 2026-06-10 - Dashboard reload and review UI edge cases
+- **Symptom:** Duplicate reloads on unlock; review list collapsed while reviewing long queues; Accounts/Net Worth stuck when connections exist but account rows missing; synthetic account rows with wrong type.
+- **Root cause:** Unconditional Dashboard `.task` overlapped app `.task(id:)`; `onChange(accounts.count)` and Net Worth `onChange` duplicated net-worth reload; empty-account recovery paths skipped `refreshPlaidAccountsIfNeeded`; `unreviewedExpanded` used `onChange` only (no initial appear) and reset on every count change.
+- **Fix:** Gate Dashboard/Accounts `.task` to empty accounts + existing connections/transactions; coalesce concurrent `loadAll` in `TransactionStore`; add Plaid refresh to Accounts/Net Worth recovery reloads; `onAppear` + threshold-crossing `onChange` for review expansion; restore conditional Net Worth navigation without synthetic `Account`.
+- **Verification:** Unlock → one reload cycle; expand 10-item review list → stays open after marking one reviewed; connections + empty accounts → Accounts/Net Worth pull refresh populates rows.

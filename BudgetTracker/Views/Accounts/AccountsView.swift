@@ -81,6 +81,11 @@ struct AccountsView: View {
         .refreshable {
             await reloadAccounts()
         }
+        .task {
+            guard transactions.accounts.isEmpty,
+                  !transactions.bankConnections.isEmpty || !transactions.transactions.isEmpty else { return }
+            await reloadAccounts()
+        }
         .confirmationDialog(
             "Disconnect this bank?",
             isPresented: Binding(
@@ -128,6 +133,10 @@ struct AccountsView: View {
     private func reloadAccounts() async {
         guard let client = auth.activeSupabaseClient else { return }
         await transactions.loadAll(client: client)
+        await transactions.refreshPlaidAccountsIfNeeded(
+            client: client,
+            userId: auth.userId
+        )
         await reloadAccountSnapshots(client: client)
     }
 

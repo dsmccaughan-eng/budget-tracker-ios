@@ -50,6 +50,15 @@ struct NetWorthView: View {
                         NetWorthAccountGroupHeader(title: group.title, total: group.total)
                     }
                 }
+            } else if !transactions.bankConnections.isEmpty || !transactions.transactions.isEmpty {
+                Section {
+                    ContentUnavailableView(
+                        "Accounts loading",
+                        systemImage: "building.columns",
+                        description: Text("Pull down to refresh balances and account list.")
+                    )
+                }
+                .listRowBackground(Color.clear)
             }
 
             Section("Today") {
@@ -83,6 +92,10 @@ struct NetWorthView: View {
     private func reload() async {
         guard let client = auth.activeSupabaseClient else { return }
         await transactions.loadAll(client: client)
+        await transactions.refreshPlaidAccountsIfNeeded(
+            client: client,
+            userId: auth.userId
+        )
         await accountBalances.reload(client: client)
         await netWorth.reload(
             client: client,

@@ -14,6 +14,7 @@ struct DashboardView: View {
     @State private var showAddBudget = false
     @State private var showSettings = false
     @State private var showReviewConfirmed = false
+    @State private var unreviewedExpanded = false
 
     var body: some View {
         NavigationStack {
@@ -47,6 +48,7 @@ struct DashboardView: View {
                 Section("Alerts") {
                     let alerts = BudgetAlertEngine.alerts(
                         progress: budgets.progress,
+                        transactions: transactions.transactions,
                         threshold: notifications.alertThreshold
                     )
                     if alerts.isEmpty {
@@ -135,35 +137,49 @@ struct DashboardView: View {
                         Text("You're caught up. New synced transactions will appear here for review.")
                             .foregroundStyle(.secondary)
                     } else {
-                        ForEach(unreviewedTransactions) { transaction in
-                            NavigationLink {
-                                TransactionDetailView(transaction: transaction)
-                            } label: {
-                                HStack {
-                                    VStack(alignment: .leading) {
-                                        Text(FinanceFormatting.displayName(for: transaction))
-                                        Text(transaction.category)
-                                            .font(.caption)
-                                            .foregroundStyle(.secondary)
+                        DisclosureGroup(isExpanded: $unreviewedExpanded) {
+                            ForEach(unreviewedTransactions) { transaction in
+                                NavigationLink {
+                                    TransactionDetailView(transaction: transaction)
+                                } label: {
+                                    HStack {
+                                        VStack(alignment: .leading) {
+                                            Text(FinanceFormatting.displayName(for: transaction))
+                                            Text(transaction.category)
+                                                .font(.caption)
+                                                .foregroundStyle(.secondary)
+                                        }
+                                        Spacer()
+                                        Text(TransactionFormatting.formattedAmount(transaction.amount))
+                                            .font(.subheadline.weight(.semibold))
+                                            .foregroundStyle(TransactionFormatting.amountColor(transaction.amount))
                                     }
-                                    Spacer()
-                                    Text(TransactionFormatting.formattedAmount(transaction.amount))
-                                        .font(.subheadline.weight(.semibold))
-                                        .foregroundStyle(TransactionFormatting.amountColor(transaction.amount))
                                 }
+                            }
+
+                            Button("Confirm all categorized") {
+                                transactionReview.markAllReviewed(transactions: transactions.transactions)
+                                showReviewConfirmed = true
+                            }
+                            .buttonStyle(.borderedProminent)
+                        } label: {
+                            HStack {
+                                Text("Unreviewed transactions")
+                                Spacer()
+                                Text("\(unreviewedTransactions.count)")
+                                    .font(.subheadline.weight(.semibold))
+                                    .foregroundStyle(.secondary)
                             }
                         }
 
-                        Button("Confirm all categorized") {
-                            transactionReview.markAllReviewed(transactions: transactions.transactions)
-                            showReviewConfirmed = true
+                        if !unreviewedExpanded && unreviewedTransactions.count > 3 {
+                            Text("Tap to expand and review categories.")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
                         }
-                        .buttonStyle(.borderedProminent)
                     }
-                } header: {
-                    Text("Unreviewed transactions")
                 } footer: {
-                    if !unreviewedTransactions.isEmpty {
+                    if !unreviewedTransactions.isEmpty && unreviewedExpanded {
                         Text("Tap each transaction to verify its category, then confirm when you're done.")
                     }
                 }
@@ -172,7 +188,7 @@ struct DashboardView: View {
                     NavigationLink {
                         AccountsView()
                     } label: {
-                        Label("\(transactions.accounts.count) linked accounts", systemImage: "building.columns")
+                        Label(accountsSummaryLabel, systemImage: "building.columns")
                     }
                     NavigationLink {
                         BankLinkView()
@@ -210,6 +226,24 @@ struct DashboardView: View {
             .task(id: auth.userId) {
                 transactionReview.setActiveUser(auth.userId)
             }
+            .task {
+                guard auth.activeSupabaseClient != nil else { return }
+                guard transactions.accounts.isEmpty,
+                      !transactions.bankConnections.isEmpty || !transactions.transactions.isEmpty else { return }
+                await reloadDashboardData()
+            }
+            .onAppear {
+                applyUnreviewedExpansionPolicy(count: unreviewedTransactions.count)
+            }
+            .onChange(of: unreviewedTransactions.count) { oldCount, newCount in
+                if newCount == 0 {
+                    unreviewedExpanded = false
+                } else if oldCount > 3 && newCount <= 3 {
+                    unreviewedExpanded = true
+                } else if oldCount <= 3 && newCount > 3 {
+                    unreviewedExpanded = false
+                }
+            }
             .alert("Review complete", isPresented: $showReviewConfirmed) {
                 Button("OK", role: .cancel) {}
             } message: {
@@ -235,6 +269,22 @@ struct DashboardView: View {
             return "All bills paid this month"
         }
         return "\(dueCount) bill\(dueCount == 1 ? "" : "s") due this month"
+    }
+
+    private var accountsSummaryLabel: String {
+        let accountCount = transactions.accounts.count
+        if accountCount > 0 {
+            return "\(accountCount) linked account\(accountCount == 1 ? "" : "s")"
+        }
+        let connectionCount = transactions.bankConnections.count
+        if connectionCount > 0 {
+            return "\(connectionCount) bank connection\(connectionCount == 1 ? "" : "s")"
+        }
+        return "No accounts linked"
+    }
+
+    private func applyUnreviewedExpansionPolicy(count: Int) {
+        unreviewedExpanded = count > 0 && count <= 3
     }
 
     private func reloadDashboardData() async {
@@ -267,6 +317,7 @@ struct DashboardView: View {
         await reloadDashboardData()
         let alerts = BudgetAlertEngine.alerts(
             progress: budgets.progress,
+            transactions: transactions.transactions,
             threshold: notifications.alertThreshold
         )
         notifications.scheduleBudgetAlerts(messages: alerts)
