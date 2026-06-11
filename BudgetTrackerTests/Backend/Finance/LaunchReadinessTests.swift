@@ -21,6 +21,22 @@ final class LaunchReadinessTests: XCTestCase {
         XCTAssertEqual(SubscriptionAuditEngine.defaultLookbackDays, 120)
     }
 
+    func testAccountDecodesMissingProviderAndStringBalance() throws {
+        let json = """
+        {
+          "id": "550e8400-e29b-41d4-a716-446655440000",
+          "plaid_item_id": "item_1",
+          "plaid_account_id": "acct_1",
+          "name": "Checking",
+          "type": "depository",
+          "current_balance": "1234.56"
+        }
+        """.data(using: .utf8)!
+        let account = try JSONDecoder().decode(Account.self, from: json)
+        XCTAssertEqual(account.provider, "plaid")
+        XCTAssertEqual(account.currentBalance ?? 0, 1234.56, accuracy: 0.01)
+    }
+
     func testCashFlowHorizonPrefixIncludesAllRequestedDays() {
         let days = [
             CashFlowDay(date: "2026-05-01", inflow: 10, outflow: 5),

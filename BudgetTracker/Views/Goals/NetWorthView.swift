@@ -12,8 +12,15 @@ struct NetWorthView: View {
         netWorth.chartPoints(range: selectedRange)
     }
 
+    private var displayAccounts: [Account] {
+        if !transactions.accounts.isEmpty {
+            return transactions.accounts
+        }
+        return netWorth.cachedAccounts
+    }
+
     private var accountGroups: [NetWorthAccountGroup] {
-        NetWorthHistoryEngine.accountGroups(from: transactions.accounts)
+        NetWorthHistoryEngine.accountGroups(from: displayAccounts)
     }
 
     var body: some View {
@@ -50,15 +57,27 @@ struct NetWorthView: View {
                         NetWorthAccountGroupHeader(title: group.title, total: group.total)
                     }
                 }
-            } else if !transactions.bankConnections.isEmpty || !transactions.transactions.isEmpty {
+            } else if needsAccountRecovery {
                 Section {
                     ContentUnavailableView(
-                        "Accounts loading",
+                        "Accounts not loaded",
                         systemImage: "building.columns",
-                        description: Text("Pull down to refresh balances and account list.")
+                        description: Text(recoveryMessage)
                     )
+                    Button("Refresh accounts") {
+                        Task { await reload(forceAccountRefresh: true) }
+                    }
+                    .buttonStyle(.borderedProminent)
                 }
                 .listRowBackground(Color.clear)
+            }
+
+            if let loadError = transactions.errorMessage, displayAccounts.isEmpty {
+                Section {
+                    Text(loadError)
+                        .foregroundStyle(.red)
+                        .font(.footnote)
+                }
             }
 
             Section("Today") {
@@ -77,25 +96,52 @@ struct NetWorthView: View {
         }
         .navigationTitle("Net Worth")
         .toolbar {
-            Button("Refresh snapshot") {
-                Task { await captureSnapshot() }
+            ToolbarItemGroup(placement: .topBarTrailing) {
+                Button {
+                    Task { await reload(forceAccountRefresh: true) }
+                } label: {
+                    Image(systemName: "arrow.clockwise")
+                }
+                .accessibilityLabel("Refresh accounts")
+                .disabled(transactions.isLoading)
+
+                Button("Snapshot") {
+                    Task { await captureSnapshot() }
+                }
             }
         }
         .refreshable {
-            await reload()
+            await reload(forceAccountRefresh: true)
         }
         .task {
-            await reload()
+            await reload(forceAccountRefresh: false)
         }
     }
 
-    private func reload() async {
+    private var needsAccountRecovery: Bool {
+        !transactions.bankConnections.isEmpty || !transactions.transactions.isEmpty
+    }
+
+    private var recoveryMessage: String {
+        if !transactions.bankConnections.isEmpty {
+            return "Your bank is connected but account balances haven't loaded yet. Tap refresh or pull down."
+        }
+        return "Transactions are synced but account rows are missing. Tap refresh or pull down."
+    }
+
+    private func reload(forceAccountRefresh: Bool) async {
         guard let client = auth.activeSupabaseClient else { return }
         await transactions.loadAll(client: client)
         await transactions.refreshPlaidAccountsIfNeeded(
             client: client,
             userId: auth.userId
         )
+        if forceAccountRefresh || transactions.accounts.isEmpty {
+            await transactions.refreshAccountsIfMissing(
+                client: client,
+                userId: auth.userId
+            )
+        }
         await accountBalances.reload(client: client)
         await netWorth.reload(
             client: client,

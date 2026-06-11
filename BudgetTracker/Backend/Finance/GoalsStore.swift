@@ -116,6 +116,7 @@ final class NetWorthStore: ObservableObject {
     @Published private(set) var currentAssets: Double = 0
     @Published private(set) var currentLiabilities: Double = 0
     @Published private(set) var currentNetWorth: Double = 0
+    @Published private(set) var cachedAccounts: [Account] = []
     @Published var errorMessage: String?
 
     func reload(
@@ -125,6 +126,7 @@ final class NetWorthStore: ObservableObject {
         transactions: [Transaction] = []
     ) async {
         errorMessage = nil
+        cachedAccounts = accounts
         let totals = NetWorthCalculator.totals(from: accounts)
         currentAssets = totals.assets
         currentLiabilities = totals.liabilities

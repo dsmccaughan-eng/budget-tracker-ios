@@ -70,6 +70,10 @@ struct BudgetTrackerApp: App {
             client: client,
             userId: authStore.userId
         )
+        await transactionStore.refreshAccountsIfMissing(
+            client: client,
+            userId: authStore.userId
+        )
         await budgetStore.reload(client: client, transactions: transactionStore.transactions)
         await goalsStore.reload(client: client, transactions: transactionStore.transactions)
         await reloadNetWorthData()

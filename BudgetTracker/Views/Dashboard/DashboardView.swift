@@ -294,6 +294,10 @@ struct DashboardView: View {
             client: client,
             userId: auth.userId
         )
+        await transactions.refreshAccountsIfMissing(
+            client: client,
+            userId: auth.userId
+        )
         await budgets.reload(client: client, transactions: transactions.transactions)
         await reloadNetWorth(client: client)
     }

@@ -137,6 +137,10 @@ struct AccountsView: View {
             client: client,
             userId: auth.userId
         )
+        await transactions.refreshAccountsIfMissing(
+            client: client,
+            userId: auth.userId
+        )
         await reloadAccountSnapshots(client: client)
     }
 

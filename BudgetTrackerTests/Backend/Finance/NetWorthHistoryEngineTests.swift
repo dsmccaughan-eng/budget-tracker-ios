@@ -123,4 +123,37 @@ final class NetWorthHistoryEngineTests: XCTestCase {
         XCTAssertFalse(points.isEmpty)
         XCTAssertEqual(points.last?.netWorth ?? 0, 1000, accuracy: 0.01)
     }
+
+    func testAccountGroupsBucketsByType() {
+        let accounts = [
+            Account(
+                id: UUID(),
+                plaidItemId: "item",
+                plaidAccountId: "chk",
+                name: "Checking",
+                officialName: nil,
+                type: "depository",
+                subtype: "checking",
+                mask: "1111",
+                currentBalance: 500,
+                availableBalance: 500
+            ),
+            Account(
+                id: UUID(),
+                plaidItemId: "item",
+                plaidAccountId: "cc",
+                name: "Visa",
+                officialName: nil,
+                type: "credit",
+                subtype: "credit card",
+                mask: "2222",
+                currentBalance: 200,
+                availableBalance: nil
+            )
+        ]
+        let groups = NetWorthHistoryEngine.accountGroups(from: accounts)
+        XCTAssertEqual(groups.count, 2)
+        XCTAssertEqual(groups.first?.title, "Cash")
+        XCTAssertTrue(groups.contains { $0.title == "Loan" })
+    }
 }

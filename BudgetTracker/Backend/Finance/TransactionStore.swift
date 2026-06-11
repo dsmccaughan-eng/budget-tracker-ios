@@ -127,6 +127,29 @@ final class TransactionStore: ObservableObject {
         }
     }
 
+    /// When connections or transactions exist but `accounts` is still empty, pull account rows from Plaid/Teller.
+    func refreshAccountsIfMissing(client: SupabaseClient, userId: String?) async {
+        guard accounts.isEmpty else { return }
+        guard !bankConnections.isEmpty || !transactions.isEmpty else { return }
+
+        if PlaidAccountRefreshPolicy.hasRefreshablePlaidItems(plaidItems) {
+            await refreshAccountsFromPlaid(client: client, userId: userId, showsLoading: false)
+        }
+        guard accounts.isEmpty else { return }
+
+        let hasActiveTellerItems = tellerItems.contains {
+            $0.status != "revoked" && $0.status != "disconnected"
+        }
+        guard hasActiveTellerItems else { return }
+
+        do {
+            _ = try await SupabaseService.shared.syncAllTransactions(client: client)
+            await loadAll(client: client, showsLoading: false)
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
     var bankConnections: [BankConnection] {
         plaidItems.map(BankConnection.from(plaid:)) +
             tellerItems.map(BankConnection.from(teller:))

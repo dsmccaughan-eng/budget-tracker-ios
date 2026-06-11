@@ -45,7 +45,7 @@ struct SplitItem: Codable, Hashable {
 
 struct Account: Codable, Identifiable, Hashable {
     var id: UUID
-    var provider: String = "plaid"
+    var provider: String
     var plaidItemId: String
     var plaidAccountId: String
     var name: String
@@ -63,6 +63,61 @@ struct Account: Codable, Identifiable, Hashable {
         case officialName = "official_name"
         case currentBalance = "current_balance"
         case availableBalance = "available_balance"
+    }
+
+    init(
+        id: UUID,
+        provider: String = "plaid",
+        plaidItemId: String,
+        plaidAccountId: String,
+        name: String,
+        officialName: String?,
+        type: String,
+        subtype: String?,
+        mask: String?,
+        currentBalance: Double?,
+        availableBalance: Double?
+    ) {
+        self.id = id
+        self.provider = provider
+        self.plaidItemId = plaidItemId
+        self.plaidAccountId = plaidAccountId
+        self.name = name
+        self.officialName = officialName
+        self.type = type
+        self.subtype = subtype
+        self.mask = mask
+        self.currentBalance = currentBalance
+        self.availableBalance = availableBalance
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(UUID.self, forKey: .id)
+        provider = try container.decodeIfPresent(String.self, forKey: .provider) ?? "plaid"
+        plaidItemId = try container.decodeIfPresent(String.self, forKey: .plaidItemId) ?? ""
+        plaidAccountId = try container.decodeIfPresent(String.self, forKey: .plaidAccountId) ?? ""
+        name = try container.decode(String.self, forKey: .name)
+        officialName = try container.decodeIfPresent(String.self, forKey: .officialName)
+        type = try container.decodeIfPresent(String.self, forKey: .type) ?? "other"
+        subtype = try container.decodeIfPresent(String.self, forKey: .subtype)
+        mask = try container.decodeIfPresent(String.self, forKey: .mask)
+        currentBalance = Self.decodeFlexibleDouble(container, forKey: .currentBalance)
+        availableBalance = Self.decodeFlexibleDouble(container, forKey: .availableBalance)
+    }
+
+    private static func decodeFlexibleDouble(
+        _ container: KeyedDecodingContainer<CodingKeys>,
+        forKey key: CodingKeys
+    ) -> Double? {
+        if let value = try? container.decodeIfPresent(Double.self, forKey: key) {
+            return value
+        }
+        if let text = try? container.decodeIfPresent(String.self, forKey: key),
+           let value = Double(text) {
+            return value
+        }
+        return nil
     }
 }
 

@@ -250,3 +250,9 @@ Entry format
 - **Root cause:** Unconditional Dashboard `.task` overlapped app `.task(id:)`; `onChange(accounts.count)` and Net Worth `onChange` duplicated net-worth reload; empty-account recovery paths skipped `refreshPlaidAccountsIfNeeded`; `unreviewedExpanded` used `onChange` only (no initial appear) and reset on every count change.
 - **Fix:** Gate Dashboard/Accounts `.task` to empty accounts + existing connections/transactions; coalesce concurrent `loadAll` in `TransactionStore`; add Plaid refresh to Accounts/Net Worth recovery reloads; `onAppear` + threshold-crossing `onChange` for review expansion; restore conditional Net Worth navigation without synthetic `Account`.
 - **Verification:** Unlock → one reload cycle; expand 10-item review list → stays open after marking one reviewed; connections + empty accounts → Accounts/Net Worth pull refresh populates rows.
+
+### 2026-06-10 - Net Worth tab empty despite synced transactions
+- **Symptom:** Net Worth chart/Today could show values but account sections stayed empty; or "Accounts loading" never resolved.
+- **Root cause:** Account rows only render from `transactions.accounts`. Recovery paths used daily-gated `refreshPlaidAccountsIfNeeded` only (skipped after first refresh). `fetchAccounts` could fail decoding legacy rows (missing `provider`, string balances). Net Worth UI did not force `plaid-get-accounts` when connections/transactions existed.
+- **Fix:** `refreshAccountsIfMissing` after load (Plaid refresh + Teller sync fallback); resilient `Account` decoding; Net Worth uses `cachedAccounts` fallback; explicit refresh button + error surfacing on Net Worth.
+- **Verification:** Open Net Worth with linked bank → Cash/Loan sections list accounts; if DB empty, Refresh accounts pulls from Plaid and repopulates.
