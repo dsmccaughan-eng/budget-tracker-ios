@@ -5,6 +5,7 @@ struct AccountBalanceChartView: View {
     let accountLabel: String
     let points: [AccountBalancePoint]
     @Binding var selectedRange: NetWorthTimeRange
+    var usesSnapshotHistory: Bool = false
 
     @State private var selectedPoint: AccountBalancePoint?
 
@@ -67,6 +68,10 @@ struct AccountBalanceChartView: View {
                         Text("Estimated from activity")
                             .font(.caption2)
                             .foregroundStyle(.tertiary)
+                    } else if usesSnapshotHistory {
+                        Text("From saved snapshots")
+                            .font(.caption2)
+                            .foregroundStyle(.tertiary)
                     }
                 }
             }
@@ -91,7 +96,11 @@ struct AccountBalanceChartView: View {
             ContentUnavailableView {
                 Label("Not enough history", systemImage: "chart.xyaxis.line")
             } description: {
-                Text("Link this account and sync transactions to see estimated balances for the past year.")
+                if usesSnapshotHistory {
+                    Text("Refresh Net Worth daily to build investment balance history from saved snapshots.")
+                } else {
+                    Text("Link this account and sync transactions to see estimated balances for the past year.")
+                }
             }
             .frame(height: 200)
         } else {

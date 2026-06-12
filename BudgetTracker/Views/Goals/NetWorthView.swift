@@ -5,6 +5,7 @@ struct NetWorthView: View {
     @EnvironmentObject private var netWorth: NetWorthStore
     @EnvironmentObject private var transactions: TransactionStore
     @EnvironmentObject private var accountBalances: AccountBalanceStore
+    @EnvironmentObject private var investments: InvestmentStore
 
     @State private var selectedRange: NetWorthTimeRange = .oneYear
 
@@ -41,7 +42,10 @@ struct NetWorthView: View {
                                 } label: {
                                     NetWorthAccountRowLabel(
                                         name: account.name,
-                                        balance: displayBalance(account.balance, groupTitle: group.title)
+                                        balance: displayBalance(
+                                            linked.currentBalance ?? account.balance,
+                                            groupTitle: group.title
+                                        )
                                     )
                                 }
                                 .listRowInsets(Self.accountRowInsets)
@@ -64,8 +68,8 @@ struct NetWorthView: View {
                         systemImage: "building.columns",
                         description: Text(recoveryMessage)
                     )
-                    Button("Refresh accounts") {
-                        Task { await reload(forceAccountRefresh: true) }
+                    Button("Refresh net worth") {
+                        Task { await refreshFromPlaid() }
                     }
                     .buttonStyle(.borderedProminent)
                 }
@@ -80,10 +84,14 @@ struct NetWorthView: View {
                 }
             }
 
-            Section("Today") {
+            Section {
                 LabeledContent("Assets", value: FinanceFormatting.currency(netWorth.currentAssets))
                 LabeledContent("Liabilities", value: FinanceFormatting.currency(netWorth.currentLiabilities))
                 LabeledContent("Net worth", value: FinanceFormatting.currency(netWorth.currentNetWorth))
+            } header: {
+                Text("Today")
+            } footer: {
+                Text("Balances refresh automatically once per day when you open the app. Tap ↻ or pull down for the latest from your bank.")
             }
 
             if let error = netWorth.errorMessage {
@@ -98,11 +106,11 @@ struct NetWorthView: View {
         .toolbar {
             ToolbarItemGroup(placement: .topBarTrailing) {
                 Button {
-                    Task { await reload(forceAccountRefresh: true) }
+                    Task { await refreshFromPlaid() }
                 } label: {
                     Image(systemName: "arrow.clockwise")
                 }
-                .accessibilityLabel("Refresh accounts")
+                .accessibilityLabel("Refresh net worth")
                 .disabled(transactions.isLoading)
 
                 Button("Snapshot") {
@@ -111,10 +119,10 @@ struct NetWorthView: View {
             }
         }
         .refreshable {
-            await reload(forceAccountRefresh: true)
+            await refreshFromPlaid()
         }
         .task {
-            await reload(forceAccountRefresh: false)
+            await syncFromStore()
         }
     }
 
@@ -129,30 +137,45 @@ struct NetWorthView: View {
         return "Transactions are synced but account rows are missing. Tap refresh or pull down."
     }
 
-    private func reload(forceAccountRefresh: Bool) async {
+    private func syncFromStore() async {
         guard let client = auth.activeSupabaseClient else { return }
-        await transactions.loadAll(client: client)
-        await transactions.refreshPlaidAccountsIfNeeded(
-            client: client,
-            userId: auth.userId
-        )
-        if forceAccountRefresh || transactions.accounts.isEmpty {
+        if transactions.accounts.isEmpty {
+            await transactions.loadAll(client: client, showsLoading: false)
             await transactions.refreshAccountsIfMissing(
                 client: client,
                 userId: auth.userId
             )
         }
+        await reloadNetWorthFromStore(client: client)
+    }
+
+    private func refreshFromPlaid() async {
+        guard let client = auth.activeSupabaseClient else { return }
+        await transactions.refreshAccountsFromPlaid(
+            client: client,
+            userId: auth.userId,
+            showsLoading: true
+        )
+        await transactions.refreshAccountsIfMissing(
+            client: client,
+            userId: auth.userId
+        )
+        await reloadNetWorthFromStore(client: client)
+        await investments.loadAll(client: client)
+        await netWorth.recordDailySnapshotIfNeeded(
+            client: client,
+            accounts: transactions.accounts,
+            accountBalances: accountBalances
+        )
+    }
+
+    private func reloadNetWorthFromStore(client: SupabaseClient) async {
         await accountBalances.reload(client: client)
         await netWorth.reload(
             client: client,
             accounts: transactions.accounts,
             accountSnapshots: accountBalances.snapshots,
             transactions: transactions.transactions
-        )
-        await netWorth.recordDailySnapshotIfNeeded(
-            client: client,
-            accounts: transactions.accounts,
-            accountBalances: accountBalances
         )
     }
 

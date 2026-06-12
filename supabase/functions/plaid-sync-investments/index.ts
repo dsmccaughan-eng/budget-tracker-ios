@@ -2,7 +2,6 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 
 import { AuthError, requireUser } from "../_shared/auth.ts";
 import { handleOptions, jsonResponse } from "../_shared/cors.ts";
-import { syncPlaidItemsForUser } from "../_shared/plaid-sync.ts";
 import { syncPlaidInvestmentsForUser } from "../_shared/plaid-investments-sync.ts";
 import {
   checkRateLimit,
@@ -21,7 +20,7 @@ Deno.serve(async (req) => {
 
   try {
     const { user, admin } = await requireUser(req);
-    if (!checkRateLimit(user.id, "plaid-sync-transactions", 12)) {
+    if (!checkRateLimit(user.id, "plaid-sync-investments", 12)) {
       return jsonResponse({ error: "Rate limit exceeded. Try again shortly." }, 429);
     }
 
@@ -29,50 +28,33 @@ Deno.serve(async (req) => {
       ? await req.json() as SyncBody
       : {};
 
-    const result = await syncPlaidItemsForUser(
+    const result = await syncPlaidInvestmentsForUser(
       admin,
       user.id,
       body.plaid_item_id,
     );
 
-    let investmentHoldings = 0;
-    let investmentTransactions = 0;
-    try {
-      const investmentResult = await syncPlaidInvestmentsForUser(
-        admin,
-        user.id,
-        body.plaid_item_id,
-      );
-      investmentHoldings = investmentResult.holdings;
-      investmentTransactions = investmentResult.transactions;
-    } catch (investmentError) {
-      console.error("plaid_investments_sync_failed", investmentError);
-    }
-
-    if (result.synced > 0) {
+    if (result.holdings > 0 || result.transactions > 0) {
       await writeAuditLog(admin, {
         userId: user.id,
-        action: "plaid_transactions_synced",
+        action: "plaid_investments_synced",
         metadata: {
-          synced: result.synced,
-          categorized: result.categorized,
+          holdings: result.holdings,
+          transactions: result.transactions,
+          items_processed: result.items_processed,
+          skipped_items: result.skipped_items,
           plaid_item_id: body.plaid_item_id ?? "all",
         },
       });
     }
 
-    return jsonResponse({
-      synced: result.synced,
-      categorized: result.categorized,
-      investment_holdings: investmentHoldings,
-      investment_transactions: investmentTransactions,
-    }, 200, securityHeaders);
+    return jsonResponse(result, 200, securityHeaders);
   } catch (error) {
     if (error instanceof AuthError) {
       return jsonResponse({ error: error.message }, error.status, securityHeaders);
     }
     return jsonResponse({
-      error: clientSafeError(error, "Unable to sync transactions."),
+      error: clientSafeError(error, "Unable to sync investments."),
     }, 500, securityHeaders);
   }
 });

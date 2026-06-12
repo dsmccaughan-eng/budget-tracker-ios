@@ -3,6 +3,7 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { AuthError, requireUser } from "../_shared/auth.ts";
 import { handleOptions, jsonResponse } from "../_shared/cors.ts";
 import { recordAccountBalanceSnapshots } from "../_shared/account-balance-snapshots.ts";
+import { syncPlaidInvestmentsForUser } from "../_shared/plaid-investments-sync.ts";
 import { plaidRequest, PlaidAccount } from "../_shared/plaid.ts";
 import {
   assertPlaidItemOwnership,
@@ -95,6 +96,19 @@ Deno.serve(async (req) => {
             user.id,
             accountRows.map((row) => row.plaid_account_id),
           );
+          try {
+            await syncPlaidInvestmentsForUser(
+              admin,
+              user.id,
+              item.plaid_item_id,
+            );
+          } catch (investmentError) {
+            console.error(
+              "plaid_investments_sync_failed",
+              item.plaid_item_id,
+              investmentError,
+            );
+          }
         }
       } catch (error) {
         console.error("plaid_get_accounts_failed", item.plaid_item_id, error);

@@ -84,21 +84,23 @@ final class TransactionStore: ObservableObject {
         }
     }
 
+    @discardableResult
     func refreshPlaidAccountsIfNeeded(
         client: SupabaseClient,
         userId: String?,
         now: Date = Date(),
         calendar: Calendar = .current
-    ) async {
-        guard let userId else { return }
-        guard PlaidAccountRefreshPolicy.hasRefreshablePlaidItems(plaidItems) else { return }
+    ) async -> Bool {
+        guard let userId else { return false }
+        guard PlaidAccountRefreshPolicy.hasRefreshablePlaidItems(plaidItems) else { return false }
         let lastRefreshAt = plaidAccountRefreshStore.lastRefreshAt(userId: userId)
         guard PlaidAccountRefreshPolicy.shouldRefreshAutomatically(
             lastRefreshAt: lastRefreshAt,
             now: now,
             calendar: calendar
-        ) else { return }
+        ) else { return false }
         await refreshAccountsFromPlaid(client: client, userId: userId, showsLoading: false)
+        return true
     }
 
     func refreshAccountsFromPlaid(

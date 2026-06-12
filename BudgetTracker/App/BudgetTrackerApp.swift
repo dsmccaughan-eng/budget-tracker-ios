@@ -2,6 +2,7 @@ import SwiftUI
 
 @main
 struct BudgetTrackerApp: App {
+    @Environment(\.scenePhase) private var scenePhase
     @StateObject private var authStore = AuthStore()
     @StateObject private var plaidLinkCoordinator = PlaidLinkCoordinator()
     @StateObject private var transactionStore = TransactionStore()
@@ -15,6 +16,7 @@ struct BudgetTrackerApp: App {
     @StateObject private var notificationSettingsStore = NotificationSettingsStore()
     @StateObject private var appLockStore = AppLockStore()
     @StateObject private var transactionReviewStore = TransactionReviewStore()
+    @StateObject private var investmentStore = InvestmentStore()
 
     var body: some Scene {
         WindowGroup {
@@ -39,6 +41,7 @@ struct BudgetTrackerApp: App {
                 .environmentObject(insightsStore)
                 .environmentObject(notificationSettingsStore)
                 .environmentObject(transactionReviewStore)
+                .environmentObject(investmentStore)
                 .task {
                     APIKeys.syncToUserDefaultsIfNeeded()
                 }
@@ -54,6 +57,10 @@ struct BudgetTrackerApp: App {
                 }
                 .onChange(of: transactionStore.transactions) { _, newTransactions in
                     budgetStore.noteTransactionsChanged(newTransactions)
+                }
+                .onChange(of: scenePhase) { _, phase in
+                    guard phase == .active else { return }
+                    Task { await refreshDailyNetWorthIfNeeded() }
                 }
         }
     }
@@ -74,12 +81,32 @@ struct BudgetTrackerApp: App {
             client: client,
             userId: authStore.userId
         )
+        await investmentStore.loadAll(client: client)
         await budgetStore.reload(client: client, transactions: transactionStore.transactions)
         await goalsStore.reload(client: client, transactions: transactionStore.transactions)
         await reloadNetWorthData()
         await merchantRulesStore.reload(client: client)
         await priceHistoryStore.reload(client: client)
         insightsStore.refreshLocal(transactions: transactionStore.transactions)
+    }
+
+    @MainActor
+    private func refreshDailyNetWorthIfNeeded() async {
+        guard authStore.state == .authenticated,
+              appLockStore.canAccessFinancialData,
+              let client = authStore.activeSupabaseClient else { return }
+        await transactionStore.loadAll(client: client, showsLoading: false)
+        let refreshedPlaid = await transactionStore.refreshPlaidAccountsIfNeeded(
+            client: client,
+            userId: authStore.userId
+        )
+        guard refreshedPlaid else { return }
+        await transactionStore.refreshAccountsIfMissing(
+            client: client,
+            userId: authStore.userId
+        )
+        await reloadNetWorthData()
+        await investmentStore.loadAll(client: client)
     }
 
     @MainActor

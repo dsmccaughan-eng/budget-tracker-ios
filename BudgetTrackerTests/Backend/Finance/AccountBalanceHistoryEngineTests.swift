@@ -90,4 +90,54 @@ final class AccountBalanceHistoryEngineTests: XCTestCase {
         XCTAssertEqual(snapPoint?.balance ?? 0, 888, accuracy: 0.01)
         XCTAssertEqual(snapPoint?.source, .snapshot)
     }
+
+    func testInvestmentHistoryUsesSnapshotsNotTransactions() {
+        let investment = account(type: "investment", balance: 12_000)
+        let snapshots = [
+            AccountBalanceSnapshot(
+                id: UUID(),
+                accountId: accountId,
+                date: "2026-06-01",
+                currentBalance: 10_000,
+                availableBalance: nil
+            )
+        ]
+        let points = AccountBalanceHistoryEngine.historyPoints(
+            account: investment,
+            snapshots: snapshots,
+            transactions: [txn(amount: 500, date: "2026-06-10")],
+            referenceDate: referenceDate,
+            range: .oneMonth,
+            calendar: calendar
+        )
+        let june1 = points.first { $0.dateString == "2026-06-01" }
+        XCTAssertEqual(june1?.balance ?? 0, 10_000, accuracy: 0.01)
+        let june10 = points.first { $0.dateString == "2026-06-10" }
+        XCTAssertNil(june10)
+        let today = points.first { $0.dateString == "2026-06-15" }
+        XCTAssertEqual(today?.balance ?? 0, 12_000, accuracy: 0.01)
+    }
+
+    func testTodayPrefersLiveBalanceOverStaleSnapshot() {
+        let account = account(balance: 1200)
+        let snapshots = [
+            AccountBalanceSnapshot(
+                id: UUID(),
+                accountId: accountId,
+                date: "2026-06-15",
+                currentBalance: 900,
+                availableBalance: 900
+            )
+        ]
+        let points = AccountBalanceHistoryEngine.historyPoints(
+            account: account,
+            snapshots: snapshots,
+            transactions: [],
+            referenceDate: referenceDate,
+            range: .oneMonth,
+            calendar: calendar
+        )
+        let today = points.first { $0.dateString == "2026-06-15" }
+        XCTAssertEqual(today?.balance ?? 0, 1200, accuracy: 0.01)
+    }
 }

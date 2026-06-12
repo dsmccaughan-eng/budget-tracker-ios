@@ -77,6 +77,7 @@ $functions = @(
   "plaid-exchange-token",
   "plaid-get-accounts",
   "plaid-sync-transactions",
+  "plaid-sync-investments",
   "plaid-remove-item",
   "plaid-webhook",
   "aggregation-link-policy",

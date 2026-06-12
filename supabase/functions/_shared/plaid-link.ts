@@ -20,7 +20,7 @@ export async function createPlaidLinkToken(options: {
   const body: Record<string, unknown> = {
     user: { client_user_id: options.userId },
     client_name: "Budget Tracker",
-    products: ["transactions"],
+    products: ["transactions", "investments"],
     country_codes: ["US"],
     language: "en",
     transactions: { days_requested: 730 },

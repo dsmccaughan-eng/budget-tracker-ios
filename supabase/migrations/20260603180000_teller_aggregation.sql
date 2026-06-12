@@ -92,7 +92,7 @@ end;
 $$;
 
 revoke all on function public.get_teller_access_token(text) from public;
-grant execute on function public.get_teller_access_token(text) from service_role;
+grant execute on function public.get_teller_access_token(text) to service_role;
 
 create or replace function public.delete_teller_access_token(p_teller_enrollment_id text)
 returns void

@@ -256,3 +256,21 @@ Entry format
 - **Root cause:** Account rows only render from `transactions.accounts`. Recovery paths used daily-gated `refreshPlaidAccountsIfNeeded` only (skipped after first refresh). `fetchAccounts` could fail decoding legacy rows (missing `provider`, string balances). Net Worth UI did not force `plaid-get-accounts` when connections/transactions existed.
 - **Fix:** `refreshAccountsIfMissing` after load (Plaid refresh + Teller sync fallback); resilient `Account` decoding; Net Worth uses `cachedAccounts` fallback; explicit refresh button + error surfacing on Net Worth.
 - **Verification:** Open Net Worth with linked bank → Cash/Loan sections list accounts; if DB empty, Refresh accounts pulls from Plaid and repopulates.
+
+### 2026-06-10 - Stale net worth and flat investment history
+- **Symptom:** Net Worth totals lagged Plaid; tapping an account felt slow; investment charts flat/wrong and change-over-time missing.
+- **Root cause:** Net Worth open used daily-gated Plaid refresh only; investment balances were reconstructed from cash-flow transactions (market moves ignored); today's chart point could use stale snapshots; account detail recomputed full history on every render.
+- **Fix:** `refreshAccountBalancesForDisplay` on Net Worth open; investment/brokerage history uses snapshots + live today balance only; pin today's point to `currentBalance`; cache account chart points in `AccountDetailView`; live row balances from linked accounts.
+- **Verification:** Net Worth ↻ matches Plaid; investment detail shows snapshot-based history after daily refreshes; account navigation is instant (no network until pull).
+
+### 2026-06-10 - Net worth refresh: daily auto + manual only
+- **Symptom:** User wanted net worth updated once per day automatically and when refresh is pressed — not on every Net Worth screen open.
+- **Root cause:** Net Worth `.task` always called Plaid on open; daily auto refresh only ran on unlock state change (missed next calendar day if app stayed open).
+- **Fix:** App foreground runs daily-gated Plaid refresh + net worth reload; Net Worth open loads cached store data only; ↻ and pull-to-refresh call `refreshAccountsFromPlaid` + snapshot update.
+- **Verification:** Same-day re-open shows cached totals; first open each day or ↻ pulls fresh Plaid balances and updates Today + chart snapshot.
+
+### 2026-06-10 — Plaid Investments sync + richer brokerage history
+- **Symptom:** Investment accounts showed flat or snapshot-only history; no holdings breakdown.
+- **Root cause:** App only synced Plaid Transactions (spending), not Investments API (holdings + investment transactions).
+- **Fix:** Migration `20260610120000_plaid_investments.sql`; shared `plaid-investments-sync.ts` + `plaid-sync-investments`; link token adds `investments` product; iOS `InvestmentStore`, `InvestmentHistoryEngine`, holdings/activity in `AccountDetailView`.
+- **Verification:** Deploy backend; enable Investments on Plaid product; reconnect or refresh — account detail shows holdings list and activity-based chart when investment transactions sync.

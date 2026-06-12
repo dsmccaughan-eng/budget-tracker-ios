@@ -31,6 +31,15 @@ struct AccountBalancePoint: Identifiable, Equatable {
 enum AccountBalanceHistoryEngine {
     static let historyMonthCount = 12
 
+    static func supportsTransactionReconstruction(accountType: String) -> Bool {
+        switch accountType.lowercased() {
+        case "investment", "brokerage":
+            return false
+        default:
+            return true
+        }
+    }
+
     static func displayBalance(_ balance: Double, accountType: String) -> Double {
         switch accountType.lowercased() {
         case "credit", "loan":
@@ -61,13 +70,18 @@ enum AccountBalanceHistoryEngine {
                 )
             }
 
-        let reconstructed = reconstructedDailyPoints(
-            account: account,
-            transactions: transactions,
-            referenceDate: referenceDate,
-            range: range,
-            calendar: calendar
-        )
+        let reconstructed: [AccountBalancePoint]
+        if supportsTransactionReconstruction(accountType: account.type) {
+            reconstructed = reconstructedDailyPoints(
+                account: account,
+                transactions: transactions,
+                referenceDate: referenceDate,
+                range: range,
+                calendar: calendar
+            )
+        } else {
+            reconstructed = []
+        }
 
         var merged: [String: AccountBalancePoint] = [:]
         for point in reconstructed {
@@ -76,6 +90,12 @@ enum AccountBalanceHistoryEngine {
         for point in accountSnapshots {
             merged[point.dateString] = point
         }
+        applyTodayLiveBalance(
+            account: account,
+            referenceDate: referenceDate,
+            calendar: calendar,
+            merged: &merged
+        )
 
         var points = merged.values.sorted { $0.date < $1.date }
         if let cutoff = range.cutoffDate(before: referenceDate, calendar: calendar) {
@@ -150,22 +170,45 @@ enum AccountBalanceHistoryEngine {
         calendar: Calendar = .current
     ) -> [String: Double] {
         let accountSnapshots = snapshots.filter { $0.accountId == account.id }
-        let reconstructed = reconstructedDailyPoints(
-            account: account,
-            transactions: transactions,
-            referenceDate: referenceDate,
-            range: range,
-            calendar: calendar
-        )
         var merged: [String: Double] = [:]
-        for point in reconstructed {
-            merged[point.dateString] = undisplayBalance(point.balance, accountType: account.type)
+        if supportsTransactionReconstruction(accountType: account.type) {
+            let reconstructed = reconstructedDailyPoints(
+                account: account,
+                transactions: transactions,
+                referenceDate: referenceDate,
+                range: range,
+                calendar: calendar
+            )
+            for point in reconstructed {
+                merged[point.dateString] = undisplayBalance(point.balance, accountType: account.type)
+            }
         }
         for snapshot in accountSnapshots {
             guard let balance = snapshot.currentBalance else { continue }
             merged[snapshot.date] = balance
         }
+        if let current = account.currentBalance {
+            let todayString = formatDate(calendar.startOfDay(for: referenceDate), calendar: calendar)
+            merged[todayString] = current
+        }
         return merged
+    }
+
+    private static func applyTodayLiveBalance(
+        account: Account,
+        referenceDate: Date,
+        calendar: Calendar,
+        merged: inout [String: AccountBalancePoint]
+    ) {
+        guard let current = account.currentBalance else { return }
+        let day = calendar.startOfDay(for: referenceDate)
+        let todayString = formatDate(day, calendar: calendar)
+        merged[todayString] = AccountBalancePoint(
+            date: day,
+            dateString: todayString,
+            balance: displayBalance(current, accountType: account.type),
+            source: .snapshot
+        )
     }
 
     private static func undisplayBalance(_ value: Double, accountType: String) -> Double {

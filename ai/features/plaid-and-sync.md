@@ -8,6 +8,7 @@
 - `access_token` in Vault only; webhook for ongoing sync
 - Errors surface in UI (`TransactionStore.errorMessage`, Plaid link status)
 - Production: `docs/PLAID_PRODUCTION_CHECKLIST.md`
+- **Plaid Investments** (brokerage): link token requests `transactions` + `investments`; Edge Functions sync holdings + ~24 months of investment transactions into `investment_*` tables; account detail shows holdings breakdown and activity-driven balance history when synced. Existing links may need update-mode reconnect to add the Investments product.
 
 ## Code map
 
@@ -21,7 +22,8 @@
 | Coordinator | `BudgetTracker/Backend/Plaid/PlaidLinkCoordinator.swift` |
 | Models | `BudgetTracker/Backend/Plaid/PlaidModels.swift` |
 | Transactions | `BudgetTracker/Backend/Finance/TransactionStore.swift` |
-| Edge Functions | `supabase/functions/plaid-*` |
+| Investments | `BudgetTracker/Backend/Finance/InvestmentStore.swift`, `InvestmentHistoryEngine.swift`, `Backend/Plaid/InvestmentModels.swift` |
+| Edge Functions | `supabase/functions/plaid-*`, `plaid-sync-investments` |
 | Migrations | `supabase/migrations/` |
 
 ## Go-bys

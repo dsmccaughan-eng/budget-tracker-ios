@@ -169,6 +169,7 @@ Documentation duties (agents)
 - Do not paste secrets into this file or `LESSONS_LEARNED.md`.
 
 Update Log
+- 2026-06-10: **Plaid Investments** — holdings + ~24mo investment transaction sync (Edge Functions + `investment_*` tables); brokerage account detail shows holdings breakdown and activity-driven history; link token includes `investments` product (existing items may need update-mode reconnect).
 - 2026-06-03: **Plaid + Teller aggregation** — `BankLinkView` routes new links to Teller when Plaid Trial cap reached; shared accounts/transactions; see `docs/AGGREGATION_SETUP.md`.
 - 2026-06-03: Dashboard **Unreviewed transactions** (confirm-all review flow); app lock **30s background grace** before re-auth; Net Worth tab hides History list (chart still uses snapshots).
 - 2026-06-01: Added `ai/DOCUMENTATION_MAP.md`, Cursor rules index, and **AI documentation system** table in this file (scope/read/write per doc type).
