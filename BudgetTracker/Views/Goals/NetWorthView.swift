@@ -1,4 +1,5 @@
 import SwiftUI
+import Supabase
 
 struct NetWorthView: View {
     @EnvironmentObject private var auth: AuthStore
