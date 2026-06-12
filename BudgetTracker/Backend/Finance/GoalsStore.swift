@@ -117,6 +117,7 @@ final class NetWorthStore: ObservableObject {
     @Published private(set) var currentLiabilities: Double = 0
     @Published private(set) var currentNetWorth: Double = 0
     @Published private(set) var cachedAccounts: [Account] = []
+    @Published private(set) var cachedChartPoints: [NetWorthTimeRange: [NetWorthChartPoint]] = [:]
     @Published var errorMessage: String?
 
     func reload(
@@ -136,7 +137,24 @@ final class NetWorthStore: ObservableObject {
         } catch {
             errorMessage = error.localizedDescription
         }
-        cachedChartInputs = ChartInputs(
+        updateChartInputs(
+            accounts: accounts,
+            accountSnapshots: accountSnapshots,
+            transactions: transactions
+        )
+    }
+
+    func syncFromLocal(
+        accounts: [Account],
+        accountSnapshots: [AccountBalanceSnapshot],
+        transactions: [Transaction]
+    ) {
+        cachedAccounts = accounts
+        let totals = NetWorthCalculator.totals(from: accounts)
+        currentAssets = totals.assets
+        currentLiabilities = totals.liabilities
+        currentNetWorth = totals.net
+        updateChartInputs(
             accounts: accounts,
             accountSnapshots: accountSnapshots,
             transactions: transactions
@@ -144,6 +162,20 @@ final class NetWorthStore: ObservableObject {
     }
 
     func chartPoints(range: NetWorthTimeRange, referenceDate: Date = Date()) -> [NetWorthChartPoint] {
+        if let cached = cachedChartPoints[range], referenceDateIsToday(referenceDate) {
+            return cached
+        }
+        return computeChartPoints(range: range, referenceDate: referenceDate)
+    }
+
+    private func referenceDateIsToday(_ referenceDate: Date) -> Bool {
+        Calendar.current.isDateInToday(referenceDate)
+    }
+
+    private func computeChartPoints(
+        range: NetWorthTimeRange,
+        referenceDate: Date
+    ) -> [NetWorthChartPoint] {
         guard let inputs = cachedChartInputs else {
             return NetWorthHistoryEngine.chartPoints(
                 snapshots: snapshots,
@@ -167,6 +199,14 @@ final class NetWorthStore: ObservableObject {
         )
     }
 
+    private func rebuildChartCache(referenceDate: Date = Date()) {
+        var cache: [NetWorthTimeRange: [NetWorthChartPoint]] = [:]
+        for range in NetWorthTimeRange.allCases {
+            cache[range] = computeChartPoints(range: range, referenceDate: referenceDate)
+        }
+        cachedChartPoints = cache
+    }
+
     func recordDailySnapshotIfNeeded(
         client: SupabaseClient,
         accounts: [Account],
@@ -184,6 +224,7 @@ final class NetWorthStore: ObservableObject {
            existing.netWorth == totals.net,
            existing.totalAssets == totals.assets,
            existing.totalLiabilities == totals.liabilities {
+            rebuildChartCache()
             return
         }
         await captureSnapshot(client: client, accounts: accounts, accountBalances: nil)
@@ -209,6 +250,16 @@ final class NetWorthStore: ObservableObject {
             currentAssets = totals.assets
             currentLiabilities = totals.liabilities
             currentNetWorth = totals.net
+            if let inputs = cachedChartInputs {
+                chartCacheKey = nil
+                updateChartInputs(
+                    accounts: inputs.accounts,
+                    accountSnapshots: inputs.accountSnapshots,
+                    transactions: inputs.transactions
+                )
+            } else {
+                rebuildChartCache()
+            }
             if let accountBalances {
                 await accountBalances.recordTodaySnapshots(accounts: accounts, client: client)
             }
@@ -223,5 +274,52 @@ final class NetWorthStore: ObservableObject {
         let transactions: [Transaction]
     }
 
+    private struct ChartCacheKey: Equatable {
+        let accountSignature: String
+        let snapshotSignature: String
+        let netWorthSnapshotSignature: String
+        let transactionCount: Int
+    }
+
     private var cachedChartInputs: ChartInputs?
+    private var chartCacheKey: ChartCacheKey?
+
+    private func chartCacheKey(
+        accounts: [Account],
+        accountSnapshots: [AccountBalanceSnapshot],
+        transactions: [Transaction]
+    ) -> ChartCacheKey {
+        ChartCacheKey(
+            accountSignature: accounts
+                .map { "\($0.id.uuidString)-\($0.currentBalance ?? 0)-\($0.type)" }
+                .joined(separator: "|"),
+            snapshotSignature: accountSnapshots
+                .map { "\($0.accountId.uuidString)-\($0.date)-\($0.currentBalance ?? 0)" }
+                .joined(separator: "|"),
+            netWorthSnapshotSignature: snapshots
+                .map { "\($0.date)-\($0.netWorth)" }
+                .joined(separator: "|"),
+            transactionCount: transactions.count
+        )
+    }
+
+    private func updateChartInputs(
+        accounts: [Account],
+        accountSnapshots: [AccountBalanceSnapshot],
+        transactions: [Transaction]
+    ) {
+        let key = chartCacheKey(
+            accounts: accounts,
+            accountSnapshots: accountSnapshots,
+            transactions: transactions
+        )
+        guard key != chartCacheKey else { return }
+        chartCacheKey = key
+        cachedChartInputs = ChartInputs(
+            accounts: accounts,
+            accountSnapshots: accountSnapshots,
+            transactions: transactions
+        )
+        rebuildChartCache()
+    }
 }

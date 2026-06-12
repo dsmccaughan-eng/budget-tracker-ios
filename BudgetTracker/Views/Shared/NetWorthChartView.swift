@@ -97,7 +97,7 @@ struct NetWorthChartView: View {
                             endPoint: .bottom
                         )
                     )
-                    .interpolationMethod(.catmullRom)
+                    .interpolationMethod(.linear)
 
                     LineMark(
                         x: .value("Date", point.date),
@@ -105,7 +105,7 @@ struct NetWorthChartView: View {
                     )
                     .foregroundStyle(Color.accentColor)
                     .lineStyle(StrokeStyle(lineWidth: 2.5, lineCap: .round))
-                    .interpolationMethod(.catmullRom)
+                    .interpolationMethod(.linear)
                 }
 
                 if let selected = displayPoint {

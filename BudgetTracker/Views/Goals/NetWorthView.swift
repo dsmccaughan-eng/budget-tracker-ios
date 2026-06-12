@@ -14,6 +14,10 @@ struct NetWorthView: View {
         netWorth.chartPoints(range: selectedRange)
     }
 
+    private var accountsByID: [UUID: Account] {
+        Dictionary(uniqueKeysWithValues: transactions.accounts.map { ($0.id, $0) })
+    }
+
     private var displayAccounts: [Account] {
         if !transactions.accounts.isEmpty {
             return transactions.accounts
@@ -37,7 +41,7 @@ struct NetWorthView: View {
                 ForEach(accountGroups) { group in
                     Section {
                         ForEach(group.accounts) { account in
-                            if let linked = transactions.account(for: account.id) {
+                            if let linked = accountsByID[account.id] {
                                 NavigationLink {
                                     AccountDetailView(account: linked)
                                 } label: {
@@ -122,9 +126,6 @@ struct NetWorthView: View {
         .refreshable {
             await refreshFromPlaid()
         }
-        .task {
-            await syncFromStore()
-        }
     }
 
     private var needsAccountRecovery: Bool {
@@ -136,18 +137,6 @@ struct NetWorthView: View {
             return "Your bank is connected but account balances haven't loaded yet. Tap refresh or pull down."
         }
         return "Transactions are synced but account rows are missing. Tap refresh or pull down."
-    }
-
-    private func syncFromStore() async {
-        guard let client = auth.activeSupabaseClient else { return }
-        if transactions.accounts.isEmpty {
-            await transactions.loadAll(client: client, showsLoading: false)
-            await transactions.refreshAccountsIfMissing(
-                client: client,
-                userId: auth.userId
-            )
-        }
-        await reloadNetWorthFromStore(client: client)
     }
 
     private func refreshFromPlaid() async {

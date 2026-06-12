@@ -124,6 +124,85 @@ final class NetWorthHistoryEngineTests: XCTestCase {
         XCTAssertEqual(points.last?.netWorth ?? 0, 1000, accuracy: 0.01)
     }
 
+    func testChartPointsPrefersSavedSnapshotOverAccountEstimate() {
+        let checkingId = UUID()
+        let checking = Account(
+            id: checkingId,
+            plaidItemId: "item",
+            plaidAccountId: "chk",
+            name: "Checking",
+            officialName: nil,
+            type: "depository",
+            subtype: "checking",
+            mask: "1111",
+            currentBalance: 500,
+            availableBalance: 500
+        )
+        let snaps = [snapshot(date: "2026-06-10", net: 250_000)]
+        let points = NetWorthHistoryEngine.chartPoints(
+            snapshots: snaps,
+            accounts: [checking],
+            accountSnapshots: [],
+            transactions: [],
+            currentAssets: 500,
+            currentLiabilities: 0,
+            currentNetWorth: 500,
+            referenceDate: referenceDate,
+            range: .oneMonth,
+            calendar: calendar
+        )
+        let june10 = points.first { $0.dateString == "2026-06-10" }
+        XCTAssertEqual(june10?.netWorth ?? 0, 250_000, accuracy: 0.01)
+    }
+
+    func testChartPointsForwardFillsSparseInvestmentSnapshots() {
+        let checkingId = UUID()
+        let investmentId = UUID()
+        let checking = Account(
+            id: checkingId,
+            plaidItemId: "item",
+            plaidAccountId: "chk",
+            name: "Checking",
+            officialName: nil,
+            type: "depository",
+            subtype: "checking",
+            mask: "1111",
+            currentBalance: 1_000,
+            availableBalance: 1_000
+        )
+        let investment = Account(
+            id: investmentId,
+            plaidItemId: "item",
+            plaidAccountId: "inv",
+            name: "Brokerage",
+            officialName: nil,
+            type: "investment",
+            subtype: "brokerage",
+            mask: nil,
+            currentBalance: 10_000,
+            availableBalance: nil
+        )
+        let accountSnapshots = [
+            AccountBalanceSnapshot(
+                id: UUID(),
+                accountId: investmentId,
+                date: "2026-06-01",
+                currentBalance: 8_000,
+                availableBalance: nil
+            )
+        ]
+        let points = NetWorthHistoryEngine.chartPointsFromAccountHistory(
+            accounts: [checking, investment],
+            accountSnapshots: accountSnapshots,
+            transactions: [],
+            referenceDate: calendar.date(from: DateComponents(year: 2026, month: 6, day: 5))!,
+            range: .oneMonth,
+            calendar: calendar
+        )
+        let june5 = points.first { $0.dateString == "2026-06-05" }
+        XCTAssertEqual(june5?.netWorth ?? 0, 11_000, accuracy: 0.01)
+    }
+
     func testAccountGroupsBucketsByType() {
         let accounts = [
             Account(

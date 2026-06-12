@@ -65,6 +65,17 @@ enum NetWorthHistoryEngine {
     ) -> [NetWorthChartPoint] {
         var byDate: [String: NetWorthChartPoint] = [:]
 
+        for snapshot in snapshots {
+            guard let date = parseDate(snapshot.date, calendar: calendar) else { continue }
+            byDate[snapshot.date] = NetWorthChartPoint(
+                date: date,
+                dateString: snapshot.date,
+                netWorth: snapshot.netWorth,
+                totalAssets: snapshot.totalAssets,
+                totalLiabilities: snapshot.totalLiabilities
+            )
+        }
+
         if !accounts.isEmpty {
             for point in chartPointsFromAccountHistory(
                 accounts: accounts,
@@ -73,22 +84,8 @@ enum NetWorthHistoryEngine {
                 referenceDate: referenceDate,
                 range: range,
                 calendar: calendar
-            ) {
+            ) where byDate[point.dateString] == nil {
                 byDate[point.dateString] = point
-            }
-        }
-
-        for snapshot in snapshots {
-            guard let date = parseDate(snapshot.date, calendar: calendar) else { continue }
-            let point = NetWorthChartPoint(
-                date: date,
-                dateString: snapshot.date,
-                netWorth: snapshot.netWorth,
-                totalAssets: snapshot.totalAssets,
-                totalLiabilities: snapshot.totalLiabilities
-            )
-            if byDate[snapshot.date] == nil {
-                byDate[snapshot.date] = point
             }
         }
 
@@ -119,9 +116,13 @@ enum NetWorthHistoryEngine {
     ) -> [NetWorthChartPoint] {
         guard !accounts.isEmpty else { return [] }
 
-        var totalsByDate: [String: (assets: Double, liabilities: Double)] = [:]
-        for account in accounts {
-            let balances = AccountBalanceHistoryEngine.rawDailyBalances(
+        let anchor = startOfDay(referenceDate, calendar: calendar)
+        let startDate = range.cutoffDate(before: anchor, calendar: calendar)
+            ?? calendar.date(byAdding: .month, value: -AccountBalanceHistoryEngine.historyMonthCount, to: anchor)
+            ?? anchor
+
+        let sparseBalances = accounts.map { account in
+            AccountBalanceHistoryEngine.rawDailyBalances(
                 account: account,
                 snapshots: accountSnapshots,
                 transactions: transactions,
@@ -129,13 +130,38 @@ enum NetWorthHistoryEngine {
                 range: range,
                 calendar: calendar
             )
-            for (dateString, rawBalance) in balances {
-                let split = NetWorthCalculator.contribution(accountType: account.type, balance: rawBalance)
-                var entry = totalsByDate[dateString, default: (0, 0)]
-                entry.assets += split.assets
-                entry.liabilities += split.liabilities
-                totalsByDate[dateString] = entry
+        }
+
+        var lastBalanceByAccount = Array<Double?>(repeating: nil, count: accounts.count)
+        var totalsByDate: [String: (assets: Double, liabilities: Double)] = [:]
+        var day = startOfDay(startDate, calendar: calendar)
+
+        while day <= anchor {
+            let dateString = formatDate(day, calendar: calendar)
+            var assets = 0.0
+            var liabilities = 0.0
+            var hasAnyBalance = false
+
+            for index in accounts.indices {
+                if let balance = sparseBalances[index][dateString] {
+                    lastBalanceByAccount[index] = balance
+                }
+                guard let rawBalance = lastBalanceByAccount[index] else { continue }
+                hasAnyBalance = true
+                let split = NetWorthCalculator.contribution(
+                    accountType: accounts[index].type,
+                    balance: rawBalance
+                )
+                assets += split.assets
+                liabilities += split.liabilities
             }
+
+            if hasAnyBalance {
+                totalsByDate[dateString] = (assets, liabilities)
+            }
+
+            guard let next = calendar.date(byAdding: .day, value: 1, to: day) else { break }
+            day = next
         }
 
         return totalsByDate.compactMap { dateString, totals in

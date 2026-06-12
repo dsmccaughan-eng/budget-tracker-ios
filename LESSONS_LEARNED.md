@@ -274,3 +274,9 @@ Entry format
 - **Root cause:** App only synced Plaid Transactions (spending), not Investments API (holdings + investment transactions).
 - **Fix:** Migration `20260610120000_plaid_investments.sql`; shared `plaid-investments-sync.ts` + `plaid-sync-investments`; link token adds `investments` product; iOS `InvestmentStore`, `InvestmentHistoryEngine`, holdings/activity in `AccountDetailView`.
 - **Verification:** Deploy backend; enable Investments on Plaid product; reconnect or refresh — account detail shows holdings list and activity-based chart when investment transactions sync.
+
+### 2026-06-10 — Net Worth tab lag and jagged chart
+- **Symptom:** Net Worth tab felt extremely laggy on open; chart spiked up/down sporadically between days.
+- **Root cause:** Tab `.task` refetched snapshots on every open; chart recomputed full transaction reconstruction for all accounts on every SwiftUI render; sparse per-account dates were summed without forward-fill (investment snapshot days missing on other dates); saved net worth snapshots were overridden by bad estimates; Catmull-Rom interpolation overshot between points.
+- **Fix:** Cache chart series in `NetWorthStore`; remove Net Worth open network reload; prefer saved net worth snapshots over estimates; forward-fill account balances before summing; linear chart interpolation.
+- **Verification:** Net Worth tab opens instantly from cache; chart line is smooth and monotonic between snapshot days; ↻ refresh still updates totals and chart.
