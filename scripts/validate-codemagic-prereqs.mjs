@@ -61,7 +61,9 @@ async function ascProfileCertificateModulus(profileName) {
   const list = await fetch('https://api.appstoreconnect.apple.com/v1/profiles?limit=200', {
     headers,
   }).then((r) => r.json());
-  const prof = list.data?.find((p) => p.attributes?.name === profileName);
+  const matches = list.data?.filter((p) => p.attributes?.name === profileName) ?? [];
+  const prof =
+    matches.find((p) => p.attributes?.profileState === 'ACTIVE') ?? matches[0];
   if (!prof) return null;
   const certs = await fetch(
     `https://api.appstoreconnect.apple.com/v1/profiles/${prof.id}/certificates`,
@@ -158,7 +160,8 @@ async function checkAsc() {
     headers,
   }).then((r) => r.json());
   for (const name of PROFILE_NAMES) {
-    const p = profJson.data?.find((x) => x.attributes?.name === name);
+    const matches = profJson.data?.filter((x) => x.attributes?.name === name) ?? [];
+    const p = matches.find((x) => x.attributes?.profileState === 'ACTIVE') ?? matches[0];
     if (!p || p.attributes?.profileState !== 'ACTIVE') fail(`ASC profile not ACTIVE: ${name}`);
     else ok(`ASC profile ACTIVE: ${name}`);
   }
