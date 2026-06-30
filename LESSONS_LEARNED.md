@@ -340,3 +340,9 @@ Entry format
 - **Root cause:** Slice fractions used a mismatched denominator (`sliceTotal` from a filtered/consolidated subset vs amounts from individual rows); grey track filled the semicircle behind slices that only covered a partial arc; floating-point gaps between wedges.
 - **Fix:** `BudgetMath.chartSliceSegments` computes normalized fractions from the same amounts used to draw each slice (last segment pinned to `endFraction = 1`); removed category cap/consolidation and grey under-fill when data exists.
 - **Verification:** Budget/Dashboard wheel shows bold colored segments on grey track; tap selection works; totals unchanged.
+
+### 2026-06-30 — Budget wheel colors hidden under gray List layer
+- **Symptom:** Category slices and scrubbing worked but colors looked buried under gray.
+- **Root cause:** `Canvas` in a `List` row rendered under the default list-row material; selecting a slice dimmed others to 35% opacity (washed out on gray).
+- **Fix:** Draw slices with SwiftUI `Shape` fills + `.drawingGroup()`; remove slice dimming (selection uses stroke only); `.containerBackground(.clear, for: .listRow)` on chart rows.
+- **Verification:** Wheel shows full-saturation category colors; slide/tap selection highlights with stroke only.

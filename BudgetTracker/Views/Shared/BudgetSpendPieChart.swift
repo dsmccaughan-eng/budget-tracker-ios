@@ -52,19 +52,35 @@ struct BudgetSpendPieChart: View {
     var body: some View {
         VStack(spacing: 10) {
             GeometryReader { geo in
-                ZStack {
-                    Canvas { context, size in
-                        let layout = HalfWheelLayout(size: size)
-                        if slicePlan.segments.isEmpty {
-                            drawEmptyTrack(context: &context, layout: layout)
-                        } else {
-                            drawSlices(context: &context, layout: layout)
+                ZStack(alignment: .top) {
+                    if slicePlan.segments.isEmpty {
+                        BudgetWheelSliceShape(startFraction: 0, endFraction: 1)
+                            .stroke(
+                                Color(.systemGray4),
+                                style: StrokeStyle(lineWidth: 2, dash: [6, 4])
+                            )
+                    } else {
+                        ForEach(slicePlan.segments, id: \.progress.category) { segment in
+                            BudgetWheelSliceShape(
+                                startFraction: segment.startFraction,
+                                endFraction: segment.endFraction
+                            )
+                            .fill(Color(hex: segment.progress.color))
+                            .overlay {
+                                if selectedCategory == segment.progress.category {
+                                    BudgetWheelSliceShape(
+                                        startFraction: segment.startFraction,
+                                        endFraction: segment.endFraction
+                                    )
+                                    .stroke(Color.primary.opacity(0.35), lineWidth: 2.5)
+                                }
+                            }
                         }
                     }
 
                     centerLabels
                         .frame(maxWidth: geo.size.width * 0.62)
-                        .frame(height: geo.size.height, alignment: .bottom)
+                        .frame(maxHeight: .infinity, alignment: .bottom)
                         .padding(.bottom, 6)
                         .allowsHitTesting(false)
                 }
@@ -73,6 +89,7 @@ struct BudgetSpendPieChart: View {
                 .gesture(scrubGesture(in: geo.size))
             }
             .frame(height: wheelHeight)
+            .drawingGroup()
 
             if slicePlan.segments.isEmpty {
                 EmptyView()
@@ -88,6 +105,10 @@ struct BudgetSpendPieChart: View {
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 8)
+        .onAppear(perform: reconcileSelection)
+        .onChange(of: slicePlan.segments.map(\.progress.category)) { _, _ in
+            reconcileSelection()
+        }
     }
 
     @ViewBuilder
@@ -137,6 +158,14 @@ struct BudgetSpendPieChart: View {
                         .multilineTextAlignment(.center)
                 }
             }
+        }
+    }
+
+    private func reconcileSelection() {
+        guard let selectedCategory else { return }
+        let isVisible = slicePlan.segments.contains { $0.progress.category == selectedCategory }
+        if !isVisible {
+            self.selectedCategory = nil
         }
     }
 
@@ -205,41 +234,6 @@ struct BudgetSpendPieChart: View {
         )
     }
 
-    private func drawEmptyTrack(context: inout GraphicsContext, layout: HalfWheelLayout) {
-        let path = donutSlicePath(
-            layout: layout,
-            startFraction: 0,
-            endFraction: 1
-        )
-        context.stroke(
-            path,
-            with: .color(Color(.systemGray4)),
-            style: StrokeStyle(lineWidth: 2, dash: [6, 4])
-        )
-    }
-
-    private func drawSlices(context: inout GraphicsContext, layout: HalfWheelLayout) {
-        for segment in slicePlan.segments {
-            var sliceContext = context
-            sliceContext.opacity = fadedOpacity(for: segment.progress)
-
-            let path = donutSlicePath(
-                layout: layout,
-                startFraction: segment.startFraction,
-                endFraction: segment.endFraction
-            )
-            sliceContext.fill(path, with: .color(Color(hex: segment.progress.color)))
-
-            if selectedCategory == segment.progress.category {
-                sliceContext.stroke(
-                    path,
-                    with: .color(.primary.opacity(0.3)),
-                    lineWidth: 2
-                )
-            }
-        }
-    }
-
     private func handleTap(at location: CGPoint, in size: CGSize) {
         let layout = HalfWheelLayout(size: size)
 
@@ -258,12 +252,14 @@ struct BudgetSpendPieChart: View {
             selectedCategory = segment.progress.category
         }
     }
+}
 
-    private func donutSlicePath(
-        layout: HalfWheelLayout,
-        startFraction: Double,
-        endFraction: Double
-    ) -> Path {
+private struct BudgetWheelSliceShape: Shape {
+    let startFraction: Double
+    let endFraction: Double
+
+    func path(in rect: CGRect) -> Path {
+        let layout = HalfWheelLayout(size: rect.size)
         let startAngle = layout.angle(for: startFraction)
         let endAngle = layout.angle(for: endFraction)
         var path = Path()
@@ -283,11 +279,6 @@ struct BudgetSpendPieChart: View {
         )
         path.closeSubpath()
         return path
-    }
-
-    private func fadedOpacity(for row: BudgetProgress) -> Double {
-        guard selectedCategory != nil else { return 1 }
-        return selectedCategory == row.category ? 1 : 0.35
     }
 }
 
