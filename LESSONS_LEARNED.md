@@ -346,3 +346,9 @@ Entry format
 - **Root cause:** `Canvas` in a `List` row rendered under the default list-row material; selecting a slice dimmed others to 35% opacity (washed out on gray).
 - **Fix:** Draw slices with SwiftUI `Shape` fills + `.drawingGroup()`; remove slice dimming (selection uses stroke only); `.listRowBackground(Color.clear)` on chart rows (not `containerBackground(.listRow)` — iOS 18+ only, breaks CI).
 - **Verification:** Wheel shows full-saturation category colors; slide/tap selection highlights with stroke only.
+
+### 2026-06-30 — Budget wheel still gray with hairline color sliver
+- **Symptom:** Semicircle looked like a solid gray ring; only a tiny colored wedge visible at one end.
+- **Root cause:** `Path.addArc` without `move(to:)` first draws a line from `(0,0)` into the arc, corrupting filled wedge geometry so most of the ring is empty and the List background shows through as gray.
+- **Fix:** Draw segments as thick arc strokes at mid-radius (`BudgetWheelArcShape` + `lineWidth = ringWidth`); add `move(to:)` for any filled wedge paths; remove `.drawingGroup()`.
+- **Verification:** Wheel segments fill the semicircle in category colors with no gray underlay.

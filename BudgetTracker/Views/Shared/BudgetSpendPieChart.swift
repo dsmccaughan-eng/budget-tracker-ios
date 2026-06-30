@@ -52,27 +52,40 @@ struct BudgetSpendPieChart: View {
     var body: some View {
         VStack(spacing: 10) {
             GeometryReader { geo in
+                let layout = HalfWheelLayout(size: geo.size)
                 ZStack(alignment: .top) {
                     if slicePlan.segments.isEmpty {
-                        BudgetWheelSliceShape(startFraction: 0, endFraction: 1)
+                        BudgetWheelArcShape(startFraction: 0, endFraction: 1)
                             .stroke(
                                 Color(.systemGray4),
                                 style: StrokeStyle(lineWidth: 2, dash: [6, 4])
                             )
                     } else {
                         ForEach(slicePlan.segments, id: \.progress.category) { segment in
-                            BudgetWheelSliceShape(
+                            BudgetWheelArcShape(
                                 startFraction: segment.startFraction,
                                 endFraction: segment.endFraction
                             )
-                            .fill(Color(hex: segment.progress.color))
+                            .stroke(
+                                Color(hex: segment.progress.color),
+                                style: StrokeStyle(
+                                    lineWidth: layout.ringWidth,
+                                    lineCap: .butt
+                                )
+                            )
                             .overlay {
                                 if selectedCategory == segment.progress.category {
-                                    BudgetWheelSliceShape(
+                                    BudgetWheelArcShape(
                                         startFraction: segment.startFraction,
                                         endFraction: segment.endFraction
                                     )
-                                    .stroke(Color.primary.opacity(0.35), lineWidth: 2.5)
+                                    .stroke(
+                                        Color.primary.opacity(0.45),
+                                        style: StrokeStyle(
+                                            lineWidth: layout.ringWidth + 3,
+                                            lineCap: .butt
+                                        )
+                                    )
                                 }
                             }
                         }
@@ -89,7 +102,6 @@ struct BudgetSpendPieChart: View {
                 .gesture(scrubGesture(in: geo.size))
             }
             .frame(height: wheelHeight)
-            .drawingGroup()
 
             if slicePlan.segments.isEmpty {
                 EmptyView()
@@ -254,7 +266,7 @@ struct BudgetSpendPieChart: View {
     }
 }
 
-private struct BudgetWheelSliceShape: Shape {
+private struct BudgetWheelArcShape: Shape {
     let startFraction: Double
     let endFraction: Double
 
@@ -262,22 +274,16 @@ private struct BudgetWheelSliceShape: Shape {
         let layout = HalfWheelLayout(size: rect.size)
         let startAngle = layout.angle(for: startFraction)
         let endAngle = layout.angle(for: endFraction)
+        let startPoint = layout.point(onRadius: layout.midRadius, angle: startAngle)
         var path = Path()
+        path.move(to: startPoint)
         path.addArc(
             center: layout.center,
-            radius: layout.outerRadius,
+            radius: layout.midRadius,
             startAngle: startAngle,
             endAngle: endAngle,
             clockwise: true
         )
-        path.addArc(
-            center: layout.center,
-            radius: layout.innerRadius,
-            startAngle: endAngle,
-            endAngle: startAngle,
-            clockwise: false
-        )
-        path.closeSubpath()
         return path
     }
 }
@@ -286,6 +292,9 @@ private struct HalfWheelLayout {
     let center: CGPoint
     let outerRadius: CGFloat
     let innerRadius: CGFloat
+
+    var midRadius: CGFloat { (outerRadius + innerRadius) / 2 }
+    var ringWidth: CGFloat { outerRadius - innerRadius }
 
     init(size: CGSize) {
         let width = size.width
@@ -298,6 +307,14 @@ private struct HalfWheelLayout {
     /// 0 = left (9 o'clock), 0.5 = top (12 o'clock), 1 = right (3 o'clock).
     func angle(for fraction: Double) -> Angle {
         Angle.degrees(180 + fraction * 180)
+    }
+
+    func point(onRadius radius: CGFloat, angle: Angle) -> CGPoint {
+        let radians = angle.radians
+        return CGPoint(
+            x: center.x + radius * CGFloat(cos(radians)),
+            y: center.y + radius * CGFloat(sin(radians))
+        )
     }
 
     func arcFraction(at point: CGPoint) -> Double? {
