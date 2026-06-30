@@ -23,6 +23,13 @@ struct BudgetProgress: Equatable, Identifiable {
     }
 }
 
+struct BudgetChartSliceSegment: Equatable {
+    let progress: BudgetProgress
+    let amount: Double
+    let startFraction: Double
+    let endFraction: Double
+}
+
 enum BudgetMath {
     static let excludedCategories: Set<String> = ["Income", "Transfers"]
 
@@ -391,6 +398,70 @@ enum BudgetMath {
 
     static func monthSpendingDisplayTotal(progress: [BudgetProgress]) -> Double {
         progress.reduce(0) { $0 + $1.listDisplaySpent }
+    }
+
+    static func usesSpendingChartSlices(progress: [BudgetProgress]) -> Bool {
+        monthSpendingDisplayTotal(progress: progress) > 0
+    }
+
+    static func chartSliceAmount(for progress: BudgetProgress, usesSpendingAmounts: Bool) -> Double {
+        usesSpendingAmounts ? progress.listDisplaySpent : progress.monthlyLimit
+    }
+
+    /// Normalized semicircle segments for the budget wheel; `endFraction` of the last segment is always 1.
+    static func chartSliceSegments(progress: [BudgetProgress]) -> (total: Double, segments: [BudgetChartSliceSegment]) {
+        let usesSpending = usesSpendingChartSlices(progress: progress)
+        let weighted = progress.compactMap { row -> (BudgetProgress, Double)? in
+            let amount = chartSliceAmount(for: row, usesSpendingAmounts: usesSpending)
+            guard amount > 0 else { return nil }
+            return (row, amount)
+        }
+        .sorted { $0.1 > $1.1 }
+
+        let total = max(weighted.reduce(0) { $0 + $1.1 }, 0.01)
+        var cumulative = 0.0
+        var segments: [BudgetChartSliceSegment] = []
+        for (index, (row, amount)) in weighted.enumerated() {
+            let start = cumulative
+            let end = index == weighted.count - 1 ? 1.0 : cumulative + amount / total
+            cumulative = end
+            segments.append(
+                BudgetChartSliceSegment(
+                    progress: row,
+                    amount: amount,
+                    startFraction: start,
+                    endFraction: end
+                )
+            )
+        }
+        return (total, segments)
+    }
+
+    static func chartSegment(
+        containingArcFraction fraction: Double,
+        segments: [BudgetChartSliceSegment]
+    ) -> BudgetChartSliceSegment? {
+        segments.first { fraction <= $0.endFraction + 0.0001 }
+    }
+
+    static func chartSegmentIndex(
+        category: String?,
+        segments: [BudgetChartSliceSegment]
+    ) -> Int? {
+        guard let category else { return nil }
+        return segments.firstIndex { $0.progress.category == category }
+    }
+
+    static func chartSegment(
+        atStep step: Int,
+        from baseIndex: Int,
+        segments: [BudgetChartSliceSegment]
+    ) -> BudgetChartSliceSegment? {
+        guard !segments.isEmpty else { return nil }
+        let count = segments.count
+        var index = (baseIndex + step) % count
+        if index < 0 { index += count }
+        return segments[index]
     }
 
     static func recentMerchantSummary(

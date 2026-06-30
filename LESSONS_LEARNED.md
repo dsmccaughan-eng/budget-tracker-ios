@@ -334,3 +334,9 @@ Entry format
 - **Root cause:** `NetWorthStore.rebuildChartCache()` ran all six chart ranges synchronously on the main actor on every transaction/account update; full-screen loading overlay blocked UI during background sync; duplicate `noteTransactionsChanged` calls; Dashboard used budgeted-only `progress` while Budgets tab used `displayMonthSections` spending rows; half-wheel angles used `180 - fraction*180` (bottom arc) instead of `180 + fraction*180` (top arc).
 - **Fix:** Debounced off-main chart rebuild in `NetWorthStore`; overlay only during bootstrap (not sync); defer auto-sync to background task after first paint; unify Dashboard chart on `spendingProgress`; fix semi-circle geometry and center total to use `listDisplaySpent`.
 - **Verification:** Unlock UI responsive immediately; sync runs without blocking overlay; Dashboard and Budgets tab show matching spent total; top semi-circle renders and taps correctly.
+
+### 2026-06-30 — Budget semi-circle grey with hairline slices
+- **Symptom:** Half-wheel showed mostly grey with barely visible category slivers after Canvas rewrite.
+- **Root cause:** Slice fractions used a mismatched denominator (`sliceTotal` from a filtered/consolidated subset vs amounts from individual rows); grey track filled the semicircle behind slices that only covered a partial arc; floating-point gaps between wedges.
+- **Fix:** `BudgetMath.chartSliceSegments` computes normalized fractions from the same amounts used to draw each slice (last segment pinned to `endFraction = 1`); removed category cap/consolidation and grey under-fill when data exists.
+- **Verification:** Budget/Dashboard wheel shows bold colored segments on grey track; tap selection works; totals unchanged.

@@ -15,6 +15,7 @@ struct DashboardView: View {
     @State private var showSettings = false
     @State private var showReviewConfirmed = false
     @State private var unreviewedExpanded = false
+    @State private var selectedChartCategory: String?
 
     private var dashboardSpendingProgress: [BudgetProgress] {
         _ = budgets.spendDataVersion
@@ -118,7 +119,8 @@ struct DashboardView: View {
                         BudgetSpendPieChart(
                             progress: dashboardSpendingProgress,
                             referenceDate: Date(),
-                            hasTransactions: !transactions.transactions.isEmpty
+                            hasTransactions: !transactions.transactions.isEmpty,
+                            selectedCategory: $selectedChartCategory
                         )
                         .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
                         .listRowBackground(Color.clear)

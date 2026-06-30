@@ -6,6 +6,12 @@ struct BudgetSpendPieChart: View {
     var hasTransactions: Bool = true
     @Binding var selectedCategory: String?
 
+    @State private var scrubBaseIndex: Int?
+    @State private var lastScrubStep = 0
+
+    private let wheelHeight: CGFloat = 168
+    private let scrubStepPoints: CGFloat = 26
+
     init(
         progress: [BudgetProgress],
         referenceDate: Date,
@@ -18,24 +24,16 @@ struct BudgetSpendPieChart: View {
         _selectedCategory = selectedCategory
     }
 
-    private var usesSpendingSlices: Bool {
-        BudgetMath.monthSpendingDisplayTotal(progress: progress) > 0
+    private var slicePlan: (total: Double, segments: [BudgetChartSliceSegment]) {
+        BudgetMath.chartSliceSegments(progress: progress)
     }
 
-    private var slices: [BudgetProgress] {
-        if usesSpendingSlices {
-            return progress.filter { $0.listDisplaySpent > 0 }
-                .sorted { $0.listDisplaySpent > $1.listDisplaySpent }
-        }
-        return progress.filter { $0.monthlyLimit > 0 }
-            .sorted { $0.monthlyLimit > $1.monthlyLimit }
+    private var usesSpendingSlices: Bool {
+        BudgetMath.usesSpendingChartSlices(progress: progress)
     }
 
     private var totalCenterValue: Double {
-        if usesSpendingSlices {
-            return BudgetMath.monthSpendingDisplayTotal(progress: slices)
-        }
-        return slices.reduce(0) { $0 + $1.monthlyLimit }
+        slicePlan.total
     }
 
     private var centerTitle: String {
@@ -46,66 +44,44 @@ struct BudgetSpendPieChart: View {
         progress.reduce(0) { $0 + $1.projectedSpend }
     }
 
-    private var selectedRow: BudgetProgress? {
+    private var selectedSegment: BudgetChartSliceSegment? {
         guard let selectedCategory else { return nil }
-        return slices.first { $0.category == selectedCategory }
-    }
-
-    private var sliceTotal: Double {
-        max(slices.reduce(0) { $0 + sliceAmount(for: $1) }, 0.01)
+        return slicePlan.segments.first { $0.progress.category == selectedCategory }
     }
 
     var body: some View {
         VStack(spacing: 10) {
             GeometryReader { geo in
                 ZStack {
-                    if slices.isEmpty {
-                        Canvas { context, size in
-                            let layout = HalfWheelLayout(size: size)
-                            var path = Path()
-                            path.addArc(
-                                center: layout.center,
-                                radius: (layout.outerRadius + layout.innerRadius) / 2,
-                                startAngle: .degrees(180),
-                                endAngle: .degrees(360),
-                                clockwise: true
-                            )
-                            context.stroke(
-                                path,
-                                with: .color(Color(.systemGray4)),
-                                style: StrokeStyle(lineWidth: layout.ringWidth, dash: [6, 4])
-                            )
+                    Canvas { context, size in
+                        let layout = HalfWheelLayout(size: size)
+                        if slicePlan.segments.isEmpty {
+                            drawEmptyTrack(context: &context, layout: layout)
+                        } else {
+                            drawSlices(context: &context, layout: layout)
                         }
-                        .allowsHitTesting(false)
-                    } else {
-                        Canvas { context, size in
-                            drawHalfWheel(context: &context, size: size)
-                        }
-                        .contentShape(HalfWheelHitShape())
-                        .gesture(
-                            DragGesture(minimumDistance: 0)
-                                .onEnded { value in
-                                    handleTap(at: value.location, in: geo.size)
-                                }
-                        )
                     }
 
                     centerLabels
                         .frame(maxWidth: geo.size.width * 0.62)
-                        .position(
-                            x: geo.size.width / 2,
-                            y: geo.size.height * 0.78
-                        )
+                        .frame(height: geo.size.height, alignment: .bottom)
+                        .padding(.bottom, 6)
+                        .allowsHitTesting(false)
                 }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .contentShape(Rectangle())
+                .gesture(scrubGesture(in: geo.size))
             }
-            .frame(height: 168)
+            .frame(height: wheelHeight)
 
-            if selectedCategory != nil {
-                Text("Tap the chart again to show all categories")
+            if slicePlan.segments.isEmpty {
+                EmptyView()
+            } else if selectedCategory != nil {
+                Text("Slide to browse · tap to show all")
                     .font(.caption2)
                     .foregroundStyle(.tertiary)
-            } else if usesSpendingSlices, !slices.isEmpty {
-                Text("Tap a slice for details")
+            } else if usesSpendingSlices {
+                Text("Slide across the chart to browse categories")
                     .font(.caption2)
                     .foregroundStyle(.tertiary)
             }
@@ -116,14 +92,14 @@ struct BudgetSpendPieChart: View {
 
     @ViewBuilder
     private var centerLabels: some View {
-        if let row = selectedRow {
+        if let segment = selectedSegment {
             VStack(spacing: 3) {
-                Text(row.category)
+                Text(segment.progress.category)
                     .font(.caption.weight(.semibold))
                     .multilineTextAlignment(.center)
                     .lineLimit(2)
                     .minimumScaleFactor(0.8)
-                Text(FinanceFormatting.currency(sliceAmount(for: row)))
+                Text(FinanceFormatting.currency(segment.amount))
                     .font(.title2.weight(.bold))
                     .minimumScaleFactor(0.7)
                     .lineLimit(1)
@@ -164,31 +140,100 @@ struct BudgetSpendPieChart: View {
         }
     }
 
-    private func drawHalfWheel(context: inout GraphicsContext, size: CGSize) {
+    private func scrubGesture(in size: CGSize) -> some Gesture {
+        DragGesture(minimumDistance: 0)
+            .onChanged { value in
+                handleScrubChanged(value, in: size)
+            }
+            .onEnded { value in
+                handleScrubEnded(value, in: size)
+            }
+    }
+
+    private func handleScrubChanged(_ value: DragGesture.Value, in size: CGSize) {
+        let segments = slicePlan.segments
+        guard !segments.isEmpty else { return }
+
         let layout = HalfWheelLayout(size: size)
-        var cumulative = 0.0
+        if let fraction = layout.arcFraction(at: value.location),
+           let segment = BudgetMath.chartSegment(containingArcFraction: fraction, segments: segments) {
+            scrubBaseIndex = nil
+            lastScrubStep = 0
+            selectedCategory = segment.progress.category
+            return
+        }
 
-        for row in slices {
-            let amount = sliceAmount(for: row)
-            let sliceFraction = amount / sliceTotal
-            let startFraction = cumulative
-            let endFraction = cumulative + sliceFraction
-            cumulative = endFraction
+        if scrubBaseIndex == nil {
+            scrubBaseIndex = BudgetMath.chartSegmentIndex(
+                category: selectedCategory,
+                segments: segments
+            ) ?? BudgetMath.chartSegmentIndex(
+                category: segmentAtStart(of: value, in: size)?.progress.category,
+                segments: segments
+            ) ?? 0
+            lastScrubStep = 0
+        }
 
+        let step = Int(value.translation.width / scrubStepPoints)
+        guard step != lastScrubStep else { return }
+        lastScrubStep = step
+
+        guard let base = scrubBaseIndex,
+              let segment = BudgetMath.chartSegment(atStep: step, from: base, segments: segments) else {
+            return
+        }
+        selectedCategory = segment.progress.category
+    }
+
+    private func handleScrubEnded(_ value: DragGesture.Value, in size: CGSize) {
+        defer {
+            scrubBaseIndex = nil
+            lastScrubStep = 0
+        }
+
+        let moved = hypot(value.translation.width, value.translation.height)
+        guard moved < 8 else { return }
+        handleTap(at: value.location, in: size)
+    }
+
+    private func segmentAtStart(of value: DragGesture.Value, in size: CGSize) -> BudgetChartSliceSegment? {
+        let layout = HalfWheelLayout(size: size)
+        guard let fraction = layout.arcFraction(at: value.startLocation) else { return nil }
+        return BudgetMath.chartSegment(
+            containingArcFraction: fraction,
+            segments: slicePlan.segments
+        )
+    }
+
+    private func drawEmptyTrack(context: inout GraphicsContext, layout: HalfWheelLayout) {
+        let path = donutSlicePath(
+            layout: layout,
+            startFraction: 0,
+            endFraction: 1
+        )
+        context.stroke(
+            path,
+            with: .color(Color(.systemGray4)),
+            style: StrokeStyle(lineWidth: 2, dash: [6, 4])
+        )
+    }
+
+    private func drawSlices(context: inout GraphicsContext, layout: HalfWheelLayout) {
+        for segment in slicePlan.segments {
             var sliceContext = context
-            sliceContext.opacity = fadedOpacity(for: row)
+            sliceContext.opacity = fadedOpacity(for: segment.progress)
 
             let path = donutSlicePath(
                 layout: layout,
-                startFraction: startFraction,
-                endFraction: endFraction
+                startFraction: segment.startFraction,
+                endFraction: segment.endFraction
             )
-            sliceContext.fill(path, with: .color(Color(hex: row.color)))
+            sliceContext.fill(path, with: .color(Color(hex: segment.progress.color)))
 
-            if selectedCategory == row.category {
+            if selectedCategory == segment.progress.category {
                 sliceContext.stroke(
                     path,
-                    with: .color(.primary.opacity(0.25)),
+                    with: .color(.primary.opacity(0.3)),
                     lineWidth: 2
                 )
             }
@@ -196,26 +241,21 @@ struct BudgetSpendPieChart: View {
     }
 
     private func handleTap(at location: CGPoint, in size: CGSize) {
-        guard !slices.isEmpty else { return }
         let layout = HalfWheelLayout(size: size)
 
-        guard let fraction = layout.arcFraction(at: location) else {
+        guard let fraction = layout.arcFraction(at: location),
+              let segment = BudgetMath.chartSegment(
+                containingArcFraction: fraction,
+                segments: slicePlan.segments
+              ) else {
             selectedCategory = nil
             return
         }
 
-        var cumulative = 0.0
-        for row in slices {
-            let sliceFraction = sliceAmount(for: row) / sliceTotal
-            if fraction <= cumulative + sliceFraction + 0.0001 {
-                if selectedCategory == row.category {
-                    selectedCategory = nil
-                } else {
-                    selectedCategory = row.category
-                }
-                return
-            }
-            cumulative += sliceFraction
+        if selectedCategory == segment.progress.category {
+            selectedCategory = nil
+        } else {
+            selectedCategory = segment.progress.category
         }
     }
 
@@ -246,12 +286,8 @@ struct BudgetSpendPieChart: View {
     }
 
     private func fadedOpacity(for row: BudgetProgress) -> Double {
-        guard selectedCategory != nil else { return usesSpendingSlices ? 1 : 0.9 }
-        return selectedCategory == row.category ? 1 : 0.32
-    }
-
-    private func sliceAmount(for row: BudgetProgress) -> Double {
-        usesSpendingSlices ? row.listDisplaySpent : row.monthlyLimit
+        guard selectedCategory != nil else { return 1 }
+        return selectedCategory == row.category ? 1 : 0.35
     }
 }
 
@@ -259,54 +295,32 @@ private struct HalfWheelLayout {
     let center: CGPoint
     let outerRadius: CGFloat
     let innerRadius: CGFloat
-    let ringWidth: CGFloat
 
     init(size: CGSize) {
         let width = size.width
         let height = size.height
-        outerRadius = min(width * 0.46, height * 0.88)
-        innerRadius = outerRadius * 0.62
-        ringWidth = outerRadius - innerRadius
-        center = CGPoint(x: width / 2, y: height * 0.96)
+        outerRadius = min(width * 0.44, height * 0.82)
+        innerRadius = outerRadius * 0.58
+        center = CGPoint(x: width / 2, y: height)
     }
 
+    /// 0 = left (9 o'clock), 0.5 = top (12 o'clock), 1 = right (3 o'clock).
     func angle(for fraction: Double) -> Angle {
         Angle.degrees(180 + fraction * 180)
     }
 
-    /// Maps a tap to 0…1 along the top semicircle (left → top → right).
     func arcFraction(at point: CGPoint) -> Double? {
         let dx = point.x - center.x
         let dy = point.y - center.y
         let distance = hypot(dx, dy)
-        guard distance >= innerRadius, distance <= outerRadius, dy < 0 else {
+        guard distance >= innerRadius, distance <= outerRadius, dy <= 0 else {
             return nil
         }
 
         var degrees = atan2(dy, dx) * 180 / .pi
-        if degrees < 0 {
-            degrees += 360
-        }
+        if degrees < 0 { degrees += 360 }
         guard degrees >= 180 || degrees == 0 else { return nil }
         if degrees == 0 { return 1 }
         return min(max((degrees - 180) / 180, 0), 1)
-    }
-}
-
-/// Limits taps to the upper semicircle so list scrolling does not steal chart hits.
-private struct HalfWheelHitShape: Shape {
-    func path(in rect: CGRect) -> Path {
-        let layout = HalfWheelLayout(size: rect.size)
-        var path = Path()
-        path.addArc(
-            center: layout.center,
-            radius: layout.outerRadius,
-            startAngle: .degrees(180),
-            endAngle: .degrees(360),
-            clockwise: true
-        )
-        path.addLine(to: CGPoint(x: layout.center.x, y: layout.center.y))
-        path.closeSubpath()
-        return path
     }
 }

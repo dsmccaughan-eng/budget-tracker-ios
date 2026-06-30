@@ -222,4 +222,91 @@ final class BudgetMathTests: XCTestCase {
         XCTAssertEqual(groceries?.spent ?? 0, 100, accuracy: 0.01)
         XCTAssertEqual(groceries?.projectedSpend ?? 0, 100, accuracy: 0.01)
     }
+
+    func testChartSliceSegmentsSumToFullSemicircle() {
+        let progress = [
+            BudgetProgress(
+                category: "Groceries",
+                monthlyLimit: 500,
+                spent: 400,
+                projectedSpend: 400,
+                isFixed: false,
+                isRollover: false,
+                color: "#22c55e"
+            ),
+            BudgetProgress(
+                category: "Dining & Bars",
+                monthlyLimit: 300,
+                spent: 100,
+                projectedSpend: 100,
+                isFixed: false,
+                isRollover: false,
+                color: "#ea580c"
+            ),
+            BudgetProgress(
+                category: "Shopping",
+                monthlyLimit: 200,
+                spent: 0,
+                projectedSpend: 0,
+                isFixed: false,
+                isRollover: false,
+                color: "#9333ea"
+            )
+        ]
+        let plan = BudgetMath.chartSliceSegments(progress: progress)
+        XCTAssertEqual(plan.total, 500, accuracy: 0.01)
+        XCTAssertEqual(plan.segments.count, 2)
+        XCTAssertEqual(plan.segments.first?.startFraction ?? -1, 0, accuracy: 0.0001)
+        XCTAssertEqual(plan.segments.last?.endFraction ?? 0, 1, accuracy: 0.0001)
+        let spanSum = plan.segments.reduce(0) { $0 + ($1.endFraction - $1.startFraction) }
+        XCTAssertEqual(spanSum, 1, accuracy: 0.0001)
+        XCTAssertEqual(plan.segments[0].amount, 400, accuracy: 0.01)
+        XCTAssertEqual(plan.segments[1].amount, 100, accuracy: 0.01)
+        XCTAssertEqual(plan.segments[0].endFraction, 0.8, accuracy: 0.0001)
+    }
+
+    func testChartSegmentCyclesWithSlideDirection() {
+        let segments = [
+            BudgetChartSliceSegment(
+                progress: BudgetProgress(
+                    category: "Groceries",
+                    monthlyLimit: 500,
+                    spent: 400,
+                    projectedSpend: 400,
+                    isFixed: false,
+                    isRollover: false,
+                    color: "#22c55e"
+                ),
+                amount: 400,
+                startFraction: 0,
+                endFraction: 0.8
+            ),
+            BudgetChartSliceSegment(
+                progress: BudgetProgress(
+                    category: "Dining & Bars",
+                    monthlyLimit: 300,
+                    spent: 100,
+                    projectedSpend: 100,
+                    isFixed: false,
+                    isRollover: false,
+                    color: "#ea580c"
+                ),
+                amount: 100,
+                startFraction: 0.8,
+                endFraction: 1
+            )
+        ]
+        XCTAssertEqual(
+            BudgetMath.chartSegment(atStep: 1, from: 0, segments: segments)?.progress.category,
+            "Dining & Bars"
+        )
+        XCTAssertEqual(
+            BudgetMath.chartSegment(atStep: -1, from: 0, segments: segments)?.progress.category,
+            "Dining & Bars"
+        )
+        XCTAssertEqual(
+            BudgetMath.chartSegment(containingArcFraction: 0.1, segments: segments)?.progress.category,
+            "Groceries"
+        )
+    }
 }
