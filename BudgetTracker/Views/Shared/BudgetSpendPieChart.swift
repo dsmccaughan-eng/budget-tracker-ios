@@ -10,7 +10,7 @@ struct BudgetSpendPieChart: View {
     @State private var scrubBaseIndex: Int?
     @State private var lastScrubStep = 0
 
-    private let segmentInnerRadiusRatio: CGFloat = 0.66
+    private let segmentInnerRadiusRatio: CGFloat = 0.64
     private let scrubStepPoints: CGFloat = 26
 
     init(
@@ -92,16 +92,23 @@ struct BudgetSpendPieChart: View {
                 innerRadiusRatio: segmentInnerRadiusRatio
             )
 
-            ZStack(alignment: .bottom) {
+            ZStack {
+                let arcCenter = metrics.arcCenter(in: geo.size)
+
                 if chartEntries.isEmpty {
                     emptyWheel(metrics: metrics)
+                        .position(arcCenter)
                 } else {
                     spendingWheel(metrics: metrics)
+                        .position(arcCenter)
                     budgetProgressRing(metrics: metrics)
+                        .position(arcCenter)
+                    categoryIcons(metrics: metrics, containerSize: geo.size)
                 }
 
                 centerLabels
                     .frame(maxWidth: metrics.labelMaxWidth, minHeight: metrics.labelAreaHeight, alignment: .bottom)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
                     .padding(.bottom, metrics.labelBottomPadding)
             }
             .frame(width: geo.size.width, height: metrics.totalHeight, alignment: .bottom)
@@ -131,20 +138,31 @@ struct BudgetSpendPieChart: View {
             )
             .cornerRadius(entry.isPlaceholder ? 0 : 8)
             .foregroundStyle(entry.color)
-            .annotation(position: .overlay) {
-                if !entry.isPlaceholder,
-                   entry.amount / max(slicePlan.total, 0.01) >= 0.1 {
-                    Image(systemName: categorySymbol(entry.category))
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(.white)
-                        .shadow(color: .black.opacity(0.25), radius: 1, y: 1)
-                }
-            }
         }
         .chartLegend(.hidden)
         .frame(width: metrics.chartDiameter, height: metrics.chartDiameter)
         .rotationEffect(.degrees(-90))
-        .offset(y: metrics.chartVerticalOffset)
+        .allowsHitTesting(false)
+    }
+
+    private func categoryIcons(metrics: BudgetWheelMetrics, containerSize: CGSize) -> some View {
+        ZStack {
+            ForEach(slicePlan.segments, id: \.progress.category) { segment in
+                if segment.amount / max(slicePlan.total, 0.01) >= 0.1 {
+                    let midFraction = (segment.startFraction + segment.endFraction) / 2
+                    let point = metrics.pointOnArc(
+                        fraction: midFraction,
+                        radiusRatio: metrics.iconRadiusRatio,
+                        in: containerSize
+                    )
+                    Image(systemName: categorySymbol(segment.progress.category))
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(.white)
+                        .shadow(color: .black.opacity(0.25), radius: 1, y: 1)
+                        .position(point)
+                }
+            }
+        }
         .allowsHitTesting(false)
     }
 
@@ -167,7 +185,6 @@ struct BudgetSpendPieChart: View {
         }
         .rotationEffect(.degrees(180))
         .frame(width: metrics.progressRingDiameter, height: metrics.progressRingDiameter)
-        .offset(y: metrics.progressRingVerticalOffset)
         .allowsHitTesting(false)
     }
 
@@ -188,7 +205,6 @@ struct BudgetSpendPieChart: View {
         .chartLegend(.hidden)
         .frame(width: metrics.chartDiameter, height: metrics.chartDiameter)
         .rotationEffect(.degrees(-90))
-        .offset(y: metrics.chartVerticalOffset)
         .allowsHitTesting(false)
     }
 
@@ -392,34 +408,51 @@ private struct BudgetWheelChartEntry: Identifiable {
 private struct BudgetWheelMetrics {
     let chartDiameter: CGFloat
     let totalHeight: CGFloat
-    let chartVerticalOffset: CGFloat
+    let innerRadiusRatio: CGFloat
     let progressRingDiameter: CGFloat
-    let progressRingVerticalOffset: CGFloat
     let progressLineWidth: CGFloat
+    let iconRadiusRatio: CGFloat
     let labelAreaHeight: CGFloat
     let labelBottomPadding: CGFloat
     let labelMaxWidth: CGFloat
 
     static var preferredTotalHeight: CGFloat {
-        let metrics = BudgetWheelMetrics(width: 320, innerRadiusRatio: 0.66)
+        let metrics = BudgetWheelMetrics(width: 320, innerRadiusRatio: 0.64)
         return metrics.totalHeight
     }
 
     init(width: CGFloat, innerRadiusRatio: CGFloat) {
+        self.innerRadiusRatio = innerRadiusRatio
         chartDiameter = min(max(width - 24, 240), 272)
         let outerRadius = chartDiameter / 2
         labelAreaHeight = 74
         labelBottomPadding = 12
         progressLineWidth = 3
         labelMaxWidth = chartDiameter * 0.52
+        iconRadiusRatio = (1 + innerRadiusRatio) / 2
 
         let labelReserve = labelAreaHeight + labelBottomPadding
-        // Move the donut center up so the top semicircle fits above the label block.
-        chartVerticalOffset = outerRadius - labelReserve
         totalHeight = outerRadius + labelReserve + 8
 
-        progressRingDiameter = chartDiameter * innerRadiusRatio - progressLineWidth * 2
-        progressRingVerticalOffset = chartVerticalOffset
+        // Slightly outside the chart inner radius so the stroke hugs the category band.
+        progressRingDiameter = chartDiameter * (innerRadiusRatio + 0.022)
+    }
+
+    func arcCenter(in size: CGSize) -> CGPoint {
+        CGPoint(
+            x: size.width / 2,
+            y: totalHeight - labelAreaHeight - labelBottomPadding
+        )
+    }
+
+    func pointOnArc(fraction: Double, radiusRatio: CGFloat, in size: CGSize) -> CGPoint {
+        let center = arcCenter(in: size)
+        let radius = (chartDiameter / 2) * radiusRatio
+        let radians = (180 + fraction * 180) * .pi / 180
+        return CGPoint(
+            x: center.x + radius * CGFloat(cos(radians)),
+            y: center.y + radius * CGFloat(sin(radians))
+        )
     }
 }
 
@@ -430,9 +463,8 @@ private struct HalfWheelLayout {
 
     init(size: CGSize, metrics: BudgetWheelMetrics) {
         outerRadius = metrics.chartDiameter / 2
-        innerRadius = outerRadius * 0.66
-        let centerY = size.height - metrics.labelAreaHeight - metrics.labelBottomPadding
-        center = CGPoint(x: size.width / 2, y: centerY)
+        innerRadius = outerRadius * metrics.innerRadiusRatio
+        center = metrics.arcCenter(in: size)
     }
 
     func arcFraction(at point: CGPoint) -> Double? {
