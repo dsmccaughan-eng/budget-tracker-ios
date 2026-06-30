@@ -63,19 +63,7 @@ enum NetWorthHistoryEngine {
         range: NetWorthTimeRange = .all,
         calendar: Calendar = .current
     ) -> [NetWorthChartPoint] {
-        var byDate: [String: NetWorthChartPoint] = [:]
-
-        for snapshot in snapshots {
-            guard let date = parseDate(snapshot.date, calendar: calendar) else { continue }
-            byDate[snapshot.date] = NetWorthChartPoint(
-                date: date,
-                dateString: snapshot.date,
-                netWorth: snapshot.netWorth,
-                totalAssets: snapshot.totalAssets,
-                totalLiabilities: snapshot.totalLiabilities
-            )
-        }
-
+        var accountByDate: [String: NetWorthChartPoint] = [:]
         if !accounts.isEmpty {
             for point in chartPointsFromAccountHistory(
                 accounts: accounts,
@@ -84,8 +72,33 @@ enum NetWorthHistoryEngine {
                 referenceDate: referenceDate,
                 range: range,
                 calendar: calendar
-            ) where byDate[point.dateString] == nil {
-                byDate[point.dateString] = point
+            ) {
+                accountByDate[point.dateString] = point
+            }
+        }
+
+        var byDate = accountByDate
+
+        for snapshot in snapshots {
+            guard let date = parseDate(snapshot.date, calendar: calendar) else { continue }
+            let snapshotPoint = NetWorthChartPoint(
+                date: date,
+                dateString: snapshot.date,
+                netWorth: snapshot.netWorth,
+                totalAssets: snapshot.totalAssets,
+                totalLiabilities: snapshot.totalLiabilities
+            )
+            let previous = previousPoint(before: snapshot.date, in: byDate)
+            let next = nextPoint(after: snapshot.date, in: byDate)
+            let estimate = accountByDate[snapshot.date]
+
+            if shouldTrustSnapshot(
+                snapshotPoint,
+                estimate: estimate,
+                previous: previous,
+                next: next
+            ) {
+                byDate[snapshot.date] = snapshotPoint
             }
         }
 
@@ -99,6 +112,7 @@ enum NetWorthHistoryEngine {
         )
 
         var points = byDate.values.sorted { $0.date < $1.date }
+        points = smoothIsolatedOutliers(points)
         if let cutoff = range.cutoffDate(before: referenceDate, calendar: calendar) {
             points = points.filter { $0.date >= cutoff }
         }
@@ -122,7 +136,7 @@ enum NetWorthHistoryEngine {
             ?? anchor
 
         let sparseBalances = accounts.map { account in
-            AccountBalanceHistoryEngine.rawDailyBalances(
+            var balances = AccountBalanceHistoryEngine.rawDailyBalances(
                 account: account,
                 snapshots: accountSnapshots,
                 transactions: transactions,
@@ -130,6 +144,12 @@ enum NetWorthHistoryEngine {
                 range: range,
                 calendar: calendar
             )
+            backfillLeadingBalances(
+                balances: &balances,
+                startDate: startDate,
+                calendar: calendar
+            )
+            return balances
         }
 
         var lastBalanceByAccount = Array<Double?>(repeating: nil, count: accounts.count)
@@ -296,5 +316,98 @@ enum NetWorthHistoryEngine {
 
     private static func startOfDay(_ date: Date, calendar: Calendar) -> Date {
         calendar.startOfDay(for: date)
+    }
+
+    /// Before the first observed balance, assume the account held that balance (avoids partial-net-worth ramps).
+    static func backfillLeadingBalances(
+        balances: inout [String: Double],
+        startDate: Date,
+        calendar: Calendar
+    ) {
+        guard let firstKey = balances.keys.sorted().first,
+              let firstDate = parseDate(firstKey, calendar: calendar),
+              let firstBalance = balances[firstKey] else { return }
+
+        var day = startOfDay(startDate, calendar: calendar)
+        let firstDay = startOfDay(firstDate, calendar: calendar)
+        while day < firstDay {
+            let key = formatDate(day, calendar: calendar)
+            if balances[key] == nil {
+                balances[key] = firstBalance
+            }
+            guard let next = calendar.date(byAdding: .day, value: 1, to: day) else { break }
+            day = next
+        }
+    }
+
+    static func smoothIsolatedOutliers(
+        _ points: [NetWorthChartPoint],
+        toleranceRatio: Double = 0.28
+    ) -> [NetWorthChartPoint] {
+        guard points.count >= 3 else { return points }
+        var adjusted = points
+        for index in 1..<(points.count - 1) {
+            let previous = adjusted[index - 1].netWorth
+            let current = adjusted[index].netWorth
+            let next = adjusted[index + 1].netWorth
+            let baseline = (previous + next) / 2
+            guard baseline > 0 else { continue }
+
+            let currentDeviation = abs(current - baseline) / baseline
+            let neighborDeviation = abs(previous - next) / max(abs(previous), abs(next), 1)
+            guard currentDeviation > toleranceRatio, neighborDeviation < toleranceRatio / 2 else { continue }
+
+            let row = adjusted[index]
+            adjusted[index] = NetWorthChartPoint(
+                date: row.date,
+                dateString: row.dateString,
+                netWorth: baseline,
+                totalAssets: row.totalAssets,
+                totalLiabilities: row.totalLiabilities
+            )
+        }
+        return adjusted
+    }
+
+    static func shouldTrustSnapshot(
+        _ snapshot: NetWorthChartPoint,
+        estimate: NetWorthChartPoint?,
+        previous: NetWorthChartPoint?,
+        next: NetWorthChartPoint?
+    ) -> Bool {
+        if let estimate {
+            let base = max(abs(estimate.netWorth), 1)
+            let ratio = snapshot.netWorth / base
+            if ratio >= 0.75 && ratio <= 1.25 { return true }
+            if ratio > 1.5 { return true }
+        }
+
+        if let previous, let next {
+            let baseline = (previous.netWorth + next.netWorth) / 2
+            guard baseline > 0 else { return estimate == nil }
+            let snapshotDeviation = abs(snapshot.netWorth - baseline) / baseline
+            let neighborDeviation = abs(previous.netWorth - next.netWorth) / baseline
+            if snapshot.netWorth < baseline * 0.70,
+               snapshotDeviation > 0.30,
+               neighborDeviation < 0.15 {
+                return false
+            }
+        }
+
+        return estimate == nil
+    }
+
+    private static func previousPoint(
+        before dateString: String,
+        in points: [String: NetWorthChartPoint]
+    ) -> NetWorthChartPoint? {
+        points.keys.sorted().last { $0 < dateString }.flatMap { points[$0] }
+    }
+
+    private static func nextPoint(
+        after dateString: String,
+        in points: [String: NetWorthChartPoint]
+    ) -> NetWorthChartPoint? {
+        points.keys.sorted().first { $0 > dateString }.flatMap { points[$0] }
     }
 }

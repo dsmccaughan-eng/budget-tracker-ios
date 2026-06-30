@@ -45,6 +45,17 @@ enum TransactionSyncPolicy {
         return false
     }
 
+    /// Record a client sync attempt only when new rows arrived or local data is no longer stale.
+    static func shouldRecordClientSync(
+        syncedCount: Int,
+        transactions: [Transaction],
+        now: Date,
+        calendar: Calendar = .current
+    ) -> Bool {
+        if syncedCount > 0 { return true }
+        return !transactionsAppearStale(transactions: transactions, now: now, calendar: calendar)
+    }
+
     static func serverSyncIsStale(
         plaidItems: [PlaidItem],
         tellerItems: [TellerItem],

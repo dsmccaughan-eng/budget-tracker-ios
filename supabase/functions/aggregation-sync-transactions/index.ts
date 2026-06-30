@@ -5,6 +5,7 @@ import { handleOptions, jsonResponse } from "../_shared/cors.ts";
 import { syncPlaidItemsForUser } from "../_shared/plaid-sync.ts";
 import { syncTellerItemsForUser } from "../_shared/teller-sync.ts";
 import { isTellerConfigured } from "../_shared/connection-policy.ts";
+import { recategorizeOtherTransactionsForUser } from "../_shared/recategorize-transactions.ts";
 import {
   checkRateLimit,
   clientSafeError,
@@ -30,6 +31,10 @@ Deno.serve(async (req) => {
     const synced = plaidResult.synced + tellerResult.synced;
     const categorized = plaidResult.categorized + tellerResult.categorized;
 
+    const recategorized = await recategorizeOtherTransactionsForUser(admin, user.id, {
+      limit: 250,
+    });
+
     if (synced > 0) {
       await writeAuditLog(admin, {
         userId: user.id,
@@ -39,11 +44,17 @@ Deno.serve(async (req) => {
           categorized,
           plaid_synced: plaidResult.synced,
           teller_synced: tellerResult.synced,
+          recategorized: recategorized.categorized,
         },
       });
     }
 
-    return jsonResponse({ synced, categorized }, 200, securityHeaders);
+    return jsonResponse({
+      synced,
+      categorized,
+      recategorized: recategorized.categorized,
+      recategorized_updated: recategorized.updated,
+    }, 200, securityHeaders);
   } catch (error) {
     if (error instanceof AuthError) {
       return jsonResponse({ error: error.message }, error.status, securityHeaders);

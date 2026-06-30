@@ -19,6 +19,14 @@ struct TransactionListView: View {
                     }
                 }
 
+                if let error = transactions.errorMessage {
+                    Section {
+                        Text(error)
+                            .font(.footnote)
+                            .foregroundStyle(.red)
+                    }
+                }
+
                 if filtered.isEmpty {
                     ContentUnavailableView(
                         "No transactions",
@@ -90,6 +98,9 @@ struct TransactionListView: View {
                     transactions: transactions.transactions,
                     showsLoading: false
                 )
+            }
+            .task {
+                await transactions.loadAll(client: auth.supabaseClient, showsLoading: false)
             }
         }
     }

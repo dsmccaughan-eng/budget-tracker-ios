@@ -3,6 +3,7 @@ import SwiftUI
 struct RootView: View {
     @EnvironmentObject private var auth: AuthStore
     @EnvironmentObject private var appLock: AppLockStore
+    @EnvironmentObject private var transactions: TransactionStore
 
     var body: some View {
         Group {
@@ -35,6 +36,12 @@ struct RootView: View {
     }
 
     private var financialNavigation: some View {
-        MainTabView()
+        ZStack {
+            MainTabView()
+
+            if transactions.showsFinancialLoadingOverlay {
+                FinancialDataLoadingOverlay(message: transactions.financialLoadingMessage)
+            }
+        }
     }
 }

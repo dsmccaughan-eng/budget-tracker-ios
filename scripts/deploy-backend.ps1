@@ -82,6 +82,7 @@ $functions = @(
   "plaid-webhook",
   "aggregation-link-policy",
   "aggregation-sync-transactions",
+  "recategorize-transactions",
   "teller-exchange-enrollment",
   "teller-sync-transactions",
   "teller-remove-item"

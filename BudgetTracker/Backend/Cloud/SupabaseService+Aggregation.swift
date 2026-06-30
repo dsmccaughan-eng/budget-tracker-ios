@@ -60,4 +60,15 @@ extension SupabaseService {
             return try await syncTransactions(client: client)
         }
     }
+
+    func recategorizeTransactions(
+        client: SupabaseClient,
+        limit: Int = 500
+    ) async throws -> RecategorizeTransactionsResponse {
+        try await invokeFunction(
+            name: "recategorize-transactions",
+            body: RecategorizeTransactionsBody(limit: limit),
+            client: client
+        )
+    }
 }

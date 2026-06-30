@@ -110,16 +110,11 @@ struct DashboardView: View {
                         }
                         .buttonStyle(.borderedProminent)
                     } else {
-                        NavigationLink {
-                            BudgetView()
-                        } label: {
-                            BudgetSpendPieChart(
-                                progress: budgets.progress,
-                                referenceDate: Date(),
-                                hasTransactions: !transactions.transactions.isEmpty
-                            )
-                        }
-                        .buttonStyle(.plain)
+                        BudgetSpendPieChart(
+                            progress: budgets.progress,
+                            referenceDate: Date(),
+                            hasTransactions: !transactions.transactions.isEmpty
+                        )
                         .listRowInsets(EdgeInsets())
                         .listRowBackground(Color.clear)
 

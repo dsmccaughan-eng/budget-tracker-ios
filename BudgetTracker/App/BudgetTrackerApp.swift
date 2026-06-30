@@ -43,7 +43,7 @@ struct BudgetTrackerApp: App {
                 .task(id: financialDataTaskID) {
                     guard authStore.state == .authenticated,
                           appLockStore.canAccessFinancialData else { return }
-                    await reloadFinancialData()
+                    await beginFinancialSession()
                 }
                 .onChange(of: authStore.state) { _, newState in
                     if newState != .authenticated {
@@ -51,11 +51,13 @@ struct BudgetTrackerApp: App {
                     }
                 }
                 .onChange(of: transactionStore.transactions) { _, newTransactions in
-                    budgetStore.noteTransactionsChanged(newTransactions)
+                    Task { @MainActor in
+                        budgetStore.noteTransactionsChanged(newTransactions)
+                    }
                 }
                 .onChange(of: scenePhase) { _, phase in
                     guard phase == .active else { return }
-                    Task { await refreshDailyNetWorthIfNeeded() }
+                    Task { await refreshOnForeground() }
                 }
         }
     }
@@ -65,63 +67,92 @@ struct BudgetTrackerApp: App {
     }
 
     @MainActor
-    private func reloadFinancialData() async {
+    private func beginFinancialSession() async {
         guard authStore.state == .authenticated, let client = authStore.activeSupabaseClient else { return }
 
-        await transactionStore.loadAll(client: client, showsLoading: false)
+        transactionStore.beginFinancialBootstrap()
+        defer { transactionStore.endFinancialBootstrap() }
 
-        await withTaskGroup(of: Void.self) { group in
-            group.addTask { @MainActor in
-                await self.investmentStore.loadAll(client: client)
-            }
-            group.addTask { @MainActor in
-                await self.budgetStore.reload(
-                    client: client,
-                    transactions: self.transactionStore.transactions,
-                    showsLoading: false
-                )
-            }
-            group.addTask { @MainActor in
-                await self.merchantRulesStore.reload(client: client)
-            }
-            group.addTask { @MainActor in
-                await self.accountBalanceStore.reload(client: client)
-            }
+        await transactionStore.loadAll(client: client, showsLoading: false)
+        applyLocalDerivedState()
+
+        if transactionStore.needsAutomaticSync(userId: authStore.userId) {
+            _ = await transactionStore.syncIfNeeded(
+                client: client,
+                userId: authStore.userId
+            )
+            applyLocalDerivedState()
         }
 
-        await reloadNetWorthData()
-        runBackgroundFinancialMaintenance()
+        Task { @MainActor in
+            await loadSecondaryFinancialData(client: client)
+        }
     }
 
     @MainActor
-    private func refreshDailyNetWorthIfNeeded() async {
+    private func refreshOnForeground() async {
         guard authStore.state == .authenticated,
               appLockStore.canAccessFinancialData,
               let client = authStore.activeSupabaseClient else { return }
+
+        if TransactionSyncPolicy.transactionsAppearStale(
+            transactions: transactionStore.transactions,
+            now: Date()
+        ) {
+            await transactionStore.loadAll(client: client, showsLoading: false)
+            applyLocalDerivedState()
+        }
+
+        if transactionStore.needsAutomaticSync(userId: authStore.userId) {
+            let didSync = await transactionStore.syncIfNeeded(
+                client: client,
+                userId: authStore.userId
+            )
+            if didSync {
+                applyLocalDerivedState()
+                await refreshDerivedFinancialData(client: client)
+            }
+            return
+        }
+
         let didUpdate = await transactionStore.runBackgroundMaintenance(
             client: client,
             userId: authStore.userId
         )
         if didUpdate {
+            applyLocalDerivedState()
             await refreshDerivedFinancialData(client: client)
         }
     }
 
     @MainActor
-    private func runBackgroundFinancialMaintenance() {
-        Task { @MainActor in
-            guard authStore.state == .authenticated,
-                  appLockStore.canAccessFinancialData,
-                  let client = authStore.activeSupabaseClient else { return }
+    private func applyLocalDerivedState() {
+        budgetStore.noteTransactionsChanged(transactionStore.transactions)
+        netWorthStore.syncFromLocal(
+            accounts: transactionStore.accounts,
+            accountSnapshots: accountBalanceStore.snapshots,
+            transactions: transactionStore.transactions
+        )
+    }
 
-            let didUpdate = await transactionStore.runBackgroundMaintenance(
-                client: client,
-                userId: authStore.userId
-            )
-            if didUpdate {
-                await refreshDerivedFinancialData(client: client)
-            }
-        }
+    @MainActor
+    private func loadSecondaryFinancialData(client: SupabaseClient) async {
+        async let budgets: Void = budgetStore.reload(
+            client: client,
+            transactions: transactionStore.transactions,
+            showsLoading: false
+        )
+        async let investments: Void = investmentStore.loadAll(client: client)
+        async let rules: Void = merchantRulesStore.reload(client: client)
+        async let balances: Void = accountBalanceStore.reload(client: client)
+        _ = await (budgets, investments, rules, balances)
+
+        await reloadNetWorthData()
+        _ = await transactionStore.runBackgroundMaintenance(
+            client: client,
+            userId: authStore.userId
+        )
+        applyLocalDerivedState()
     }
 
     @MainActor
@@ -140,7 +171,6 @@ struct BudgetTrackerApp: App {
         guard authStore.state == .authenticated,
               appLockStore.canAccessFinancialData,
               let client = authStore.activeSupabaseClient else { return }
-        await accountBalanceStore.reload(client: client)
         await netWorthStore.reload(
             client: client,
             accounts: transactionStore.accounts,

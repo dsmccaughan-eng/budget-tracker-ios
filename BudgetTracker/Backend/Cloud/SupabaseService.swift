@@ -65,11 +65,27 @@ actor SupabaseService {
         if let since {
             filter = filter.gte("date", value: since)
         }
-        let rows: [Transaction] = try await filter
-            .order("date", ascending: false)
-            .limit(limit)
-            .execute()
-            .value
+
+        // PostgREST caps responses at 1000 rows; page until we reach `limit` or exhaust data.
+        let pageSize = 1000
+        var rows: [Transaction] = []
+        var offset = 0
+
+        while rows.count < limit {
+            let end = offset + pageSize - 1
+            let page: [Transaction] = try await filter
+                .order("date", ascending: false)
+                .range(from: offset, to: end)
+                .execute()
+                .value
+            rows.append(contentsOf: page)
+            if page.count < pageSize { break }
+            offset += pageSize
+        }
+
+        if rows.count > limit {
+            rows = Array(rows.prefix(limit))
+        }
         return rows
     }
 
@@ -126,6 +142,23 @@ struct ExchangeTokenResponse: Decodable {
 
 struct SyncTransactionsResponse: Decodable {
     let synced: Int
+    let categorized: Int
+    let recategorized: Int?
+    let recategorizedUpdated: Int?
+
+    enum CodingKeys: String, CodingKey {
+        case synced, categorized, recategorized
+        case recategorizedUpdated = "recategorized_updated"
+    }
+}
+
+struct RecategorizeTransactionsBody: Encodable {
+    let limit: Int
+}
+
+struct RecategorizeTransactionsResponse: Decodable {
+    let scanned: Int
+    let updated: Int
     let categorized: Int
 }
 

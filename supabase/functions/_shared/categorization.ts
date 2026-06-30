@@ -1,11 +1,13 @@
 import {
-  looksLikeTransfer,
   matchSimilarCategorization,
   merchantSimilarityScore,
-  matchesMerchantPattern,
-  plaidHintsTransfer,
   type UserCategorizationHint,
 } from "./merchant-similarity.ts";
+import {
+  looksLikeTransfer,
+  matchesMerchantPattern,
+  plaidHintsTransfer,
+} from "./transfer-heuristics.ts";
 
 export const VALID_CATEGORIES = [
   "Housing & Utilities",
@@ -83,7 +85,12 @@ export async function categorizeTransaction(
   userHints: UserCategorizationHint[] = [],
 ): Promise<CategorizationResult> {
   const searchText = (merchantName ?? transactionName).toLowerCase();
+  const nameText = transactionName.toLowerCase();
   const displayName = merchantName ?? transactionName;
+
+  const matchesMerchant = (pattern: string) =>
+    matchesMerchantPattern(searchText, pattern) ||
+    matchesMerchantPattern(nameText, pattern);
 
   const { data: rules } = await (admin as {
     from: (table: string) => {
@@ -133,7 +140,7 @@ export async function categorizeTransaction(
     };
   }
 
-  if (looksLikeTransfer(searchText, plaidCategory)) {
+  if (looksLikeTransfer(searchText, plaidCategory) || looksLikeTransfer(nameText, plaidCategory)) {
     return {
       category: "Transfers",
       subcategory: plaidCategory,
@@ -153,7 +160,7 @@ export async function categorizeTransaction(
     (a, b) => b.merchant_pattern.length - a.merchant_pattern.length,
   );
   for (const merchant of sortedMerchants) {
-    if (matchesMerchantPattern(searchText, merchant.merchant_pattern)) {
+    if (matchesMerchant(merchant.merchant_pattern)) {
       return {
         category: merchant.category,
         subcategory: merchant.subcategory,

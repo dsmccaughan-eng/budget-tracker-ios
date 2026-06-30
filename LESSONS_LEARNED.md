@@ -287,6 +287,24 @@ Entry format
 - **Fix:** `TransactionSyncPolicy` + `syncIfNeeded` auto-sync when connections exist and data is stale (30+ min since last client sync, server `last_sync_at` > 6h, or newest txn > 48h). Run sync + daily Plaid refresh in a background task after cached data paints; parallelize `loadAll` fetches and secondary store reloads; suppress startup loading spinners.
 - **Verification:** Open app after multi-day gap → transactions update within ~1 min without manual sync; unlock UI responsive immediately; pull-to-refresh on Transactions still forces sync; `TransactionSyncPolicyTests` pass.
 
+### 2026-06-30 — Launch freeze + stale sync after 6/11
+- **Symptom:** App still froze for a few seconds on open; transactions stuck at 6/11 despite active bank connections.
+- **Root cause:** Startup awaited net worth/budget network work before bank sync started; successful syncs with 0 rows still recorded `lastSyncAt`, blocking retries.
+- **Fix:** Loading overlay during bootstrap + transaction sync; sync immediately after DB load when stale; defer investments/net-worth fetch; only record client sync when rows arrive or data is fresh; surface sync errors on Transactions tab.
+- **Verification:** Open app → see "Loading/Syncing" overlay instead of frozen UI; stale accounts pull post-6/11 txns after deploy + open; `TransactionSyncPolicyTests` pass.
+
+### 2026-06-30 — Plaid refresh-before-sync broke bank sync (stuck at 6/11)
+- **Symptom:** Accounts showed active but newest transaction stayed 2026-06-11; pull-to-refresh did not advance dates.
+- **Root cause:** Server called Plaid `/transactions/refresh` immediately before `/transactions/sync` for stale items; Plaid returned `INTERNAL_SERVER_ERROR` and sync aborted. DB backfill via direct `/transactions/sync` returned rows through 2026-06-29. iOS `sync()` skipped `loadAll` when the edge function failed, so pull-to-refresh never re-read Supabase even after server backfill.
+- **Fix:** Remove pre-sync refresh from `plaid-sync.ts`; redeploy sync functions; run `scripts/force-plaid-sync-for-user.mjs`; always `loadAll` after sync attempts on iOS; paginate `fetchTransactions` past PostgREST 1000-row cap; reload when Transactions tab appears.
+- **Verification:** Production DB newest `date` is 2026-06-29; force-quit + reopen or pull-to-refresh shows June transactions; `last_sync_at` updates on plaid_items.
+
+### 2026-06-30 — Uncategorized Other after emergency Plaid backfill
+- **Symptom:** New June transactions appeared but every category showed `Other`.
+- **Root cause:** `scripts/force-plaid-sync-for-user.mjs` upserted rows with hardcoded `category: Other` / `category_source: plaid`, bypassing `categorizeTransaction`. Separately, `categorization.ts` imported transfer helpers from `merchant-similarity.ts` (wrong module), causing `BOOT_ERROR` on all sync/recategorize edge functions. Gemini quota was also exhausted, so unknown merchants could not fall back to AI.
+- **Fix:** Add `recategorize-transactions` edge function + run `scripts/recategorize-user-transactions.mjs`; auto-recategorize after `aggregation-sync-transactions`; match merchant patterns against both `merchant_name` and `name`; expand `merchant_db` + transfer heuristics; fix categorization imports from `transfer-heuristics.ts`.
+- **Verification:** Recategorize pass updates June rows to Groceries/Dining/Transfers/etc.; pull-to-refresh runs recategorize on iOS; edge functions boot successfully.
+
 ### 2026-06-30 — Pre-ship edge cases (sync overlap, foreground lag)
 - **Symptom:** Risk of duplicate Plaid syncs when manual refresh overlapped auto-sync; every foreground transition re-fetched all transactions.
 - **Root cause:** `sync()` and `syncIfNeeded()` could run concurrently; `refreshDailyNetWorthIfNeeded` called `loadAll` on every `scenePhase == .active`.
@@ -304,3 +322,9 @@ Entry format
 - **Root cause:** Xcode 26 `altool` mis-resolves Apple ID when multiple apps share the `com.optimized.*` bundle prefix (Budget Tracker + Optimized).
 - **Fix:** Set `APP_STORE_CONNECT_ALTOOL_ADDITIONAL_ARGUMENTS: '--apple-id "6775334574"'` in `codemagic.yaml` workflow vars.
 - **Verification:** Codemagic publishing step uploads IPA to App Store Connect.
+
+### 2026-06-30 — Net worth chart low start, June spike, one-day dip
+- **Symptom:** Chart started near zero, jumped to normal levels in June when investment accounts appeared, then showed an isolated one-day crater before recovering.
+- **Root cause:** Per-account history only counted balances after each account’s first snapshot (partial portfolio before June); a bad saved `net_worth_snapshots` row could override a good account-based estimate; single-day snapshot glitches were plotted verbatim.
+- **Fix:** Build account history first with `backfillLeadingBalances` (assume first known balance before first observation); merge snapshots via `shouldTrustSnapshot` (reject isolated low dips, keep snapshots that reflect full portfolio); `smoothIsolatedOutliers` interpolates V-shaped one-day glitches; tests in `NetWorthHistoryEngineTests`.
+- **Verification:** Net Worth 1M chart is flat at current level before investment link date; no June vertical jump; no single-day dip; unit tests pass on CI.

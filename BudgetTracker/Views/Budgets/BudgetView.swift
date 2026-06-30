@@ -8,6 +8,7 @@ struct BudgetView: View {
     @State private var showBudgetPlan = false
     @State private var budgetToEdit: Budget?
     @State private var monthOffset = 0
+    @State private var selectedChartCategory: String?
 
     private var selectedMonth: Date {
         let current = BudgetMath.startOfMonth(Date())
@@ -21,6 +22,18 @@ struct BudgetView: View {
 
     private var chartProgress: [BudgetProgress] {
         monthSections.spending.map(\.progress)
+    }
+
+    private var visibleSpendingRows: [BudgetMonthRow] {
+        guard let selectedChartCategory else { return monthSections.spending }
+        return monthSections.spending.filter { $0.progress.category == selectedChartCategory }
+    }
+
+    private var spendingSectionTitle: String {
+        if let selectedChartCategory {
+            return selectedChartCategory
+        }
+        return monthSectionTitle
     }
 
     var body: some View {
@@ -43,19 +56,22 @@ struct BudgetView: View {
                         BudgetSpendPieChart(
                             progress: chartProgress,
                             referenceDate: selectedMonth,
-                            hasTransactions: !transactions.transactions.isEmpty
+                            hasTransactions: !transactions.transactions.isEmpty,
+                            selectedCategory: $selectedChartCategory
                         )
                     }
                     .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
                     .listRowBackground(Color.clear)
 
-                    budgetCategorySection(
-                        title: monthSectionTitle,
-                        rows: monthSections.spending,
-                        allowsDelete: true
-                    )
+                    if !visibleSpendingRows.isEmpty {
+                        budgetCategorySection(
+                            title: spendingSectionTitle,
+                            rows: visibleSpendingRows,
+                            allowsDelete: selectedChartCategory == nil
+                        )
+                    }
 
-                    if !monthSections.income.isEmpty {
+                    if selectedChartCategory == nil, !monthSections.income.isEmpty {
                         budgetCategorySection(
                             title: "Income",
                             rows: monthSections.income,
@@ -63,7 +79,7 @@ struct BudgetView: View {
                         )
                     }
 
-                    if !monthSections.transfers.isEmpty {
+                    if selectedChartCategory == nil, !monthSections.transfers.isEmpty {
                         budgetCategorySection(
                             title: "Transfers",
                             rows: monthSections.transfers,
@@ -110,6 +126,9 @@ struct BudgetView: View {
             }
             .task {
                 await reloadBudgetsTabIfNeeded()
+            }
+            .onChange(of: monthOffset) { _, _ in
+                selectedChartCategory = nil
             }
             .onChange(of: transactions.transactions) { _, newTransactions in
                 budgets.noteTransactionsChanged(newTransactions)

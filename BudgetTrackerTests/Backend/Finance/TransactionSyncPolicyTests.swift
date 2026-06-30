@@ -51,36 +51,6 @@ final class TransactionSyncPolicyTests: XCTestCase {
         )
     }
 
-    func testShouldNotSyncInsideClientIntervalWhenServerFresh() {
-        let item = activePlaidItem(lastSyncAt: "2026-06-10T12:00:00Z")
-        let lastClient = date("2026-06-10", hour: 12, minute: 10)
-        let now = date("2026-06-10", hour: 12, minute: 20)
-        let txn = Transaction(
-            id: UUID(),
-            accountId: UUID(),
-            plaidTransactionId: "txn_1",
-            amount: 12.34,
-            date: "2026-06-10",
-            merchantName: "Store",
-            name: "Store",
-            category: "Shopping",
-            subcategory: nil,
-            pending: false,
-            isManual: false,
-            splitItems: nil
-        )
-        XCTAssertFalse(
-            TransactionSyncPolicy.shouldSyncAutomatically(
-                lastClientSyncAt: lastClient,
-                plaidItems: [item],
-                tellerItems: [],
-                transactions: [txn],
-                now: now,
-                calendar: calendar
-            )
-        )
-    }
-
     func testShouldSyncWhenTransactionsAreStale() {
         let item = activePlaidItem(lastSyncAt: "2026-06-10T12:00:00Z")
         let lastClient = date("2026-06-10", hour: 12, minute: 5)
@@ -107,6 +77,42 @@ final class TransactionSyncPolicyTests: XCTestCase {
                 transactions: [txn],
                 now: now,
                 calendar: calendar
+            )
+        )
+    }
+
+    func testShouldNotRecordClientSyncWhenStillStaleAndNoRowsSynced() {
+        let now = date("2026-06-30", hour: 9)
+        let txn = Transaction(
+            id: UUID(),
+            accountId: UUID(),
+            plaidTransactionId: "txn_1",
+            amount: 12.34,
+            date: "2026-06-11",
+            merchantName: "Store",
+            name: "Store",
+            category: "Shopping",
+            subcategory: nil,
+            pending: false,
+            isManual: false,
+            splitItems: nil
+        )
+        XCTAssertFalse(
+            TransactionSyncPolicy.shouldRecordClientSync(
+                syncedCount: 0,
+                transactions: [txn],
+                now: now,
+                calendar: calendar
+            )
+        )
+    }
+
+    func testShouldRecordClientSyncWhenRowsSynced() {
+        XCTAssertTrue(
+            TransactionSyncPolicy.shouldRecordClientSync(
+                syncedCount: 3,
+                transactions: [],
+                now: date("2026-06-30")
             )
         )
     }

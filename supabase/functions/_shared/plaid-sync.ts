@@ -82,7 +82,14 @@ export async function syncPlaidItemsForUser(
       { p_plaid_item_id: item.plaid_item_id },
     );
 
-    if (tokenError || !accessToken) continue;
+    if (tokenError || !accessToken) {
+      await admin.from("plaid_items").update({
+        status: "error",
+        error_code: "ACCESS_TOKEN_UNAVAILABLE",
+        error_message: "Could not read bank credentials for sync.",
+      }).eq("plaid_item_id", item.plaid_item_id);
+      continue;
+    }
 
     try {
       let cursor = item.sync_cursor ?? undefined;
