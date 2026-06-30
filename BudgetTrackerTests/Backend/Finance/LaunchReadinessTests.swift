@@ -17,10 +17,6 @@ final class LaunchReadinessTests: XCTestCase {
         XCTAssertEqual(alerts.count, 1)
     }
 
-    func testSubscriptionAuditDefaultLookbackIs120Days() {
-        XCTAssertEqual(SubscriptionAuditEngine.defaultLookbackDays, 120)
-    }
-
     func testAccountDecodesMissingProviderAndStringBalance() throws {
         let json = """
         {
@@ -35,14 +31,5 @@ final class LaunchReadinessTests: XCTestCase {
         let account = try JSONDecoder().decode(Account.self, from: json)
         XCTAssertEqual(account.provider, "plaid")
         XCTAssertEqual(account.currentBalance ?? 0, 1234.56, accuracy: 0.01)
-    }
-
-    func testCashFlowHorizonPrefixIncludesAllRequestedDays() {
-        let days = [
-            CashFlowDay(date: "2026-05-01", inflow: 10, outflow: 5),
-            CashFlowDay(date: "2026-05-02", inflow: 20, outflow: 0)
-        ]
-        let totals = CashFlowEngine.horizonTotals(days: days, first: 2)
-        XCTAssertEqual(totals.inflow, 30, accuracy: 0.01)
     }
 }

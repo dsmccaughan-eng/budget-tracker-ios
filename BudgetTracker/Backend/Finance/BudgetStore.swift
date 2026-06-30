@@ -19,10 +19,20 @@ final class BudgetStore: ObservableObject {
         errorMessage = message
     }
 
-    func reload(client: SupabaseClient, transactions: [Transaction]) async {
-        isLoading = true
+    func reload(
+        client: SupabaseClient,
+        transactions: [Transaction],
+        showsLoading: Bool = true
+    ) async {
+        if showsLoading {
+            isLoading = true
+        }
         errorMessage = nil
-        defer { isLoading = false }
+        defer {
+            if showsLoading {
+                isLoading = false
+            }
+        }
 
         do {
             budgets = try await SupabaseService.shared.fetchBudgets(client: client)

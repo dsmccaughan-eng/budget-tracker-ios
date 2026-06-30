@@ -318,6 +318,8 @@ struct DashboardView: View {
     }
 
     private func reloadAll() async {
+        guard let client = auth.activeSupabaseClient else { return }
+        await transactions.sync(client: client, userId: auth.userId)
         await reloadDashboardData()
         let alerts = BudgetAlertEngine.alerts(
             progress: budgets.progress,

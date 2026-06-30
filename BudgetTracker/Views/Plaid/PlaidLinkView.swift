@@ -144,7 +144,7 @@ struct PlaidLinkView: View {
                 "Syncing transactions in the background."
             isLoading = false
             Task {
-                await transactions.sync(client: auth.supabaseClient)
+                await transactions.sync(client: auth.supabaseClient, userId: auth.userId)
             }
         } catch {
             isLoading = false

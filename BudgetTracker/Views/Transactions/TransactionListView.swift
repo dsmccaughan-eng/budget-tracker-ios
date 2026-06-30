@@ -67,7 +67,12 @@ struct TransactionListView: View {
                         Image(systemName: "building.columns")
                     }
                     Button {
-                        Task { await transactions.sync(client: auth.supabaseClient) }
+                        Task {
+                            await transactions.sync(
+                                client: auth.supabaseClient,
+                                userId: auth.userId
+                            )
+                        }
                     } label: {
                         if transactions.isSyncing {
                             ProgressView()
@@ -79,8 +84,12 @@ struct TransactionListView: View {
                 }
             }
             .refreshable {
-                await transactions.loadAll(client: auth.supabaseClient)
-                await budgets.reload(client: auth.supabaseClient, transactions: transactions.transactions)
+                await transactions.sync(client: auth.supabaseClient, userId: auth.userId)
+                await budgets.reload(
+                    client: auth.supabaseClient,
+                    transactions: transactions.transactions,
+                    showsLoading: false
+                )
             }
         }
     }

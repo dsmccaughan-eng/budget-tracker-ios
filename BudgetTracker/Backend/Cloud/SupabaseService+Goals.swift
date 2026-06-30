@@ -2,47 +2,6 @@ import Foundation
 import Supabase
 
 extension SupabaseService {
-    func fetchSavingsGoals(client: SupabaseClient) async throws -> [SavingsGoal] {
-        let session = try await client.auth.session
-        return try await client
-            .from("savings_goals")
-            .select()
-            .eq("user_id", value: session.user.id.uuidString)
-            .order("created_at", ascending: false)
-            .execute()
-            .value
-    }
-
-    func saveSavingsGoal(_ goal: SavingsGoal, client: SupabaseClient) async throws -> SavingsGoal {
-        let session = try await client.auth.session
-        let row = SavingsGoalInsert(userId: session.user.id, goal: goal)
-        let saved: SavingsGoal = try await client
-            .from("savings_goals")
-            .insert(row)
-            .select()
-            .single()
-            .execute()
-            .value
-        return saved
-    }
-
-    func updateSavingsGoal(_ goal: SavingsGoal, client: SupabaseClient) async throws {
-        let patch = SavingsGoalPatch(goal: goal)
-        try await client
-            .from("savings_goals")
-            .update(patch)
-            .eq("id", value: goal.id.uuidString)
-            .execute()
-    }
-
-    func deleteSavingsGoal(id: UUID, client: SupabaseClient) async throws {
-        try await client
-            .from("savings_goals")
-            .delete()
-            .eq("id", value: id.uuidString)
-            .execute()
-    }
-
     func fetchNetWorthSnapshots(client: SupabaseClient) async throws -> [NetWorthSnapshot] {
         let session = try await client.auth.session
         return try await client
@@ -115,25 +74,6 @@ extension SupabaseService {
         try await client.from("merchant_rules").delete().eq("id", value: id.uuidString).execute()
     }
 
-    func fetchPriceHistory(client: SupabaseClient) async throws -> [PriceHistoryItem] {
-        let session = try await client.auth.session
-        return try await client
-            .from("price_history")
-            .select()
-            .eq("user_id", value: session.user.id.uuidString)
-            .order("date", ascending: false)
-            .limit(200)
-            .execute()
-            .value
-    }
-
-    func savePriceHistoryItems(_ items: [PriceHistoryItem], client: SupabaseClient) async throws {
-        guard !items.isEmpty else { return }
-        let session = try await client.auth.session
-        let rows = items.map { PriceHistoryInsert(userId: session.user.id, item: $0) }
-        try await client.from("price_history").insert(rows).execute()
-    }
-
     func saveManualTransaction(_ transaction: Transaction, client: SupabaseClient) async throws -> Transaction {
         let session = try await client.auth.session
         let row = TransactionInsert(userId: session.user.id, transaction: transaction)
@@ -165,67 +105,6 @@ private struct SplitItemsPatch: Encodable {
 
     enum CodingKeys: String, CodingKey {
         case splitItems = "split_items"
-    }
-}
-
-private struct SavingsGoalInsert: Encodable {
-    let userId: UUID
-    let name: String
-    let targetAmount: Double
-    let currentAmount: Double
-    let monthlyContribution: Double
-    let targetDate: String?
-    let linkedAccountId: UUID?
-    let emoji: String?
-
-    enum CodingKeys: String, CodingKey {
-        case name, emoji
-        case userId = "user_id"
-        case targetAmount = "target_amount"
-        case currentAmount = "current_amount"
-        case monthlyContribution = "monthly_contribution"
-        case targetDate = "target_date"
-        case linkedAccountId = "linked_account_id"
-    }
-
-    init(userId: UUID, goal: SavingsGoal) {
-        self.userId = userId
-        name = goal.name
-        targetAmount = goal.targetAmount
-        currentAmount = goal.currentAmount
-        monthlyContribution = goal.monthlyContribution
-        targetDate = goal.targetDate
-        linkedAccountId = goal.linkedAccountId
-        emoji = goal.emoji
-    }
-}
-
-private struct SavingsGoalPatch: Encodable {
-    let name: String
-    let targetAmount: Double
-    let currentAmount: Double
-    let monthlyContribution: Double
-    let targetDate: String?
-    let linkedAccountId: UUID?
-    let emoji: String?
-
-    enum CodingKeys: String, CodingKey {
-        case name, emoji
-        case targetAmount = "target_amount"
-        case currentAmount = "current_amount"
-        case monthlyContribution = "monthly_contribution"
-        case targetDate = "target_date"
-        case linkedAccountId = "linked_account_id"
-    }
-
-    init(goal: SavingsGoal) {
-        name = goal.name
-        targetAmount = goal.targetAmount
-        currentAmount = goal.currentAmount
-        monthlyContribution = goal.monthlyContribution
-        targetDate = goal.targetDate
-        linkedAccountId = goal.linkedAccountId
-        emoji = goal.emoji
     }
 }
 
@@ -270,28 +149,6 @@ private struct MerchantRuleInsert: Encodable {
         merchantContains = rule.merchantContains
         category = rule.category
         subcategory = rule.subcategory
-    }
-}
-
-private struct PriceHistoryInsert: Encodable {
-    let userId: UUID
-    let itemName: String
-    let price: Double
-    let merchant: String
-    let date: String
-
-    enum CodingKeys: String, CodingKey {
-        case price, merchant, date
-        case userId = "user_id"
-        case itemName = "item_name"
-    }
-
-    init(userId: UUID, item: PriceHistoryItem) {
-        self.userId = userId
-        itemName = item.itemName
-        price = item.price
-        merchant = item.merchant
-        date = item.date
     }
 }
 

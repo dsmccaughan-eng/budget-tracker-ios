@@ -5,7 +5,6 @@ import UserNotifications
 struct ReceiptScanView: View {
     @EnvironmentObject private var auth: AuthStore
     @EnvironmentObject private var transactions: TransactionStore
-    @EnvironmentObject private var priceHistory: PriceHistoryStore
 
     @State private var selectedItem: PhotosPickerItem?
     @State private var isProcessing = false
@@ -48,16 +47,6 @@ struct ReceiptScanView: View {
             }
             let parsed = try await GeminiService.shared.parseReceipt(imageData: data)
             await transactions.saveReceiptResult(parsed, client: auth.supabaseClient)
-            let priceItems = parsed.items.map {
-                PriceHistoryItem(
-                    id: UUID(),
-                    itemName: $0.name,
-                    price: $0.price,
-                    merchant: parsed.merchant,
-                    date: parsed.date
-                )
-            }
-            await priceHistory.addItems(priceItems, client: auth.supabaseClient)
             resultMessage = "Saved \(parsed.merchant) for \(FinanceFormatting.currency(parsed.total)) with \(parsed.items.count) items."
         } catch {
             resultMessage = error.localizedDescription
@@ -197,92 +186,6 @@ struct NotificationSettingsView: View {
         .navigationTitle("Notifications")
         .onAppear {
             UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { _, _ in }
-        }
-    }
-}
-
-struct PriceHistoryView: View {
-    @EnvironmentObject private var auth: AuthStore
-    @EnvironmentObject private var priceHistory: PriceHistoryStore
-
-    var body: some View {
-        List {
-            if priceHistory.items.isEmpty {
-                ContentUnavailableView(
-                    "No price history",
-                    systemImage: "tag",
-                    description: Text("Scan receipts to track item prices over time.")
-                )
-            } else {
-                ForEach(priceHistory.items) { item in
-                    HStack {
-                        VStack(alignment: .leading) {
-                            Text(item.itemName).font(.headline)
-                            Text(item.merchant).font(.caption).foregroundStyle(.secondary)
-                        }
-                        Spacer()
-                        VStack(alignment: .trailing) {
-                            Text(FinanceFormatting.currency(item.price))
-                            Text(item.date).font(.caption2).foregroundStyle(.secondary)
-                        }
-                    }
-                }
-            }
-        }
-        .navigationTitle("Price History")
-        .task { await priceHistory.reload(client: auth.supabaseClient) }
-    }
-}
-
-struct SubscriptionAuditView: View {
-    @EnvironmentObject private var insights: InsightsStore
-
-    var body: some View {
-        List {
-            Section("Monthly recurring total") {
-                Text(FinanceFormatting.currency(SubscriptionAuditEngine.totalMonthlySpend(insights.subscriptions)))
-                    .font(.title2.bold())
-            }
-            Section("Detected subscriptions") {
-                if insights.subscriptions.isEmpty {
-                    Text("No recurring subscription charges found yet.")
-                        .foregroundStyle(.secondary)
-                } else {
-                    ForEach(insights.subscriptions) { charge in
-                        VStack(alignment: .leading) {
-                            Text(charge.merchant).font(.headline)
-                            Text("\(FinanceFormatting.currency(charge.monthlyAmount))/mo • \(charge.chargeCount) charges")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-                }
-            }
-        }
-        .navigationTitle("Subscriptions")
-    }
-}
-
-struct InsightsView: View {
-    @EnvironmentObject private var insights: InsightsStore
-    @EnvironmentObject private var transactions: TransactionStore
-
-    var body: some View {
-        NavigationStack {
-            List {
-                Section("Tools") {
-                    NavigationLink("Subscription audit") {
-                        SubscriptionAuditView()
-                    }
-                    NavigationLink("Price history") {
-                        PriceHistoryView()
-                    }
-                }
-            }
-            .navigationTitle("Insights")
-            .onAppear {
-                insights.refreshLocal(transactions: transactions.transactions)
-            }
         }
     }
 }

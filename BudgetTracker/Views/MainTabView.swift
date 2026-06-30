@@ -11,12 +11,6 @@ struct MainTabView: View {
 
             BudgetView()
                 .tabItem { Label("Budgets", systemImage: "dollarsign.circle") }
-
-            GoalsView()
-                .tabItem { Label("Goals", systemImage: "target") }
-
-            InsightsView()
-                .tabItem { Label("Insights", systemImage: "sparkles") }
         }
     }
 }

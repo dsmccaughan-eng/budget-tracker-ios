@@ -13,9 +13,12 @@ final class TransactionStore: ObservableObject {
     @Published var lastSyncSummary: String?
 
     private let plaidAccountRefreshStore = PlaidAccountRefreshStore()
+    private let transactionSyncStore = TransactionSyncStore()
 
     private var loadingRequestCount = 0
     private var inFlightLoadAll: Task<Void, Never>?
+    private var inFlightSyncIfNeeded: Task<Bool, Never>?
+    private var inFlightBackgroundMaintenance: Task<Bool, Never>?
 
     func loadAll(client: SupabaseClient, showsLoading: Bool = true) async {
         if let inFlightLoadAll {
@@ -48,39 +51,164 @@ final class TransactionStore: ObservableObject {
 
         let since = SupabaseService.transactionHistorySinceDate()
 
+        let accountsTask = Task { try await SupabaseService.shared.fetchAccounts(client: client) }
+        let transactionsTask = Task {
+            try await SupabaseService.shared.fetchTransactions(client: client, since: since)
+        }
+        let plaidItemsTask = Task { try await SupabaseService.shared.fetchPlaidItems(client: client) }
+        let tellerItemsTask = Task { try await SupabaseService.shared.fetchTellerItems(client: client) }
+
         do {
-            accounts = try await SupabaseService.shared.fetchAccounts(client: client)
+            accounts = try await accountsTask.value
         } catch {
             errorMessage = error.localizedDescription
         }
 
         do {
-            transactions = try await SupabaseService.shared.fetchTransactions(
-                client: client,
-                since: since
-            )
+            transactions = try await transactionsTask.value
         } catch {
             errorMessage = error.localizedDescription
         }
 
-        if let rows = try? await SupabaseService.shared.fetchPlaidItems(client: client) {
+        if let rows = try? await plaidItemsTask.value {
             plaidItems = rows
         }
 
-        tellerItems = (try? await SupabaseService.shared.fetchTellerItems(client: client)) ?? []
+        tellerItems = (try? await tellerItemsTask.value) ?? []
     }
 
-    func sync(client: SupabaseClient) async {
+    func sync(client: SupabaseClient, userId: String?) async {
+        if let inFlightBackgroundMaintenance {
+            await inFlightBackgroundMaintenance.value
+        }
+        if let inFlightSyncIfNeeded {
+            await inFlightSyncIfNeeded.value
+        }
+        guard !isSyncing else { return }
+
         isSyncing = true
         errorMessage = nil
         defer { isSyncing = false }
 
         do {
             let result = try await SupabaseService.shared.syncAllTransactions(client: client)
+            if let userId {
+                transactionSyncStore.markSynced(userId: userId, at: Date())
+            }
             lastSyncSummary = "Synced \(result.synced) transactions (\(result.categorized) newly categorized)."
-            await loadAll(client: client)
+            await loadAll(client: client, showsLoading: false)
         } catch {
             errorMessage = error.localizedDescription
+        }
+    }
+
+    @discardableResult
+    func runBackgroundMaintenance(
+        client: SupabaseClient,
+        userId: String?,
+        now: Date = Date(),
+        calendar: Calendar = .current
+    ) async -> Bool {
+        if let inFlightBackgroundMaintenance {
+            return await inFlightBackgroundMaintenance.value
+        }
+
+        let task = Task { @MainActor in
+            await self.performBackgroundMaintenance(
+                client: client,
+                userId: userId,
+                now: now,
+                calendar: calendar
+            )
+        }
+        inFlightBackgroundMaintenance = task
+        let result = await task.value
+        inFlightBackgroundMaintenance = nil
+        return result
+    }
+
+    private func performBackgroundMaintenance(
+        client: SupabaseClient,
+        userId: String?,
+        now: Date,
+        calendar: Calendar
+    ) async -> Bool {
+        let didSync = await syncIfNeeded(
+            client: client,
+            userId: userId,
+            now: now,
+            calendar: calendar
+        )
+        let refreshedPlaid = await refreshPlaidAccountsIfNeeded(
+            client: client,
+            userId: userId,
+            now: now,
+            calendar: calendar
+        )
+        await refreshAccountsIfMissing(client: client, userId: userId)
+        return didSync || refreshedPlaid
+    }
+
+    @discardableResult
+    func syncIfNeeded(
+        client: SupabaseClient,
+        userId: String?,
+        now: Date = Date(),
+        calendar: Calendar = .current
+    ) async -> Bool {
+        if let inFlightSyncIfNeeded {
+            return await inFlightSyncIfNeeded.value
+        }
+
+        let task = Task { @MainActor in
+            await self.performSyncIfNeeded(
+                client: client,
+                userId: userId,
+                now: now,
+                calendar: calendar
+            )
+        }
+        inFlightSyncIfNeeded = task
+        let result = await task.value
+        inFlightSyncIfNeeded = nil
+        return result
+    }
+
+    private func performSyncIfNeeded(
+        client: SupabaseClient,
+        userId: String?,
+        now: Date,
+        calendar: Calendar
+    ) async -> Bool {
+        guard !isSyncing else { return false }
+        guard let userId else { return false }
+        let lastClientSyncAt = transactionSyncStore.lastSyncAt(userId: userId)
+        guard TransactionSyncPolicy.shouldSyncAutomatically(
+            lastClientSyncAt: lastClientSyncAt,
+            plaidItems: plaidItems,
+            tellerItems: tellerItems,
+            transactions: transactions,
+            now: now,
+            calendar: calendar
+        ) else {
+            return false
+        }
+
+        isSyncing = true
+        errorMessage = nil
+        defer { isSyncing = false }
+
+        do {
+            let result = try await SupabaseService.shared.syncAllTransactions(client: client)
+            transactionSyncStore.markSynced(userId: userId, at: Date())
+            if result.synced > 0 {
+                lastSyncSummary = "Synced \(result.synced) transactions (\(result.categorized) newly categorized)."
+            }
+            await loadAll(client: client, showsLoading: false)
+            return true
+        } catch {
+            errorMessage = error.localizedDescription
+            return false
         }
     }
 

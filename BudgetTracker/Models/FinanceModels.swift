@@ -137,26 +137,6 @@ struct Budget: Codable, Identifiable, Hashable {
     }
 }
 
-struct SavingsGoal: Codable, Identifiable, Hashable {
-    var id: UUID
-    var name: String
-    var targetAmount: Double
-    var currentAmount: Double
-    var monthlyContribution: Double
-    var targetDate: String?
-    var linkedAccountId: UUID?
-    var emoji: String?
-
-    enum CodingKeys: String, CodingKey {
-        case id, name, emoji
-        case targetAmount = "target_amount"
-        case currentAmount = "current_amount"
-        case monthlyContribution = "monthly_contribution"
-        case targetDate = "target_date"
-        case linkedAccountId = "linked_account_id"
-    }
-}
-
 struct MerchantRule: Codable, Identifiable, Hashable {
     var id: UUID
     var merchantContains: String
@@ -166,19 +146,6 @@ struct MerchantRule: Codable, Identifiable, Hashable {
     enum CodingKeys: String, CodingKey {
         case id, category, subcategory
         case merchantContains = "merchant_contains"
-    }
-}
-
-struct PriceHistoryItem: Codable, Identifiable, Hashable {
-    var id: UUID
-    var itemName: String
-    var price: Double
-    var merchant: String
-    var date: String
-
-    enum CodingKeys: String, CodingKey {
-        case id, price, merchant, date
-        case itemName = "item_name"
     }
 }
 

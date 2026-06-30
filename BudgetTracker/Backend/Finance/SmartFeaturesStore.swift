@@ -83,41 +83,6 @@ struct MerchantRuleDraft {
 }
 
 @MainActor
-final class PriceHistoryStore: ObservableObject {
-    @Published private(set) var items: [PriceHistoryItem] = []
-    @Published var errorMessage: String?
-
-    func reload(client: SupabaseClient) async {
-        errorMessage = nil
-        do {
-            items = try await SupabaseService.shared.fetchPriceHistory(client: client)
-        } catch {
-            errorMessage = error.localizedDescription
-        }
-    }
-
-    func addItems(_ newItems: [PriceHistoryItem], client: SupabaseClient) async {
-        guard !newItems.isEmpty else { return }
-        errorMessage = nil
-        do {
-            try await SupabaseService.shared.savePriceHistoryItems(newItems, client: client)
-            items.insert(contentsOf: newItems, at: 0)
-        } catch {
-            errorMessage = error.localizedDescription
-        }
-    }
-}
-
-@MainActor
-final class InsightsStore: ObservableObject {
-    @Published private(set) var subscriptions: [SubscriptionCharge] = []
-
-    func refreshLocal(transactions: [Transaction]) {
-        subscriptions = SubscriptionAuditEngine.recurringCharges(transactions: transactions)
-    }
-}
-
-@MainActor
 final class NotificationSettingsStore: ObservableObject {
     @Published var budgetAlertsEnabled: Bool {
         didSet { UserDefaults.standard.set(budgetAlertsEnabled, forKey: Keys.enabled) }

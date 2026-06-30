@@ -7,12 +7,9 @@ struct BudgetTrackerApp: App {
     @StateObject private var plaidLinkCoordinator = PlaidLinkCoordinator()
     @StateObject private var transactionStore = TransactionStore()
     @StateObject private var budgetStore = BudgetStore()
-    @StateObject private var goalsStore = GoalsStore()
     @StateObject private var netWorthStore = NetWorthStore()
     @StateObject private var accountBalanceStore = AccountBalanceStore()
     @StateObject private var merchantRulesStore = MerchantRulesStore()
-    @StateObject private var priceHistoryStore = PriceHistoryStore()
-    @StateObject private var insightsStore = InsightsStore()
     @StateObject private var notificationSettingsStore = NotificationSettingsStore()
     @StateObject private var appLockStore = AppLockStore()
     @StateObject private var transactionReviewStore = TransactionReviewStore()
@@ -33,12 +30,9 @@ struct BudgetTrackerApp: App {
                     _ = plaidLinkCoordinator.continueLink(from: url)
                 }
                 .environmentObject(budgetStore)
-                .environmentObject(goalsStore)
                 .environmentObject(netWorthStore)
                 .environmentObject(accountBalanceStore)
                 .environmentObject(merchantRulesStore)
-                .environmentObject(priceHistoryStore)
-                .environmentObject(insightsStore)
                 .environmentObject(notificationSettingsStore)
                 .environmentObject(transactionReviewStore)
                 .environmentObject(investmentStore)
@@ -72,22 +66,30 @@ struct BudgetTrackerApp: App {
     @MainActor
     private func reloadFinancialData() async {
         guard authStore.state == .authenticated, let client = authStore.activeSupabaseClient else { return }
-        await transactionStore.loadAll(client: client)
-        await transactionStore.refreshPlaidAccountsIfNeeded(
-            client: client,
-            userId: authStore.userId
-        )
-        await transactionStore.refreshAccountsIfMissing(
-            client: client,
-            userId: authStore.userId
-        )
-        await investmentStore.loadAll(client: client)
-        await budgetStore.reload(client: client, transactions: transactionStore.transactions)
-        await goalsStore.reload(client: client, transactions: transactionStore.transactions)
+
+        await transactionStore.loadAll(client: client, showsLoading: false)
+
+        await withTaskGroup(of: Void.self) { group in
+            group.addTask { @MainActor in
+                await self.investmentStore.loadAll(client: client)
+            }
+            group.addTask { @MainActor in
+                await self.budgetStore.reload(
+                    client: client,
+                    transactions: self.transactionStore.transactions,
+                    showsLoading: false
+                )
+            }
+            group.addTask { @MainActor in
+                await self.merchantRulesStore.reload(client: client)
+            }
+            group.addTask { @MainActor in
+                await self.accountBalanceStore.reload(client: client)
+            }
+        }
+
         await reloadNetWorthData()
-        await merchantRulesStore.reload(client: client)
-        await priceHistoryStore.reload(client: client)
-        insightsStore.refreshLocal(transactions: transactionStore.transactions)
+        runBackgroundFinancialMaintenance()
     }
 
     @MainActor
@@ -95,15 +97,38 @@ struct BudgetTrackerApp: App {
         guard authStore.state == .authenticated,
               appLockStore.canAccessFinancialData,
               let client = authStore.activeSupabaseClient else { return }
-        await transactionStore.loadAll(client: client, showsLoading: false)
-        let refreshedPlaid = await transactionStore.refreshPlaidAccountsIfNeeded(
+        let didUpdate = await transactionStore.runBackgroundMaintenance(
             client: client,
             userId: authStore.userId
         )
-        guard refreshedPlaid else { return }
-        await transactionStore.refreshAccountsIfMissing(
+        if didUpdate {
+            await refreshDerivedFinancialData(client: client)
+        }
+    }
+
+    @MainActor
+    private func runBackgroundFinancialMaintenance() {
+        Task { @MainActor in
+            guard authStore.state == .authenticated,
+                  appLockStore.canAccessFinancialData,
+                  let client = authStore.activeSupabaseClient else { return }
+
+            let didUpdate = await transactionStore.runBackgroundMaintenance(
+                client: client,
+                userId: authStore.userId
+            )
+            if didUpdate {
+                await refreshDerivedFinancialData(client: client)
+            }
+        }
+    }
+
+    @MainActor
+    private func refreshDerivedFinancialData(client: SupabaseClient) async {
+        await budgetStore.reload(
             client: client,
-            userId: authStore.userId
+            transactions: transactionStore.transactions,
+            showsLoading: false
         )
         await reloadNetWorthData()
         await investmentStore.loadAll(client: client)

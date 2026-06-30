@@ -280,3 +280,15 @@ Entry format
 - **Root cause:** Tab `.task` refetched snapshots on every open; chart recomputed full transaction reconstruction for all accounts on every SwiftUI render; sparse per-account dates were summed without forward-fill (investment snapshot days missing on other dates); saved net worth snapshots were overridden by bad estimates; Catmull-Rom interpolation overshot between points.
 - **Fix:** Cache chart series in `NetWorthStore`; remove Net Worth open network reload; prefer saved net worth snapshots over estimates; forward-fill account balances before summing; linear chart interpolation.
 - **Verification:** Net Worth tab opens instantly from cache; chart line is smooth and monotonic between snapshot days; ↻ refresh still updates totals and chart.
+
+### 2026-06-30 — Stale transactions and launch lag
+- **Symptom:** Latest transaction stuck at 6/11 while user kept opening the app; UI felt sluggish for several minutes after unlock.
+- **Root cause:** App unlock only reloaded rows from Supabase (`loadAll`) and never called Plaid/Teller sync unless the user tapped sync manually. Startup also ran account refresh, net worth, investments, budgets, and rules sequentially on the main actor with loading spinners.
+- **Fix:** `TransactionSyncPolicy` + `syncIfNeeded` auto-sync when connections exist and data is stale (30+ min since last client sync, server `last_sync_at` > 6h, or newest txn > 48h). Run sync + daily Plaid refresh in a background task after cached data paints; parallelize `loadAll` fetches and secondary store reloads; suppress startup loading spinners.
+- **Verification:** Open app after multi-day gap → transactions update within ~1 min without manual sync; unlock UI responsive immediately; pull-to-refresh on Transactions still forces sync; `TransactionSyncPolicyTests` pass.
+
+### 2026-06-30 — Pre-ship edge cases (sync overlap, foreground lag)
+- **Symptom:** Risk of duplicate Plaid syncs when manual refresh overlapped auto-sync; every foreground transition re-fetched all transactions.
+- **Root cause:** `sync()` and `syncIfNeeded()` could run concurrently; `refreshDailyNetWorthIfNeeded` called `loadAll` on every `scenePhase == .active`.
+- **Fix:** `TransactionStore.runBackgroundMaintenance` coalesces auto sync + daily Plaid refresh; manual `sync()` awaits in-flight maintenance; skip auto-sync when `isSyncing`; foreground only runs gated maintenance (no full reload). ISO8601 `last_sync_at` parsing tries fractional and non-fractional timestamps.
+- **Verification:** `TransactionSyncPolicyTests`, `BudgetAlertEngineTests`, Codemagic unit tests; build 53.
