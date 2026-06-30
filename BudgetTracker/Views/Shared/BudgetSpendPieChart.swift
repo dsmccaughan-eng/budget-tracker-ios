@@ -10,8 +10,7 @@ struct BudgetSpendPieChart: View {
     @State private var scrubBaseIndex: Int?
     @State private var lastScrubStep = 0
 
-    private let chartDiameter: CGFloat = 290
-    private let wheelHeight: CGFloat = 188
+    private let segmentInnerRadiusRatio: CGFloat = 0.66
     private let scrubStepPoints: CGFloat = 26
 
     init(
@@ -75,7 +74,6 @@ struct BudgetSpendPieChart: View {
                 color: Color(hex: segment.progress.color)
             )
         }
-        // Invisible lower half so visible segments occupy the top semicircle (180°).
         entries.append(
             BudgetWheelChartEntry(
                 id: "__placeholder__",
@@ -88,37 +86,47 @@ struct BudgetSpendPieChart: View {
     }
 
     var body: some View {
-        VStack(spacing: 8) {
+        GeometryReader { geo in
+            let metrics = BudgetWheelMetrics(
+                width: geo.size.width,
+                innerRadiusRatio: segmentInnerRadiusRatio
+            )
+
             ZStack(alignment: .bottom) {
                 if chartEntries.isEmpty {
-                    emptyWheel
+                    emptyWheel(metrics: metrics)
                 } else {
-                    spendingWheel
-                    budgetProgressRing
+                    spendingWheel(metrics: metrics)
+                    budgetProgressRing(metrics: metrics)
                 }
 
                 centerLabels
-                    .frame(maxWidth: chartDiameter * 0.5)
-                    .padding(.bottom, 8)
+                    .frame(maxWidth: metrics.labelMaxWidth, minHeight: metrics.labelAreaHeight, alignment: .bottom)
+                    .padding(.bottom, metrics.labelBottomPadding)
             }
-            .frame(height: wheelHeight)
+            .frame(width: geo.size.width, height: metrics.totalHeight, alignment: .bottom)
             .frame(maxWidth: .infinity)
             .contentShape(Rectangle())
-            .gesture(scrubGesture(in: CGSize(width: chartDiameter, height: wheelHeight)))
+            .gesture(
+                scrubGesture(
+                    in: CGSize(width: geo.size.width, height: metrics.totalHeight),
+                    metrics: metrics
+                )
+            )
         }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 8)
+        .frame(height: BudgetWheelMetrics.preferredTotalHeight)
+        .padding(.vertical, 4)
         .onAppear(perform: reconcileSelection)
         .onChange(of: slicePlan.segments.map(\.progress.category)) { _, _ in
             reconcileSelection()
         }
     }
 
-    private var spendingWheel: some View {
+    private func spendingWheel(metrics: BudgetWheelMetrics) -> some View {
         Chart(chartEntries) { entry in
             SectorMark(
                 angle: .value("Amount", entry.amount),
-                innerRadius: .ratio(0.66),
+                innerRadius: .ratio(segmentInnerRadiusRatio),
                 angularInset: entry.isPlaceholder ? 0 : 2.5
             )
             .cornerRadius(entry.isPlaceholder ? 0 : 8)
@@ -127,96 +135,95 @@ struct BudgetSpendPieChart: View {
                 if !entry.isPlaceholder,
                    entry.amount / max(slicePlan.total, 0.01) >= 0.1 {
                     Image(systemName: categorySymbol(entry.category))
-                        .font(.system(size: 12, weight: .semibold))
+                        .font(.system(size: 11, weight: .semibold))
                         .foregroundStyle(.white)
                         .shadow(color: .black.opacity(0.25), radius: 1, y: 1)
                 }
             }
         }
         .chartLegend(.hidden)
-        .frame(width: chartDiameter, height: chartDiameter)
+        .frame(width: metrics.chartDiameter, height: metrics.chartDiameter)
         .rotationEffect(.degrees(-90))
-        .offset(y: chartDiameter * 0.21)
+        .offset(y: metrics.chartVerticalOffset)
         .allowsHitTesting(false)
     }
 
-    private var budgetProgressRing: some View {
-        let innerDiameter = chartDiameter * 0.66
+    private func budgetProgressRing(metrics: BudgetWheelMetrics) -> some View {
         let progressColor: Color = isOverBudget ? .red : Color(red: 0.18, green: 0.72, blue: 0.45)
 
         return ZStack {
             Circle()
                 .trim(from: 0, to: 0.5)
                 .stroke(
-                    Color(.systemGray4).opacity(0.35),
-                    style: StrokeStyle(lineWidth: 4, lineCap: .round)
+                    Color(.systemGray4).opacity(0.3),
+                    style: StrokeStyle(lineWidth: metrics.progressLineWidth, lineCap: .round)
                 )
             Circle()
                 .trim(from: 0, to: 0.5 * budgetProgressFraction)
                 .stroke(
                     progressColor,
-                    style: StrokeStyle(lineWidth: 4, lineCap: .round)
+                    style: StrokeStyle(lineWidth: metrics.progressLineWidth, lineCap: .round)
                 )
         }
         .rotationEffect(.degrees(180))
-        .frame(width: innerDiameter, height: innerDiameter)
-        .offset(y: chartDiameter * 0.21)
+        .frame(width: metrics.progressRingDiameter, height: metrics.progressRingDiameter)
+        .offset(y: metrics.progressRingVerticalOffset)
         .allowsHitTesting(false)
     }
 
-    private var emptyWheel: some View {
+    private func emptyWheel(metrics: BudgetWheelMetrics) -> some View {
         Chart {
             SectorMark(
                 angle: .value("Amount", 1),
-                innerRadius: .ratio(0.66),
+                innerRadius: .ratio(segmentInnerRadiusRatio),
                 angularInset: 2.5
             )
             .foregroundStyle(Color(.systemGray5))
             SectorMark(
                 angle: .value("Amount", 1),
-                innerRadius: .ratio(0.66)
+                innerRadius: .ratio(segmentInnerRadiusRatio)
             )
             .foregroundStyle(Color(.systemGroupedBackground))
         }
         .chartLegend(.hidden)
-        .frame(width: chartDiameter, height: chartDiameter)
+        .frame(width: metrics.chartDiameter, height: metrics.chartDiameter)
         .rotationEffect(.degrees(-90))
-        .offset(y: chartDiameter * 0.21)
+        .offset(y: metrics.chartVerticalOffset)
         .allowsHitTesting(false)
     }
 
     @ViewBuilder
     private var centerLabels: some View {
         if let segment = selectedSegment {
-            VStack(spacing: 2) {
+            VStack(spacing: 1) {
                 Text(segment.progress.category)
                     .font(.caption.weight(.semibold))
                     .multilineTextAlignment(.center)
                     .lineLimit(2)
-                    .minimumScaleFactor(0.8)
+                    .minimumScaleFactor(0.85)
                 Text(FinanceFormatting.currency(segment.amount))
-                    .font(.title2.weight(.bold))
-                    .minimumScaleFactor(0.7)
+                    .font(.title3.weight(.bold))
+                    .minimumScaleFactor(0.75)
                     .lineLimit(1)
                 Text(referenceDate.formatted(.dateTime.month(.wide)))
                     .font(.caption2)
                     .foregroundStyle(.secondary)
             }
         } else {
-            VStack(spacing: 2) {
+            VStack(spacing: 1) {
                 Text(centerTitle)
                     .font(.caption2.weight(.semibold))
                     .foregroundStyle(.secondary)
                     .textCase(.uppercase)
                 Text(FinanceFormatting.currency(totalCenterValue))
-                    .font(.title2.weight(.bold))
-                    .minimumScaleFactor(0.65)
+                    .font(.title3.weight(.bold))
+                    .minimumScaleFactor(0.75)
                     .lineLimit(1)
                 if totalBudget > 0 {
                     Text("of \(FinanceFormatting.currency(totalBudget)) budget")
                         .font(.caption2)
                         .foregroundStyle(isOverBudget ? .red : .secondary)
-                        .minimumScaleFactor(0.8)
+                        .minimumScaleFactor(0.75)
                         .lineLimit(1)
                 }
                 if !usesSpendingSlices, typicalMonthly > 0 {
@@ -224,11 +231,13 @@ struct BudgetSpendPieChart: View {
                         .font(.caption2)
                         .foregroundStyle(.tertiary)
                         .multilineTextAlignment(.center)
+                        .lineLimit(2)
                 } else if !usesSpendingSlices, !hasTransactions {
                     Text("Sync transactions to track spending")
                         .font(.caption2)
                         .foregroundStyle(.tertiary)
                         .multilineTextAlignment(.center)
+                        .lineLimit(2)
                 } else if !usesSpendingSlices, hasTransactions {
                     Text("No spending this month yet")
                         .font(.caption2)
@@ -247,21 +256,25 @@ struct BudgetSpendPieChart: View {
         }
     }
 
-    private func scrubGesture(in size: CGSize) -> some Gesture {
+    private func scrubGesture(in size: CGSize, metrics: BudgetWheelMetrics) -> some Gesture {
         DragGesture(minimumDistance: 0)
             .onChanged { value in
-                handleScrubChanged(value, in: size)
+                handleScrubChanged(value, in: size, metrics: metrics)
             }
             .onEnded { value in
-                handleScrubEnded(value, in: size)
+                handleScrubEnded(value, in: size, metrics: metrics)
             }
     }
 
-    private func handleScrubChanged(_ value: DragGesture.Value, in size: CGSize) {
+    private func handleScrubChanged(
+        _ value: DragGesture.Value,
+        in size: CGSize,
+        metrics: BudgetWheelMetrics
+    ) {
         let segments = slicePlan.segments
         guard !segments.isEmpty else { return }
 
-        let layout = HalfWheelLayout(size: size)
+        let layout = HalfWheelLayout(size: size, metrics: metrics)
         if let fraction = layout.arcFraction(at: value.location),
            let segment = BudgetMath.chartSegment(containingArcFraction: fraction, segments: segments) {
             scrubBaseIndex = nil
@@ -275,7 +288,7 @@ struct BudgetSpendPieChart: View {
                 category: selectedCategory,
                 segments: segments
             ) ?? BudgetMath.chartSegmentIndex(
-                category: segmentAtStart(of: value, in: size)?.progress.category,
+                category: segmentAtStart(of: value, in: size, metrics: metrics)?.progress.category,
                 segments: segments
             ) ?? 0
             lastScrubStep = 0
@@ -292,7 +305,11 @@ struct BudgetSpendPieChart: View {
         selectedCategory = segment.progress.category
     }
 
-    private func handleScrubEnded(_ value: DragGesture.Value, in size: CGSize) {
+    private func handleScrubEnded(
+        _ value: DragGesture.Value,
+        in size: CGSize,
+        metrics: BudgetWheelMetrics
+    ) {
         defer {
             scrubBaseIndex = nil
             lastScrubStep = 0
@@ -300,11 +317,15 @@ struct BudgetSpendPieChart: View {
 
         let moved = hypot(value.translation.width, value.translation.height)
         guard moved < 8 else { return }
-        handleTap(at: value.location, in: size)
+        handleTap(at: value.location, in: size, metrics: metrics)
     }
 
-    private func segmentAtStart(of value: DragGesture.Value, in size: CGSize) -> BudgetChartSliceSegment? {
-        let layout = HalfWheelLayout(size: size)
+    private func segmentAtStart(
+        of value: DragGesture.Value,
+        in size: CGSize,
+        metrics: BudgetWheelMetrics
+    ) -> BudgetChartSliceSegment? {
+        let layout = HalfWheelLayout(size: size, metrics: metrics)
         guard let fraction = layout.arcFraction(at: value.startLocation) else { return nil }
         return BudgetMath.chartSegment(
             containingArcFraction: fraction,
@@ -312,8 +333,8 @@ struct BudgetSpendPieChart: View {
         )
     }
 
-    private func handleTap(at location: CGPoint, in size: CGSize) {
-        let layout = HalfWheelLayout(size: size)
+    private func handleTap(at location: CGPoint, in size: CGSize, metrics: BudgetWheelMetrics) {
+        let layout = HalfWheelLayout(size: size, metrics: metrics)
 
         guard let fraction = layout.arcFraction(at: location),
               let segment = BudgetMath.chartSegment(
@@ -368,25 +389,57 @@ private struct BudgetWheelChartEntry: Identifiable {
     var isPlaceholder: Bool { id == "__placeholder__" }
 }
 
+private struct BudgetWheelMetrics {
+    let chartDiameter: CGFloat
+    let totalHeight: CGFloat
+    let chartVerticalOffset: CGFloat
+    let progressRingDiameter: CGFloat
+    let progressRingVerticalOffset: CGFloat
+    let progressLineWidth: CGFloat
+    let labelAreaHeight: CGFloat
+    let labelBottomPadding: CGFloat
+    let labelMaxWidth: CGFloat
+
+    static var preferredTotalHeight: CGFloat {
+        let metrics = BudgetWheelMetrics(width: 320, innerRadiusRatio: 0.66)
+        return metrics.totalHeight
+    }
+
+    init(width: CGFloat, innerRadiusRatio: CGFloat) {
+        chartDiameter = min(max(width - 24, 240), 272)
+        let outerRadius = chartDiameter / 2
+        labelAreaHeight = 74
+        labelBottomPadding = 12
+        progressLineWidth = 3
+        labelMaxWidth = chartDiameter * 0.52
+
+        let labelReserve = labelAreaHeight + labelBottomPadding
+        // Move the donut center up so the top semicircle fits above the label block.
+        chartVerticalOffset = outerRadius - labelReserve
+        totalHeight = outerRadius + labelReserve + 8
+
+        progressRingDiameter = chartDiameter * innerRadiusRatio - progressLineWidth * 2
+        progressRingVerticalOffset = chartVerticalOffset
+    }
+}
+
 private struct HalfWheelLayout {
     let center: CGPoint
     let outerRadius: CGFloat
     let innerRadius: CGFloat
 
-    init(size: CGSize) {
-        let width = size.width
-        let height = size.height
-        outerRadius = min(width * 0.46, height * 0.88)
+    init(size: CGSize, metrics: BudgetWheelMetrics) {
+        outerRadius = metrics.chartDiameter / 2
         innerRadius = outerRadius * 0.66
-        center = CGPoint(x: width / 2, y: height)
+        let centerY = size.height - metrics.labelAreaHeight - metrics.labelBottomPadding
+        center = CGPoint(x: size.width / 2, y: centerY)
     }
 
-    /// 0 = left (9 o'clock), 0.5 = top (12 o'clock), 1 = right (3 o'clock).
     func arcFraction(at point: CGPoint) -> Double? {
         let dx = point.x - center.x
         let dy = point.y - center.y
         let distance = hypot(dx, dy)
-        guard distance >= innerRadius, distance <= outerRadius, dy <= 2 else {
+        guard distance >= innerRadius * 0.92, distance <= outerRadius * 1.04, dy <= 6 else {
             return nil
         }
 
