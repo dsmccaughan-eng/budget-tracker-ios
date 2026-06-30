@@ -292,3 +292,9 @@ Entry format
 - **Root cause:** `sync()` and `syncIfNeeded()` could run concurrently; `refreshDailyNetWorthIfNeeded` called `loadAll` on every `scenePhase == .active`.
 - **Fix:** `TransactionStore.runBackgroundMaintenance` coalesces auto sync + daily Plaid refresh; manual `sync()` awaits in-flight maintenance; skip auto-sync when `isSyncing`; foreground only runs gated maintenance (no full reload). ISO8601 `last_sync_at` parsing tries fractional and non-fractional timestamps.
 - **Verification:** `TransactionSyncPolicyTests`, `BudgetAlertEngineTests`, Codemagic unit tests; build 53.
+
+### 2026-06-30 — CI compile break after Goals tab removal
+- **Symptom:** Codemagic unit tests failed with `cannot find type 'NetWorthStore' in scope` and `cannot find type 'SupabaseClient' in scope`.
+- **Root cause:** `NetWorthStore` and `NetWorthCalculator` lived in deleted `GoalsStore.swift` / `GoalsMath.swift`; `BudgetTrackerApp.refreshDerivedFinancialData` used `SupabaseClient` without `import Supabase`.
+- **Fix:** Extract `NetWorthStore.swift` and `NetWorthCalculator.swift` under `Backend/Finance/`; add `import Supabase` to `BudgetTrackerApp.swift`.
+- **Verification:** Codemagic `run-unit-tests` compiles and passes; build 53 uploads to ASC.

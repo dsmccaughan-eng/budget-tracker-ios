@@ -1,4 +1,5 @@
 import SwiftUI
+import Supabase
 
 @main
 struct BudgetTrackerApp: App {
