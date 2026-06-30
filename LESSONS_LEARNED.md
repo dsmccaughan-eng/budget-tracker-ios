@@ -298,3 +298,9 @@ Entry format
 - **Root cause:** `NetWorthStore` and `NetWorthCalculator` lived in deleted `GoalsStore.swift` / `GoalsMath.swift`; `BudgetTrackerApp.refreshDerivedFinancialData` used `SupabaseClient` without `import Supabase`.
 - **Fix:** Extract `NetWorthStore.swift` and `NetWorthCalculator.swift` under `Backend/Finance/`; add `import Supabase` to `BudgetTrackerApp.swift`.
 - **Verification:** Codemagic `run-unit-tests` compiles and passes; build 53 uploads to ASC.
+
+### 2026-06-30 — ASC upload fails with altool bundle ID lookup (Xcode 26)
+- **Symptom:** Codemagic IPA build succeeded but publishing failed: `Cannot determine the Apple ID from Bundle ID 'com.optimized.budgettracker'`.
+- **Root cause:** Xcode 26 `altool` mis-resolves Apple ID when multiple apps share the `com.optimized.*` bundle prefix (Budget Tracker + Optimized).
+- **Fix:** Set `APP_STORE_CONNECT_ALTOOL_ADDITIONAL_ARGUMENTS: '--apple-id "6775334574"'` in `codemagic.yaml` workflow vars.
+- **Verification:** Codemagic publishing step uploads IPA to App Store Connect.
