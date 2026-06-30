@@ -356,6 +356,8 @@ enum NetWorthHistoryEngine {
             let currentDeviation = abs(current - baseline) / baseline
             let neighborDeviation = abs(previous - next) / max(abs(previous), abs(next), 1)
             guard currentDeviation > toleranceRatio, neighborDeviation < toleranceRatio / 2 else { continue }
+            // Only smooth isolated dips — upward spikes may be full snapshots vs partial neighbors.
+            guard current < baseline else { continue }
 
             let row = adjusted[index]
             adjusted[index] = NetWorthChartPoint(
