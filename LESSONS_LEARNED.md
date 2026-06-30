@@ -344,5 +344,5 @@ Entry format
 ### 2026-06-30 — Budget wheel colors hidden under gray List layer
 - **Symptom:** Category slices and scrubbing worked but colors looked buried under gray.
 - **Root cause:** `Canvas` in a `List` row rendered under the default list-row material; selecting a slice dimmed others to 35% opacity (washed out on gray).
-- **Fix:** Draw slices with SwiftUI `Shape` fills + `.drawingGroup()`; remove slice dimming (selection uses stroke only); `.containerBackground(.clear, for: .listRow)` on chart rows.
+- **Fix:** Draw slices with SwiftUI `Shape` fills + `.drawingGroup()`; remove slice dimming (selection uses stroke only); `.listRowBackground(Color.clear)` on chart rows (not `containerBackground(.listRow)` — iOS 18+ only, breaks CI).
 - **Verification:** Wheel shows full-saturation category colors; slide/tap selection highlights with stroke only.
