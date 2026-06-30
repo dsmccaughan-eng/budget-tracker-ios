@@ -11,13 +11,9 @@ extension TransactionStore {
         }
         guard !isSyncing else { return }
 
-        isSyncing = true
-        isRefreshingTransactions = true
+        beginTransactionSync()
         errorMessage = nil
-        defer {
-            isSyncing = false
-            isRefreshingTransactions = false
-        }
+        defer { endTransactionSync() }
 
         var syncedCount = 0
         var recategorizedCount = 0
@@ -148,13 +144,9 @@ extension TransactionStore {
             return false
         }
 
-        isSyncing = true
-        isRefreshingTransactions = true
+        beginTransactionSync()
         errorMessage = nil
-        defer {
-            isSyncing = false
-            isRefreshingTransactions = false
-        }
+        defer { endTransactionSync() }
 
         var syncedCount = 0
         var recategorizedCount = 0

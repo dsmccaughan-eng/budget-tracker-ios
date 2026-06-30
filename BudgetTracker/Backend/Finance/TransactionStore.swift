@@ -33,6 +33,16 @@ final class TransactionStore: ObservableObject {
         isFinancialBootstrapInProgress = false
     }
 
+    func beginTransactionSync() {
+        isSyncing = true
+        isRefreshingTransactions = true
+    }
+
+    func endTransactionSync() {
+        isSyncing = false
+        isRefreshingTransactions = false
+    }
+
     func needsAutomaticSync(
         userId: String?,
         now: Date = Date(),
