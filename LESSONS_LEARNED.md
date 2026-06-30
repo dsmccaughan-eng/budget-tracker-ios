@@ -352,3 +352,9 @@ Entry format
 - **Root cause:** `Path.addArc` without `move(to:)` first draws a line from `(0,0)` into the arc, corrupting filled wedge geometry so most of the ring is empty and the List background shows through as gray.
 - **Fix:** Draw segments as thick arc strokes at mid-radius (`BudgetWheelArcShape` + `lineWidth = ringWidth`); add `move(to:)` for any filled wedge paths; remove `.drawingGroup()`.
 - **Verification:** Wheel segments fill the semicircle in category colors with no gray underlay.
+
+### 2026-06-30 — Budget wheel gray after custom Path/arc attempts
+- **Symptom:** Wheel still rendered as a solid gray ring with hairline dividers; reference design uses distinct rounded color blocks.
+- **Root cause:** Hand-rolled `Path`/`stroke` arc rendering is fragile in List rows (winding, compositing, background bleed); not how production budget apps draw this UI.
+- **Fix:** Rebuilt chart with Swift Charts `SectorMark` (iOS 17+): `innerRadius`, `angularInset`, `cornerRadius`, explicit category colors; placeholder sector fills the lower 180° with `systemBackground`; `-90°` rotation for top semicircle; icons on large segments.
+- **Verification:** Segments match category colors with rounded gaps like reference mock; center shows spent total and budget cap.

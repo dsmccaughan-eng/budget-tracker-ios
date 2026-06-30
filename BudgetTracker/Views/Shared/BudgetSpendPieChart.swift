@@ -1,3 +1,4 @@
+import Charts
 import SwiftUI
 
 struct BudgetSpendPieChart: View {
@@ -9,7 +10,8 @@ struct BudgetSpendPieChart: View {
     @State private var scrubBaseIndex: Int?
     @State private var lastScrubStep = 0
 
-    private let wheelHeight: CGFloat = 168
+    private let chartDiameter: CGFloat = 290
+    private let wheelHeight: CGFloat = 188
     private let scrubStepPoints: CGFloat = 26
 
     init(
@@ -36,6 +38,10 @@ struct BudgetSpendPieChart: View {
         slicePlan.total
     }
 
+    private var totalBudget: Double {
+        progress.reduce(0) { $0 + $1.monthlyLimit }
+    }
+
     private var centerTitle: String {
         usesSpendingSlices ? "Spent" : "Budgeted"
     }
@@ -49,77 +55,116 @@ struct BudgetSpendPieChart: View {
         return slicePlan.segments.first { $0.progress.category == selectedCategory }
     }
 
-    var body: some View {
-        VStack(spacing: 10) {
-            GeometryReader { geo in
-                let layout = HalfWheelLayout(size: geo.size)
-                ZStack(alignment: .top) {
-                    if slicePlan.segments.isEmpty {
-                        BudgetWheelArcShape(startFraction: 0, endFraction: 1)
-                            .stroke(
-                                Color(.systemGray4),
-                                style: StrokeStyle(lineWidth: 2, dash: [6, 4])
-                            )
-                    } else {
-                        ForEach(slicePlan.segments, id: \.progress.category) { segment in
-                            BudgetWheelArcShape(
-                                startFraction: segment.startFraction,
-                                endFraction: segment.endFraction
-                            )
-                            .stroke(
-                                Color(hex: segment.progress.color),
-                                style: StrokeStyle(
-                                    lineWidth: layout.ringWidth,
-                                    lineCap: .butt
-                                )
-                            )
-                            .overlay {
-                                if selectedCategory == segment.progress.category {
-                                    BudgetWheelArcShape(
-                                        startFraction: segment.startFraction,
-                                        endFraction: segment.endFraction
-                                    )
-                                    .stroke(
-                                        Color.primary.opacity(0.45),
-                                        style: StrokeStyle(
-                                            lineWidth: layout.ringWidth + 3,
-                                            lineCap: .butt
-                                        )
-                                    )
-                                }
-                            }
-                        }
-                    }
+    private var chartEntries: [BudgetWheelChartEntry] {
+        let plan = slicePlan
+        guard !plan.segments.isEmpty else { return [] }
+        var entries = plan.segments.map { segment in
+            BudgetWheelChartEntry(
+                id: segment.progress.category,
+                category: segment.progress.category,
+                amount: segment.amount,
+                color: Color(hex: segment.progress.color)
+            )
+        }
+        // Invisible lower half so visible segments occupy the top semicircle (180°).
+        entries.append(
+            BudgetWheelChartEntry(
+                id: "__placeholder__",
+                category: "",
+                amount: plan.total,
+                color: Color(.systemGroupedBackground)
+            )
+        )
+        return entries
+    }
 
-                    centerLabels
-                        .frame(maxWidth: geo.size.width * 0.62)
-                        .frame(maxHeight: .infinity, alignment: .bottom)
-                        .padding(.bottom, 6)
-                        .allowsHitTesting(false)
+    var body: some View {
+        VStack(spacing: 8) {
+            ZStack(alignment: .bottom) {
+                if chartEntries.isEmpty {
+                    emptyWheel
+                } else {
+                    spendingWheel
                 }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .contentShape(Rectangle())
-                .gesture(scrubGesture(in: geo.size))
+
+                centerLabels
+                    .frame(maxWidth: chartDiameter * 0.52)
+                    .padding(.bottom, 6)
             }
             .frame(height: wheelHeight)
+            .frame(maxWidth: .infinity)
+            .contentShape(Rectangle())
+            .gesture(scrubGesture(in: CGSize(width: chartDiameter, height: wheelHeight)))
 
-            if slicePlan.segments.isEmpty {
-                EmptyView()
-            } else if selectedCategory != nil {
-                Text("Slide to browse · tap to show all")
-                    .font(.caption2)
-                    .foregroundStyle(.tertiary)
-            } else if usesSpendingSlices {
-                Text("Slide across the chart to browse categories")
-                    .font(.caption2)
-                    .foregroundStyle(.tertiary)
-            }
+            hintText
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 8)
         .onAppear(perform: reconcileSelection)
         .onChange(of: slicePlan.segments.map(\.progress.category)) { _, _ in
             reconcileSelection()
+        }
+    }
+
+    private var spendingWheel: some View {
+        Chart(chartEntries) { entry in
+            SectorMark(
+                angle: .value("Amount", entry.amount),
+                innerRadius: .ratio(0.66),
+                angularInset: entry.isPlaceholder ? 0 : 2.5
+            )
+            .cornerRadius(entry.isPlaceholder ? 0 : 8)
+            .foregroundStyle(entry.color)
+            .annotation(position: .overlay) {
+                if !entry.isPlaceholder,
+                   entry.amount / max(slicePlan.total, 0.01) >= 0.1 {
+                    Image(systemName: categorySymbol(entry.category))
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(.white)
+                        .shadow(color: .black.opacity(0.25), radius: 1, y: 1)
+                }
+            }
+        }
+        .chartLegend(.hidden)
+        .frame(width: chartDiameter, height: chartDiameter)
+        .rotationEffect(.degrees(-90))
+        .offset(y: chartDiameter * 0.21)
+        .allowsHitTesting(false)
+    }
+
+    private var emptyWheel: some View {
+        Chart {
+            SectorMark(
+                angle: .value("Amount", 1),
+                innerRadius: .ratio(0.66),
+                angularInset: 2.5
+            )
+            .foregroundStyle(Color(.systemGray5))
+            SectorMark(
+                angle: .value("Amount", 1),
+                innerRadius: .ratio(0.66)
+            )
+            .foregroundStyle(Color(.systemGroupedBackground))
+        }
+        .chartLegend(.hidden)
+        .frame(width: chartDiameter, height: chartDiameter)
+        .rotationEffect(.degrees(-90))
+        .offset(y: chartDiameter * 0.21)
+        .allowsHitTesting(false)
+    }
+
+    @ViewBuilder
+    private var hintText: some View {
+        if slicePlan.segments.isEmpty {
+            EmptyView()
+        } else if selectedCategory != nil {
+            Text("Slide to browse · tap to show all")
+                .font(.caption2)
+                .foregroundStyle(.tertiary)
+        } else if usesSpendingSlices {
+            Text("Slide across the chart to browse categories")
+                .font(.caption2)
+                .foregroundStyle(.tertiary)
         }
     }
 
@@ -150,6 +195,11 @@ struct BudgetSpendPieChart: View {
                     .font(.title2.weight(.bold))
                     .minimumScaleFactor(0.7)
                     .lineLimit(1)
+                if totalBudget > 0 {
+                    Text("of \(FinanceFormatting.currency(totalBudget)) budget")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
                 Text(referenceDate.formatted(.dateTime.month(.wide)))
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -264,28 +314,42 @@ struct BudgetSpendPieChart: View {
             selectedCategory = segment.progress.category
         }
     }
+
+    private func categorySymbol(_ category: String) -> String {
+        switch category {
+        case "Housing & Utilities":
+            return "house.fill"
+        case "Groceries":
+            return "cart.fill"
+        case "Transport", "Transportation":
+            return "car.fill"
+        case "Dining & Bars", "Food & Dining":
+            return "fork.knife"
+        case "Shopping":
+            return "bag.fill"
+        case "Investments":
+            return "chart.line.uptrend.xyaxis"
+        case "Transfers":
+            return "arrow.left.arrow.right"
+        case "Health & Wellness":
+            return "heart.fill"
+        case "Subscriptions":
+            return "play.rectangle.fill"
+        case "Income":
+            return "dollarsign.circle.fill"
+        default:
+            return "tag.fill"
+        }
+    }
 }
 
-private struct BudgetWheelArcShape: Shape {
-    let startFraction: Double
-    let endFraction: Double
+private struct BudgetWheelChartEntry: Identifiable {
+    let id: String
+    let category: String
+    let amount: Double
+    let color: Color
 
-    func path(in rect: CGRect) -> Path {
-        let layout = HalfWheelLayout(size: rect.size)
-        let startAngle = layout.angle(for: startFraction)
-        let endAngle = layout.angle(for: endFraction)
-        let startPoint = layout.point(onRadius: layout.midRadius, angle: startAngle)
-        var path = Path()
-        path.move(to: startPoint)
-        path.addArc(
-            center: layout.center,
-            radius: layout.midRadius,
-            startAngle: startAngle,
-            endAngle: endAngle,
-            clockwise: true
-        )
-        return path
-    }
+    var isPlaceholder: Bool { id == "__placeholder__" }
 }
 
 private struct HalfWheelLayout {
@@ -293,35 +357,20 @@ private struct HalfWheelLayout {
     let outerRadius: CGFloat
     let innerRadius: CGFloat
 
-    var midRadius: CGFloat { (outerRadius + innerRadius) / 2 }
-    var ringWidth: CGFloat { outerRadius - innerRadius }
-
     init(size: CGSize) {
         let width = size.width
         let height = size.height
-        outerRadius = min(width * 0.44, height * 0.82)
-        innerRadius = outerRadius * 0.58
+        outerRadius = min(width * 0.46, height * 0.88)
+        innerRadius = outerRadius * 0.66
         center = CGPoint(x: width / 2, y: height)
     }
 
     /// 0 = left (9 o'clock), 0.5 = top (12 o'clock), 1 = right (3 o'clock).
-    func angle(for fraction: Double) -> Angle {
-        Angle.degrees(180 + fraction * 180)
-    }
-
-    func point(onRadius radius: CGFloat, angle: Angle) -> CGPoint {
-        let radians = angle.radians
-        return CGPoint(
-            x: center.x + radius * CGFloat(cos(radians)),
-            y: center.y + radius * CGFloat(sin(radians))
-        )
-    }
-
     func arcFraction(at point: CGPoint) -> Double? {
         let dx = point.x - center.x
         let dy = point.y - center.y
         let distance = hypot(dx, dy)
-        guard distance >= innerRadius, distance <= outerRadius, dy <= 0 else {
+        guard distance >= innerRadius, distance <= outerRadius, dy <= 2 else {
             return nil
         }
 
