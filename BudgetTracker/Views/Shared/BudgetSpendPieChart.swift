@@ -42,8 +42,17 @@ struct BudgetSpendPieChart: View {
         progress.reduce(0) { $0 + $1.monthlyLimit }
     }
 
+    private var isOverBudget: Bool {
+        totalBudget > 0 && totalCenterValue > totalBudget
+    }
+
     private var centerTitle: String {
         usesSpendingSlices ? "Spent" : "Budgeted"
+    }
+
+    private var budgetProgressFraction: Double {
+        guard totalBudget > 0 else { return 0 }
+        return min(totalCenterValue / totalBudget, 1)
     }
 
     private var typicalMonthly: Double {
@@ -85,18 +94,17 @@ struct BudgetSpendPieChart: View {
                     emptyWheel
                 } else {
                     spendingWheel
+                    budgetProgressRing
                 }
 
                 centerLabels
-                    .frame(maxWidth: chartDiameter * 0.52)
-                    .padding(.bottom, 6)
+                    .frame(maxWidth: chartDiameter * 0.5)
+                    .padding(.bottom, 8)
             }
             .frame(height: wheelHeight)
             .frame(maxWidth: .infinity)
             .contentShape(Rectangle())
             .gesture(scrubGesture(in: CGSize(width: chartDiameter, height: wheelHeight)))
-
-            hintText
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 8)
@@ -132,6 +140,30 @@ struct BudgetSpendPieChart: View {
         .allowsHitTesting(false)
     }
 
+    private var budgetProgressRing: some View {
+        let innerDiameter = chartDiameter * 0.66
+        let progressColor: Color = isOverBudget ? .red : Color(red: 0.18, green: 0.72, blue: 0.45)
+
+        return ZStack {
+            Circle()
+                .trim(from: 0, to: 0.5)
+                .stroke(
+                    Color(.systemGray4).opacity(0.35),
+                    style: StrokeStyle(lineWidth: 4, lineCap: .round)
+                )
+            Circle()
+                .trim(from: 0, to: 0.5 * budgetProgressFraction)
+                .stroke(
+                    progressColor,
+                    style: StrokeStyle(lineWidth: 4, lineCap: .round)
+                )
+        }
+        .rotationEffect(.degrees(180))
+        .frame(width: innerDiameter, height: innerDiameter)
+        .offset(y: chartDiameter * 0.21)
+        .allowsHitTesting(false)
+    }
+
     private var emptyWheel: some View {
         Chart {
             SectorMark(
@@ -154,24 +186,9 @@ struct BudgetSpendPieChart: View {
     }
 
     @ViewBuilder
-    private var hintText: some View {
-        if slicePlan.segments.isEmpty {
-            EmptyView()
-        } else if selectedCategory != nil {
-            Text("Slide to browse · tap to show all")
-                .font(.caption2)
-                .foregroundStyle(.tertiary)
-        } else if usesSpendingSlices {
-            Text("Slide across the chart to browse categories")
-                .font(.caption2)
-                .foregroundStyle(.tertiary)
-        }
-    }
-
-    @ViewBuilder
     private var centerLabels: some View {
         if let segment = selectedSegment {
-            VStack(spacing: 3) {
+            VStack(spacing: 2) {
                 Text(segment.progress.category)
                     .font(.caption.weight(.semibold))
                     .multilineTextAlignment(.center)
@@ -182,27 +199,26 @@ struct BudgetSpendPieChart: View {
                     .minimumScaleFactor(0.7)
                     .lineLimit(1)
                 Text(referenceDate.formatted(.dateTime.month(.wide)))
-                    .font(.caption)
+                    .font(.caption2)
                     .foregroundStyle(.secondary)
             }
         } else {
-            VStack(spacing: 3) {
+            VStack(spacing: 2) {
                 Text(centerTitle)
-                    .font(.caption.weight(.semibold))
+                    .font(.caption2.weight(.semibold))
                     .foregroundStyle(.secondary)
                     .textCase(.uppercase)
                 Text(FinanceFormatting.currency(totalCenterValue))
                     .font(.title2.weight(.bold))
-                    .minimumScaleFactor(0.7)
+                    .minimumScaleFactor(0.65)
                     .lineLimit(1)
                 if totalBudget > 0 {
                     Text("of \(FinanceFormatting.currency(totalBudget)) budget")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .font(.caption2)
+                        .foregroundStyle(isOverBudget ? .red : .secondary)
+                        .minimumScaleFactor(0.8)
+                        .lineLimit(1)
                 }
-                Text(referenceDate.formatted(.dateTime.month(.wide)))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
                 if !usesSpendingSlices, typicalMonthly > 0 {
                     Text("Typical \(FinanceFormatting.currency(typicalMonthly))/mo")
                         .font(.caption2)
