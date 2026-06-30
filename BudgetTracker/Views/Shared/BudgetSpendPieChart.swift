@@ -33,7 +33,7 @@ struct BudgetSpendPieChart: View {
 
     private var totalCenterValue: Double {
         if usesSpendingSlices {
-            return BudgetMath.totalSpent(slices)
+            return BudgetMath.monthSpendingDisplayTotal(progress: slices)
         }
         return slices.reduce(0) { $0 + $1.monthlyLimit }
     }
@@ -67,7 +67,7 @@ struct BudgetSpendPieChart: View {
                                 center: layout.center,
                                 radius: (layout.outerRadius + layout.innerRadius) / 2,
                                 startAngle: .degrees(180),
-                                endAngle: .degrees(0),
+                                endAngle: .degrees(360),
                                 clockwise: true
                             )
                             context.stroke(
@@ -271,7 +271,7 @@ private struct HalfWheelLayout {
     }
 
     func angle(for fraction: Double) -> Angle {
-        Angle.degrees(180 - fraction * 180)
+        Angle.degrees(180 + fraction * 180)
     }
 
     /// Maps a tap to 0…1 along the top semicircle (left → top → right).
@@ -283,14 +283,13 @@ private struct HalfWheelLayout {
             return nil
         }
 
-        let angle = atan2(dy, dx)
-        let fraction: Double
-        if angle <= 0 {
-            fraction = 0.5 + (angle / -.pi) * 0.5
-        } else {
-            fraction = (1 - angle / .pi) * 0.5
+        var degrees = atan2(dy, dx) * 180 / .pi
+        if degrees < 0 {
+            degrees += 360
         }
-        return min(max(fraction, 0), 1)
+        guard degrees >= 180 || degrees == 0 else { return nil }
+        if degrees == 0 { return 1 }
+        return min(max((degrees - 180) / 180, 0), 1)
     }
 }
 
@@ -303,7 +302,7 @@ private struct HalfWheelHitShape: Shape {
             center: layout.center,
             radius: layout.outerRadius,
             startAngle: .degrees(180),
-            endAngle: .degrees(0),
+            endAngle: .degrees(360),
             clockwise: true
         )
         path.addLine(to: CGPoint(x: layout.center.x, y: layout.center.y))

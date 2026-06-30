@@ -328,3 +328,9 @@ Entry format
 - **Root cause:** Per-account history only counted balances after each account’s first snapshot (partial portfolio before June); a bad saved `net_worth_snapshots` row could override a good account-based estimate; single-day snapshot glitches were plotted verbatim.
 - **Fix:** Build account history first with `backfillLeadingBalances` (assume first known balance before first observation); merge snapshots via `shouldTrustSnapshot` (reject isolated low dips, keep snapshots that reflect full portfolio); `smoothIsolatedOutliers` interpolates V-shaped one-day glitches; tests in `NetWorthHistoryEngineTests`.
 - **Verification:** Net Worth 1M chart is flat at current level before investment link date; no June vertical jump; no single-day dip; unit tests pass on CI.
+
+### 2026-06-30 — App lag after net worth chart fix; budget wheel + totals mismatch
+- **Symptom:** Entire app felt extremely laggy after build 54; budget semi-circle drew incorrectly; Dashboard “Spent” total differed from Budgets tab.
+- **Root cause:** `NetWorthStore.rebuildChartCache()` ran all six chart ranges synchronously on the main actor on every transaction/account update; full-screen loading overlay blocked UI during background sync; duplicate `noteTransactionsChanged` calls; Dashboard used budgeted-only `progress` while Budgets tab used `displayMonthSections` spending rows; half-wheel angles used `180 - fraction*180` (bottom arc) instead of `180 + fraction*180` (top arc).
+- **Fix:** Debounced off-main chart rebuild in `NetWorthStore`; overlay only during bootstrap (not sync); defer auto-sync to background task after first paint; unify Dashboard chart on `spendingProgress`; fix semi-circle geometry and center total to use `listDisplaySpent`.
+- **Verification:** Unlock UI responsive immediately; sync runs without blocking overlay; Dashboard and Budgets tab show matching spent total; top semi-circle renders and taps correctly.

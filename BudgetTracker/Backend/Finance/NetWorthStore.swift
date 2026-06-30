@@ -11,6 +11,8 @@ final class NetWorthStore: ObservableObject {
     @Published private(set) var cachedChartPoints: [NetWorthTimeRange: [NetWorthChartPoint]] = [:]
     @Published var errorMessage: String?
 
+    private var chartRebuildTask: Task<Void, Never>?
+
     func reload(
         client: SupabaseClient,
         accounts: [Account],
@@ -90,11 +92,46 @@ final class NetWorthStore: ObservableObject {
         )
     }
 
-    private func rebuildChartCache(referenceDate: Date = Date()) {
-        var cache: [NetWorthTimeRange: [NetWorthChartPoint]] = [:]
-        for range in NetWorthTimeRange.allCases {
-            cache[range] = computeChartPoints(range: range, referenceDate: referenceDate)
+    private func scheduleChartRebuild(referenceDate: Date = Date()) {
+        chartRebuildTask?.cancel()
+        if cachedChartPoints.isEmpty, cachedChartInputs != nil {
+            chartRebuildTask = Task { @MainActor in
+                await performChartRebuild(referenceDate: referenceDate)
+            }
+            return
         }
+        chartRebuildTask = Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 350_000_000)
+            guard !Task.isCancelled else { return }
+            await performChartRebuild(referenceDate: referenceDate)
+        }
+    }
+
+    private func performChartRebuild(referenceDate: Date = Date()) async {
+        guard let inputs = cachedChartInputs else { return }
+        let snapshots = snapshots
+        let assets = currentAssets
+        let liabilities = currentLiabilities
+        let net = currentNetWorth
+
+        let cache = await Task.detached(priority: .utility) {
+            var built: [NetWorthTimeRange: [NetWorthChartPoint]] = [:]
+            for range in NetWorthTimeRange.allCases {
+                built[range] = NetWorthHistoryEngine.chartPoints(
+                    snapshots: snapshots,
+                    accounts: inputs.accounts,
+                    accountSnapshots: inputs.accountSnapshots,
+                    transactions: inputs.transactions,
+                    currentAssets: assets,
+                    currentLiabilities: liabilities,
+                    currentNetWorth: net,
+                    referenceDate: referenceDate,
+                    range: range
+                )
+            }
+            return built
+        }.value
+
         cachedChartPoints = cache
     }
 
@@ -115,7 +152,7 @@ final class NetWorthStore: ObservableObject {
            existing.netWorth == totals.net,
            existing.totalAssets == totals.assets,
            existing.totalLiabilities == totals.liabilities {
-            rebuildChartCache()
+            scheduleChartRebuild()
             return
         }
         await captureSnapshot(client: client, accounts: accounts, accountBalances: nil)
@@ -149,7 +186,7 @@ final class NetWorthStore: ObservableObject {
                     transactions: inputs.transactions
                 )
             } else {
-                rebuildChartCache()
+                scheduleChartRebuild()
             }
             if let accountBalances {
                 await accountBalances.recordTodaySnapshots(accounts: accounts, client: client)
@@ -211,6 +248,6 @@ final class NetWorthStore: ObservableObject {
             accountSnapshots: accountSnapshots,
             transactions: transactions
         )
-        rebuildChartCache()
+        scheduleChartRebuild()
     }
 }

@@ -76,15 +76,14 @@ struct BudgetTrackerApp: App {
         await transactionStore.loadAll(client: client, showsLoading: false)
         applyLocalDerivedState()
 
-        if transactionStore.needsAutomaticSync(userId: authStore.userId) {
-            _ = await transactionStore.syncIfNeeded(
-                client: client,
-                userId: authStore.userId
-            )
-            applyLocalDerivedState()
-        }
-
         Task { @MainActor in
+            if transactionStore.needsAutomaticSync(userId: authStore.userId) {
+                _ = await transactionStore.syncIfNeeded(
+                    client: client,
+                    userId: authStore.userId
+                )
+                applyLocalDerivedState()
+            }
             await loadSecondaryFinancialData(client: client)
         }
     }
@@ -110,7 +109,6 @@ struct BudgetTrackerApp: App {
             )
             if didSync {
                 applyLocalDerivedState()
-                await refreshDerivedFinancialData(client: client)
             }
             return
         }
@@ -121,13 +119,11 @@ struct BudgetTrackerApp: App {
         )
         if didUpdate {
             applyLocalDerivedState()
-            await refreshDerivedFinancialData(client: client)
         }
     }
 
     @MainActor
     private func applyLocalDerivedState() {
-        budgetStore.noteTransactionsChanged(transactionStore.transactions)
         netWorthStore.syncFromLocal(
             accounts: transactionStore.accounts,
             accountSnapshots: accountBalanceStore.snapshots,
@@ -153,17 +149,6 @@ struct BudgetTrackerApp: App {
             userId: authStore.userId
         )
         applyLocalDerivedState()
-    }
-
-    @MainActor
-    private func refreshDerivedFinancialData(client: SupabaseClient) async {
-        await budgetStore.reload(
-            client: client,
-            transactions: transactionStore.transactions,
-            showsLoading: false
-        )
-        await reloadNetWorthData()
-        await investmentStore.loadAll(client: client)
     }
 
     @MainActor

@@ -15,7 +15,7 @@ final class TransactionStore: ObservableObject {
     @Published var lastSyncSummary: String?
 
     var showsFinancialLoadingOverlay: Bool {
-        isFinancialBootstrapInProgress || isRefreshingTransactions
+        isFinancialBootstrapInProgress
     }
 
     var financialLoadingMessage: String {

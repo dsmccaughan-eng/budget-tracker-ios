@@ -228,6 +228,15 @@ final class BudgetStore: ObservableObject {
         ).map(\.progress)
     }
 
+    func spendingProgress(
+        referenceDate: Date = Date(),
+        transactions: [Transaction]
+    ) -> [BudgetProgress] {
+        displayMonthSections(referenceDate: referenceDate, transactions: transactions)
+            .spending
+            .map(\.progress)
+    }
+
     func noteTransactionsChanged(_ transactions: [Transaction]) {
         ensureIndex(transactions: transactions)
         invalidateMonthCache()

@@ -16,6 +16,11 @@ struct DashboardView: View {
     @State private var showReviewConfirmed = false
     @State private var unreviewedExpanded = false
 
+    private var dashboardSpendingProgress: [BudgetProgress] {
+        _ = budgets.spendDataVersion
+        return budgets.spendingProgress(transactions: transactions.transactions)
+    }
+
     var body: some View {
         NavigationStack {
             List {
@@ -111,14 +116,15 @@ struct DashboardView: View {
                         .buttonStyle(.borderedProminent)
                     } else {
                         BudgetSpendPieChart(
-                            progress: budgets.progress,
+                            progress: dashboardSpendingProgress,
                             referenceDate: Date(),
                             hasTransactions: !transactions.transactions.isEmpty
                         )
-                        .listRowInsets(EdgeInsets())
+                        .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
                         .listRowBackground(Color.clear)
+                        .listRowSeparator(.hidden)
 
-                        ForEach(budgets.progress.prefix(3)) { row in
+                        ForEach(dashboardSpendingProgress.prefix(3)) { row in
                             BudgetProgressBar(progress: row)
                         }
                         NavigationLink("View all budgets") {
@@ -225,7 +231,11 @@ struct DashboardView: View {
                 guard auth.activeSupabaseClient != nil else { return }
                 guard transactions.accounts.isEmpty,
                       !transactions.bankConnections.isEmpty || !transactions.transactions.isEmpty else { return }
-                await reloadDashboardData()
+                guard let client = auth.activeSupabaseClient else { return }
+                await transactions.refreshAccountsIfMissing(
+                    client: client,
+                    userId: auth.userId
+                )
             }
             .onAppear {
                 applyUnreviewedExpansionPolicy(count: unreviewedTransactions.count)

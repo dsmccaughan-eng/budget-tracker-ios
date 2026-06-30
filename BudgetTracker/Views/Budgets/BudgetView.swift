@@ -130,9 +130,6 @@ struct BudgetView: View {
             .onChange(of: monthOffset) { _, _ in
                 selectedChartCategory = nil
             }
-            .onChange(of: transactions.transactions) { _, newTransactions in
-                budgets.noteTransactionsChanged(newTransactions)
-            }
         }
     }
 
