@@ -1,4 +1,9 @@
 import {
+  normalizedSearchTexts,
+  transactionSearchTexts,
+} from "./categorization-context.ts";
+import { looksLikeHousing } from "./housing-heuristics.ts";
+import {
   matchSimilarCategorization,
   merchantSimilarityScore,
   type UserCategorizationHint,
@@ -7,7 +12,13 @@ import {
   looksLikeTransfer,
   matchesMerchantPattern,
   plaidHintsTransfer,
+  shouldSkipTransportMerchantMatch,
 } from "./transfer-heuristics.ts";
+
+export {
+  extractPlaidCategoryLabels,
+  shouldPreserveExistingCategory,
+} from "./categorization-context.ts";
 
 export const VALID_CATEGORIES = [
   "Housing & Utilities",
@@ -36,7 +47,14 @@ export type Category = typeof VALID_CATEGORIES[number];
 export type CategorizationResult = {
   category: string;
   subcategory: string | null;
-  source: "merchant_rule" | "merchant_db" | "gemini" | "plaid" | "user_similar";
+  source:
+    | "merchant_rule"
+    | "merchant_db"
+    | "gemini"
+    | "plaid"
+    | "user_similar"
+    | "housing_heuristic"
+    | "transfer_heuristic";
 };
 
 const PLAID_PRIMARY_MAP: Record<string, Category> = {
@@ -83,14 +101,14 @@ export async function categorizeTransaction(
   amount: number,
   plaidCategory: string | null,
   userHints: UserCategorizationHint[] = [],
+  plaidDetailedCategory: string | null = null,
 ): Promise<CategorizationResult> {
-  const searchText = (merchantName ?? transactionName).toLowerCase();
-  const nameText = transactionName.toLowerCase();
-  const displayName = merchantName ?? transactionName;
+  const searchTexts = transactionSearchTexts(merchantName, transactionName);
+  const normalizedTexts = normalizedSearchTexts(merchantName, transactionName);
+  const displayName = merchantName?.trim() || transactionName;
 
   const matchesMerchant = (pattern: string) =>
-    matchesMerchantPattern(searchText, pattern) ||
-    matchesMerchantPattern(nameText, pattern);
+    searchTexts.some((text) => matchesMerchantPattern(text, pattern));
 
   const { data: rules } = await (admin as {
     from: (table: string) => {
@@ -105,7 +123,7 @@ export async function categorizeTransaction(
 
   for (const rule of rules ?? []) {
     const pattern = rule.merchant_contains.toLowerCase();
-    if (searchText.includes(pattern)) {
+    if (searchTexts.some((text) => text.toLowerCase().includes(pattern))) {
       return {
         category: rule.category,
         subcategory: rule.subcategory,
@@ -117,10 +135,12 @@ export async function categorizeTransaction(
   let bestFuzzyRule: MerchantRuleRow | null = null;
   let bestFuzzyScore = FUZZY_RULE_MIN_SCORE;
   for (const rule of rules ?? []) {
-    const score = merchantSimilarityScore(searchText, rule.merchant_contains);
-    if (score >= bestFuzzyScore) {
-      bestFuzzyRule = rule;
-      bestFuzzyScore = score;
+    for (const text of normalizedTexts) {
+      const score = merchantSimilarityScore(text, rule.merchant_contains);
+      if (score >= bestFuzzyScore) {
+        bestFuzzyRule = rule;
+        bestFuzzyScore = score;
+      }
     }
   }
   if (bestFuzzyRule) {
@@ -131,21 +151,35 @@ export async function categorizeTransaction(
     };
   }
 
-  const similar = matchSimilarCategorization(searchText, userHints);
-  if (similar) {
-    return {
-      category: similar.category,
-      subcategory: similar.subcategory,
-      source: "user_similar",
-    };
+  for (const text of [...searchTexts, ...normalizedTexts]) {
+    const similar = matchSimilarCategorization(text, userHints);
+    if (similar) {
+      return {
+        category: similar.category,
+        subcategory: similar.subcategory,
+        source: "user_similar",
+      };
+    }
   }
 
-  if (looksLikeTransfer(searchText, plaidCategory) || looksLikeTransfer(nameText, plaidCategory)) {
-    return {
-      category: "Transfers",
-      subcategory: plaidCategory,
-      source: "merchant_db",
-    };
+  for (const text of searchTexts) {
+    if (looksLikeHousing(text, plaidCategory, plaidDetailedCategory)) {
+      return {
+        category: "Housing & Utilities",
+        subcategory: plaidDetailedCategory,
+        source: "housing_heuristic",
+      };
+    }
+  }
+
+  for (const text of searchTexts) {
+    if (looksLikeTransfer(text, plaidCategory, plaidDetailedCategory)) {
+      return {
+        category: "Transfers",
+        subcategory: plaidDetailedCategory ?? plaidCategory,
+        source: "transfer_heuristic",
+      };
+    }
   }
 
   const { data: merchants } = await (admin as {
@@ -160,6 +194,14 @@ export async function categorizeTransaction(
     (a, b) => b.merchant_pattern.length - a.merchant_pattern.length,
   );
   for (const merchant of sortedMerchants) {
+    if (
+      merchant.category === "Transport" &&
+      searchTexts.some((text) =>
+        shouldSkipTransportMerchantMatch(merchant.merchant_pattern, text)
+      )
+    ) {
+      continue;
+    }
     if (matchesMerchant(merchant.merchant_pattern)) {
       return {
         category: merchant.category,
@@ -173,6 +215,7 @@ export async function categorizeTransaction(
     displayName,
     amount,
     plaidCategory,
+    plaidDetailedCategory,
     userHints,
   );
   if (geminiResult) {
@@ -180,23 +223,61 @@ export async function categorizeTransaction(
   }
 
   return {
-    category: mapPlaidCategory(plaidCategory),
-    subcategory: plaidCategory,
+    category: mapPlaidCategory(
+      plaidCategory,
+      plaidDetailedCategory,
+      displayName,
+    ),
+    subcategory: plaidDetailedCategory ?? plaidCategory,
     source: "plaid",
   };
 }
 
-function mapPlaidCategory(raw: string | null): string {
-  if (!raw) return "Other";
-  if (plaidHintsTransfer(raw)) return "Transfers";
-  const key = raw.toUpperCase().replace(/\s+/g, "_");
-  return PLAID_PRIMARY_MAP[key] ?? "Other";
+function mapPlaidCategory(
+  primary: string | null,
+  detailed: string | null,
+  merchantContext: string,
+): string {
+  for (const text of transactionSearchTexts(null, merchantContext)) {
+    if (looksLikeHousing(text, primary, detailed)) {
+      return "Housing & Utilities";
+    }
+  }
+
+  for (const raw of [detailed, primary]) {
+    if (raw && plaidHintsTransfer(raw)) {
+      return "Transfers";
+    }
+  }
+
+  const detailedKey = detailed?.toUpperCase().replace(/\s+/g, "_") ?? "";
+  const primaryKey = primary?.toUpperCase().replace(/\s+/g, "_") ?? "";
+
+  if (
+    detailedKey.includes("TRANSPORTATION") ||
+    primaryKey === "TRANSPORTATION"
+  ) {
+    for (const text of transactionSearchTexts(null, merchantContext)) {
+      if (looksLikeTransfer(text, primary, detailed)) {
+        return "Transfers";
+      }
+    }
+  }
+
+  if (detailedKey.includes("RENT")) return "Housing & Utilities";
+  if (primaryKey === "RENT_AND_UTILITIES") return "Housing & Utilities";
+  if (primary && plaidHintsTransfer(primary)) return "Transfers";
+  if (primaryKey && PLAID_PRIMARY_MAP[primaryKey]) {
+    return PLAID_PRIMARY_MAP[primaryKey];
+  }
+  return "Other";
 }
 
 async function categorizeWithGemini(
   name: string,
   amount: number,
   plaidCategory: string | null,
+  plaidDetailedCategory: string | null,
   userHints: UserCategorizationHint[],
 ): Promise<{ category: string; subcategory: string | null } | null> {
   const apiKey = Deno.env.get("GEMINI_API_KEY");
@@ -208,9 +289,9 @@ async function categorizeWithGemini(
     .join("\n");
 
   const systemPrompt =
-    "You are a transaction categorizer. Return ONLY valid JSON with 'category' and 'subcategory' fields. Category must be one of: [Housing & Utilities, Groceries, Dining & Bars, Transport, Shopping, Health & Wellness, Travel, Entertainment, Subscriptions, Personal Care, Education, Pets, Gifts & Donations, Insurance, Investments, Business, Income, Transfers, Other]. Credit card payments, bill pay, and account transfers are always Transfers — never Transport. When the merchant text is similar to a user example below, use that same category.";
+    "You are a transaction categorizer. Return ONLY valid JSON with 'category' and 'subcategory' fields. Category must be one of: [Housing & Utilities, Groceries, Dining & Bars, Transport, Shopping, Health & Wellness, Travel, Entertainment, Subscriptions, Personal Care, Education, Pets, Gifts & Donations, Insurance, Investments, Business, Income, Transfers, Other]. Rent and landlord payments are Housing & Utilities, never Transfers. Credit card payments, bill pay, and account transfers are always Transfers — never Transport. Mobile banking credit card payments with varying reference numbers are Transfers. When the merchant text is similar to a user example below, use that same category.";
   const userPrompt = [
-    `Merchant: ${name}, Amount: $${amount}, Raw category: ${plaidCategory ?? "unknown"}`,
+    `Merchant: ${name}, Amount: $${amount}, Plaid primary: ${plaidCategory ?? "unknown"}, Plaid detailed: ${plaidDetailedCategory ?? "unknown"}`,
     examples.length > 0
       ? `\nUser's past categorizations (prefer these when the merchant is similar):\n${examples}`
       : "",
@@ -270,4 +351,12 @@ export function normalizePlaidCategory(
   return txn.personal_finance_category?.primary ??
     txn.personal_finance_category?.detailed ??
     null;
+}
+
+export function normalizePlaidDetailedCategory(
+  txn: {
+    personal_finance_category?: { primary?: string; detailed?: string } | null;
+  },
+): string | null {
+  return txn.personal_finance_category?.detailed ?? null;
 }

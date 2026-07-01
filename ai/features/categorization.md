@@ -4,9 +4,9 @@
 
 ## Behavior
 
-Priority: `merchant_rules` → `merchant_db` → Gemini → Plaid category.  
+Priority: `merchant_rules` → user-similar history → housing heuristics → transfer heuristics → `merchant_db` → Gemini → Plaid category.  
 17 fixed categories — validate AI JSON before persist.  
-User category edits must not be wiped on sync unless transaction is still `Other`.
+User category edits must not be wiped on sync (`category_source` `user` or `merchant_rule` always preserved).
 
 ## Code map
 

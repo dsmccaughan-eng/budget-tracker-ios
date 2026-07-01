@@ -148,7 +148,7 @@ struct BudgetSpendPieChart: View {
                         radiusRatio: metrics.iconRadiusRatio,
                         in: containerSize
                     )
-                    Image(systemName: categorySymbol(segment.progress.category))
+                    Image(systemName: BudgetCategorySymbol.name(for: segment.progress.category))
                         .font(.system(size: 11, weight: .semibold))
                         .foregroundStyle(.white)
                         .shadow(color: .black.opacity(0.25), radius: 1, y: 1)
@@ -204,19 +204,25 @@ struct BudgetSpendPieChart: View {
     @ViewBuilder
     private var centerLabels: some View {
         if let segment = selectedSegment {
+            let row = segment.progress
+            let categoryOverBudget = row.monthlyLimit > 0 && row.listDisplaySpent > row.monthlyLimit
             VStack(spacing: 2) {
-                Text(segment.progress.category)
+                Text(row.category)
                     .font(.caption.weight(.semibold))
                     .multilineTextAlignment(.center)
                     .lineLimit(2)
                     .minimumScaleFactor(0.85)
-                Text(FinanceFormatting.currency(segment.amount))
+                Text(FinanceFormatting.currency(row.listDisplaySpent))
                     .font(.title3.weight(.bold))
                     .minimumScaleFactor(0.75)
                     .lineLimit(1)
-                Text(referenceDate.formatted(.dateTime.month(.wide)))
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
+                if row.showsBudgetLimit {
+                    Text("of \(FinanceFormatting.currency(row.monthlyLimit)) budget")
+                        .font(.caption2)
+                        .foregroundStyle(categoryOverBudget ? .red : .secondary)
+                        .minimumScaleFactor(0.75)
+                        .lineLimit(1)
+                }
             }
         } else {
             VStack(spacing: 2) {
@@ -280,6 +286,9 @@ struct BudgetSpendPieChart: View {
         in size: CGSize,
         metrics: BudgetWheelMetrics
     ) {
+        let moved = hypot(value.translation.width, value.translation.height)
+        guard moved >= 8 else { return }
+
         let segments = slicePlan.segments
         guard !segments.isEmpty else { return }
 
@@ -358,33 +367,6 @@ struct BudgetSpendPieChart: View {
             selectedCategory = nil
         } else {
             selectedCategory = segment.progress.category
-        }
-    }
-
-    private func categorySymbol(_ category: String) -> String {
-        switch category {
-        case "Housing & Utilities":
-            return "house.fill"
-        case "Groceries":
-            return "cart.fill"
-        case "Transport", "Transportation":
-            return "car.fill"
-        case "Dining & Bars", "Food & Dining":
-            return "fork.knife"
-        case "Shopping":
-            return "bag.fill"
-        case "Investments":
-            return "chart.line.uptrend.xyaxis"
-        case "Transfers":
-            return "arrow.left.arrow.right"
-        case "Health & Wellness":
-            return "heart.fill"
-        case "Subscriptions":
-            return "play.rectangle.fill"
-        case "Income":
-            return "dollarsign.circle.fill"
-        default:
-            return "tag.fill"
         }
     }
 }

@@ -63,6 +63,13 @@ enum MerchantSimilarity {
         return min(1, jaccard + containsBoost + prefixBoost)
     }
 
+    static func merchantSkeleton(_ raw: String) -> String {
+        normalizeMerchantText(raw)
+            .replacingOccurrences(of: #"\b\d+\b"#, with: " ", options: .regularExpression)
+            .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
     static func matchSimilar(
         searchText: String,
         hints: [UserCategorizationHint],
@@ -75,6 +82,14 @@ enum MerchantSimilarity {
             if score >= bestScore {
                 best = hint
                 bestScore = score
+            }
+            let skeletonScore = similarityScore(
+                merchantSkeleton(searchText),
+                merchantSkeleton(hint.merchantText)
+            )
+            if skeletonScore >= max(minScore, 0.58), skeletonScore >= bestScore {
+                best = hint
+                bestScore = skeletonScore
             }
         }
         return best

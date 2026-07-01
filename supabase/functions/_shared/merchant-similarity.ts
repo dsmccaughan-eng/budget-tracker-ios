@@ -54,6 +54,11 @@ export function merchantTokens(raw: string): string[] {
     .filter((token) => token.length > 1 && !STOP_WORDS.has(token));
 }
 
+export function merchantSkeleton(raw: string): string {
+  const normalized = normalizeMerchantText(raw);
+  return normalized.replace(/\b\d+\b/g, " ").replace(/\s+/g, " ").trim();
+}
+
 export function merchantSimilarityScore(left: string, right: string): number {
   const a = normalizeMerchantText(left);
   const b = normalizeMerchantText(right);
@@ -96,6 +101,15 @@ export function matchSimilarCategorization(
     if (score >= bestScore) {
       best = hint;
       bestScore = score;
+    }
+
+    const skeletonScore = merchantSimilarityScore(
+      merchantSkeleton(searchText),
+      merchantSkeleton(hint.merchantText),
+    );
+    if (skeletonScore >= Math.max(minScore, 0.58) && skeletonScore >= bestScore) {
+      best = hint;
+      bestScore = skeletonScore;
     }
   }
 

@@ -9,6 +9,11 @@ struct BudgetCategorySpendRow: View {
             RoundedRectangle(cornerRadius: 8, style: .continuous)
                 .fill(Color(hex: progress.color))
                 .frame(width: 36, height: 36)
+                .overlay {
+                    Image(systemName: BudgetCategorySymbol.name(for: progress.category))
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(.white)
+                }
 
             VStack(alignment: .leading, spacing: 4) {
                 Text(progress.category)

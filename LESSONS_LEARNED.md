@@ -358,3 +358,10 @@ Entry format
 - **Root cause:** Hand-rolled `Path`/`stroke` arc rendering is fragile in List rows (winding, compositing, background bleed); not how production budget apps draw this UI.
 - **Fix:** Rebuilt chart with Swift Charts `SectorMark` (iOS 17+): `innerRadius`, `angularInset`, `cornerRadius`, explicit category colors; placeholder sector fills the lower 180° with `systemBackground`; `-90°` rotation for top semicircle; icons on large segments.
 - **Verification:** Segments match category colors with rounded gaps like reference mock; center shows spent total and budget cap.
+
+### 2026-07-01 — Mobile CC payments → Transport; rent → Transfers
+- **Symptom:** Variable mobile credit card payment descriptors miscategorized as Transport; rent/ACH landlord payments tagged Transfers or Other.
+- **Root cause:** Ambiguous `metro`/`mobil` merchant_db transport patterns matched inside mobile banking strings; generic ACH/loan Plaid categories beat rent intent; transfer heuristics ran before housing; sync only preserved non-`Other` categories (not all `user` edits).
+- **Fix pattern:** Housing heuristics before transfer; token-normalized mobile card payment detection with carrier exclusions; skip ambiguous transport merchant_db when payment context present; skeleton similarity for variable descriptors; Plaid detailed rent/transport overrides; `shouldPreserveExistingCategory` for `user`/`merchant_rule`; merchant_db migration for rent + mobile pmt patterns.
+- **Guardrails:** Do not run bulk recategorize on user-fixed rows; `recategorize-transactions` still limited to `Other` + plaid source.
+- **Verification:** `HousingHeuristicsTests`, `TransferHeuristicsTests`, `CategorizationEngineTests`; redeploy edge functions + apply migration `20260701120000_merchant_db_housing_rent_patterns.sql`.

@@ -1,6 +1,12 @@
 import Foundation
 
 enum BudgetAlertEngine {
+    static let suppressedCategories: Set<String> = [
+        "Housing & Utilities",
+        "Subscriptions",
+        "Insurance",
+    ]
+
     static func fixedBillCategories(from transactions: [Transaction]) -> Set<String> {
         Set(transactions.filter(\.isFixedBill).map(\.category))
     }
@@ -38,6 +44,7 @@ enum BudgetAlertEngine {
         _ row: BudgetProgress,
         fixedBillCategories: Set<String>
     ) -> Bool {
-        row.isFixed || fixedBillCategories.contains(row.category)
+        if suppressedCategories.contains(row.category) { return true }
+        return row.isFixed || fixedBillCategories.contains(row.category)
     }
 }

@@ -1,7 +1,9 @@
 import { SupabaseClient } from "npm:@supabase/supabase-js@2";
 import {
   categorizeTransaction,
+  extractPlaidCategoryLabels,
   normalizePlaidCategory,
+  shouldPreserveExistingCategory,
 } from "./categorization.ts";
 import { loadUserCategorizationHints } from "./user-categorization-history.ts";
 import { plaidRequest, PlaidTransaction } from "./plaid.ts";
@@ -111,6 +113,7 @@ export async function syncPlaidItemsForUser(
           const accountId = accountByPlaidId.get(txn.account_id);
           if (!accountId) continue;
 
+          const plaidLabels = extractPlaidCategoryLabels(txn);
           const plaidCategory = normalizePlaidCategory(txn);
           let category = "Other";
           let subcategory: string | null = null;
@@ -123,9 +126,9 @@ export async function syncPlaidItemsForUser(
 
           let categorySource: string | null = null;
 
-          if (existing?.category && existing.category !== "Other") {
-            category = existing.category;
-            categorySource = existing.category_source ?? null;
+          if (shouldPreserveExistingCategory(existing)) {
+            category = existing!.category!;
+            categorySource = existing!.category_source ?? null;
           } else {
             const result = await categorizeTransaction(
               admin,
@@ -135,6 +138,7 @@ export async function syncPlaidItemsForUser(
               txn.amount,
               plaidCategory,
               userHints,
+              plaidLabels.detailed,
             );
             category = result.category;
             subcategory = result.subcategory;

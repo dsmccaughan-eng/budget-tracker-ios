@@ -81,6 +81,45 @@ final class BudgetAlertEngineTests: XCTestCase {
         XCTAssertTrue(alerts.isEmpty)
     }
 
+    func testSkipsHousingEvenWhenVariable() {
+        let row = BudgetProgress(
+            category: "Housing & Utilities",
+            monthlyLimit: 2_000,
+            spent: 1_900,
+            projectedSpend: 2_000,
+            isFixed: false,
+            isRollover: false,
+            color: "#000000"
+        )
+        let alerts = BudgetAlertEngine.alerts(progress: [row], threshold: 0.8)
+        XCTAssertTrue(alerts.isEmpty)
+    }
+
+    func testSkipsSubscriptionsAndInsuranceEvenWhenVariable() {
+        let rows = [
+            BudgetProgress(
+                category: "Subscriptions",
+                monthlyLimit: 120,
+                spent: 115,
+                projectedSpend: 120,
+                isFixed: false,
+                isRollover: false,
+                color: "#000000"
+            ),
+            BudgetProgress(
+                category: "Insurance",
+                monthlyLimit: 300,
+                spent: 290,
+                projectedSpend: 300,
+                isFixed: false,
+                isRollover: false,
+                color: "#000000"
+            ),
+        ]
+        let alerts = BudgetAlertEngine.alerts(progress: rows, threshold: 0.8)
+        XCTAssertTrue(alerts.isEmpty)
+    }
+
     func testSkipsFixedBudgetWhenOverBudget() {
         let row = BudgetProgress(
             category: "Housing & Utilities",

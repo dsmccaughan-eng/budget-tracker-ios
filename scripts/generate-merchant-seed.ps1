@@ -46,7 +46,9 @@ $categories = @{
   )
   "Housing & Utilities" = @(
     "duke energy", "pg&e", "con edison", "xcel energy", "dominion energy", "atmos energy",
-    "comcast", "xfinity", "spectrum", "verizon fios", "att internet", "cox communications"
+    "comcast", "xfinity", "spectrum", "verizon fios", "att internet", "cox communications",
+    "rent payment", "monthly rent", "landlord", "property management", "greystar", "appfolio",
+    "lease payment", "apt rent", "apartment rent"
   )
   "Personal Care" = @(
     "ulta", "sephora", "great clips", "supercuts", "massage envy", "drybar", "sola salon"
@@ -70,7 +72,9 @@ $categories = @{
     "zelle", "venmo", "paypal transfer", "cash app", "wire transfer", "ach transfer",
     "mobile credit card", "credit card payment", "credit card transfer", "card payment",
     "autopay payment", "bill pay", "loan payment", "mortgage payment", "payment thank you",
-    "apple card", "apple card payment", "payment to chase", "payment to amex"
+    "apple card", "apple card payment", "payment to chase", "payment to amex",
+    "mobile pmt", "mobile payment", "cr card pmt", "card pmt", "online/mobile",
+    "payment from checking", "payment from chk"
   )
   "Other" = @(
     "atm fee", "bank fee", "service charge", "misc", "unknown merchant"

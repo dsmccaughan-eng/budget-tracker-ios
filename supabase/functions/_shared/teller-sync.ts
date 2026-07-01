@@ -1,5 +1,5 @@
 import { SupabaseClient } from "npm:@supabase/supabase-js@2";
-import { categorizeTransaction } from "./categorization.ts";
+import { categorizeTransaction, shouldPreserveExistingCategory } from "./categorization.ts";
 import { loadUserCategorizationHints } from "./user-categorization-history.ts";
 import {
   mapTellerAccountType,
@@ -173,9 +173,9 @@ export async function syncTellerItemsForUser(
           let subcategory: string | null = null;
           let categorySource: string | null = "teller";
 
-          if (existing?.category && existing.category !== "Other") {
-            category = existing.category;
-            categorySource = existing.category_source ?? null;
+          if (shouldPreserveExistingCategory(existing)) {
+            category = existing!.category!;
+            categorySource = existing!.category_source ?? null;
           } else {
             const result = await categorizeTransaction(
               admin,
@@ -185,6 +185,7 @@ export async function syncTellerItemsForUser(
               amount,
               category,
               userHints,
+              null,
             );
             category = result.category;
             subcategory = result.subcategory;

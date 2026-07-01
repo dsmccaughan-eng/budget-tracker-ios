@@ -1,38 +1,5 @@
 import Foundation
 
-enum BudgetCategories {
-    static let all: [String] = [
-        "Housing & Utilities",
-        "Groceries",
-        "Dining & Bars",
-        "Transport",
-        "Shopping",
-        "Health & Wellness",
-        "Travel",
-        "Entertainment",
-        "Subscriptions",
-        "Personal Care",
-        "Education",
-        "Pets",
-        "Gifts & Donations",
-        "Insurance",
-        "Investments",
-        "Business",
-        "Income",
-        "Transfers",
-        "Other"
-    ]
-
-    static func isValid(_ category: String) -> Bool {
-        all.contains(category)
-    }
-}
-
-struct MerchantRuleMatch: Equatable {
-    let category: String
-    let subcategory: String?
-}
-
 enum CategorizationEngine {
     static func matchMerchantRules(
         merchantText: String,
@@ -62,11 +29,21 @@ enum CategorizationEngine {
         merchants: [(pattern: String, category: String, subcategory: String?)]
     ) -> MerchantRuleMatch? {
         let normalized = merchantText.lowercased()
+        if HousingHeuristics.looksLikeHousing(merchantText: merchantText) {
+            return MerchantRuleMatch(category: "Housing & Utilities", subcategory: nil)
+        }
         if TransferHeuristics.looksLikeTransfer(merchantText: merchantText) {
             return MerchantRuleMatch(category: "Transfers", subcategory: nil)
         }
         let sorted = merchants.sorted { $0.pattern.count > $1.pattern.count }
         for merchant in sorted {
+            if merchant.category == "Transport",
+               TransferHeuristics.shouldSkipTransportMerchantMatch(
+                   merchantPattern: merchant.pattern,
+                   merchantText: merchantText
+               ) {
+                continue
+            }
             if matchesMerchantPattern(normalized, pattern: merchant.pattern.lowercased()) {
                 guard BudgetCategories.isValid(merchant.category) else { continue }
                 return MerchantRuleMatch(category: merchant.category, subcategory: merchant.subcategory)

@@ -78,6 +78,7 @@ export async function recategorizeOtherTransactionsForUser(
       txn.amount,
       txn.subcategory,
       userHints,
+      null,
     );
 
     if (result.category !== "Other" || result.source !== "plaid") {

@@ -11,15 +11,32 @@ struct DashboardView: View {
     @EnvironmentObject private var appLock: AppLockStore
     @EnvironmentObject private var transactionReview: TransactionReviewStore
 
+    @Binding var selectedTab: AppTab
+
     @State private var showAddBudget = false
     @State private var showSettings = false
     @State private var showReviewConfirmed = false
     @State private var unreviewedExpanded = false
-    @State private var selectedChartCategory: String?
 
     private var dashboardSpendingProgress: [BudgetProgress] {
         _ = budgets.spendDataVersion
         return budgets.spendingProgress(transactions: transactions.transactions)
+    }
+
+    private var dashboardBudgetSpent: Double {
+        BudgetMath.monthSpendingDisplayTotal(progress: dashboardSpendingProgress)
+    }
+
+    private var dashboardBudgetLimit: Double {
+        budgets.budgets.reduce(0) { $0 + $1.monthlyLimit }
+    }
+
+    private var dashboardBudgetAlerts: [String] {
+        BudgetAlertEngine.alerts(
+            progress: budgets.progress,
+            transactions: transactions.transactions,
+            threshold: notifications.alertThreshold
+        )
     }
 
     var body: some View {
@@ -37,31 +54,33 @@ struct DashboardView: View {
                     }
                 }
 
-                Section("Net worth") {
-                    NavigationLink {
-                        NetWorthView()
-                    } label: {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(FinanceFormatting.currency(netWorth.currentNetWorth))
-                                .font(.title2.weight(.bold))
-                            Text("View trend chart and accounts")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
+                Section("Budget") {
+                    if budgets.isLoading {
+                        ProgressView("Loading budgets…")
+                    } else if budgets.budgets.isEmpty {
+                        Text("Set monthly limits per category to track spending.")
+                            .foregroundStyle(.secondary)
+                        Button {
+                            showAddBudget = true
+                        } label: {
+                            Label("Set up budgets", systemImage: "plus.circle.fill")
                         }
+                        .buttonStyle(.borderedProminent)
+                    } else {
+                        DashboardBudgetSummary(
+                            spent: dashboardBudgetSpent,
+                            budget: dashboardBudgetLimit,
+                            onViewFullBudget: { selectedTab = .budgets }
+                        )
                     }
                 }
 
                 Section("Alerts") {
-                    let alerts = BudgetAlertEngine.alerts(
-                        progress: budgets.progress,
-                        transactions: transactions.transactions,
-                        threshold: notifications.alertThreshold
-                    )
-                    if alerts.isEmpty {
+                    if dashboardBudgetAlerts.isEmpty {
                         Text("No budget alerts right now.")
                             .foregroundStyle(.secondary)
                     } else {
-                        ForEach(alerts, id: \.self) { alert in
+                        ForEach(dashboardBudgetAlerts, id: \.self) { alert in
                             Label(alert, systemImage: "exclamationmark.circle")
                                 .foregroundStyle(.orange)
                         }
@@ -100,38 +119,6 @@ struct DashboardView: View {
                         Text(budgetError)
                             .foregroundStyle(.red)
                             .font(.footnote)
-                    }
-                }
-
-                Section("Budget overview") {
-                    if budgets.isLoading {
-                        ProgressView("Loading budgets…")
-                    } else if budgets.progress.isEmpty {
-                        Text("Set monthly limits per category to track spending.")
-                            .foregroundStyle(.secondary)
-                        Button {
-                            showAddBudget = true
-                        } label: {
-                            Label("Set up budgets", systemImage: "plus.circle.fill")
-                        }
-                        .buttonStyle(.borderedProminent)
-                    } else {
-                        BudgetSpendPieChart(
-                            progress: dashboardSpendingProgress,
-                            referenceDate: Date(),
-                            hasTransactions: !transactions.transactions.isEmpty,
-                            selectedCategory: $selectedChartCategory
-                        )
-                        .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 12, trailing: 16))
-                        .listRowBackground(Color.clear)
-                        .listRowSeparator(.hidden)
-
-                        ForEach(dashboardSpendingProgress.prefix(3)) { row in
-                            BudgetProgressBar(progress: row)
-                        }
-                        NavigationLink("View all budgets") {
-                            BudgetView()
-                        }
                     }
                 }
 

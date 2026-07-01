@@ -170,7 +170,7 @@ struct NotificationSettingsView: View {
                 Slider(value: $notifications.alertThreshold, in: 0.5...1.0, step: 0.05) {
                     Text("Threshold")
                 }
-                Text("Notify when a variable category reaches \(Int(notifications.alertThreshold * 100))% of its budget. Fixed costs and monthly bills are excluded.")
+                Text("Notify when a variable category reaches \(Int(notifications.alertThreshold * 100))% of its budget. Housing, subscriptions, insurance, fixed costs, and monthly bills are excluded.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
