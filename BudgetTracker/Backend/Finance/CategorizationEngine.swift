@@ -1,5 +1,38 @@
 import Foundation
 
+enum BudgetCategories {
+    static let all: [String] = [
+        "Housing & Utilities",
+        "Groceries",
+        "Dining & Bars",
+        "Transport",
+        "Shopping",
+        "Health & Wellness",
+        "Travel",
+        "Entertainment",
+        "Subscriptions",
+        "Personal Care",
+        "Education",
+        "Pets",
+        "Gifts & Donations",
+        "Insurance",
+        "Investments",
+        "Business",
+        "Income",
+        "Transfers",
+        "Other",
+    ]
+
+    static func isValid(_ category: String) -> Bool {
+        all.contains(category)
+    }
+}
+
+struct MerchantRuleMatch: Equatable {
+    let category: String
+    let subcategory: String?
+}
+
 enum CategorizationEngine {
     static func matchMerchantRules(
         merchantText: String,
