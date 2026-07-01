@@ -11,6 +11,7 @@ struct BudgetSpendPieChart: View {
     @State private var lastScrubStep = 0
 
     private let segmentInnerRadiusRatio: CGFloat = 0.64
+    private let progressRingGapPoints: CGFloat = 8
     private let scrubStepPoints: CGFloat = 26
 
     init(
@@ -29,29 +30,21 @@ struct BudgetSpendPieChart: View {
         BudgetMath.chartSliceSegments(progress: progress)
     }
 
-    private var usesSpendingSlices: Bool {
-        BudgetMath.usesSpendingChartSlices(progress: progress)
-    }
-
-    private var totalCenterValue: Double {
-        slicePlan.total
-    }
-
     private var totalBudget: Double {
         progress.reduce(0) { $0 + $1.monthlyLimit }
     }
 
-    private var isOverBudget: Bool {
-        totalBudget > 0 && totalCenterValue > totalBudget
+    private var totalSpent: Double {
+        BudgetMath.monthSpendingDisplayTotal(progress: progress)
     }
 
-    private var centerTitle: String {
-        usesSpendingSlices ? "Spent" : "Budgeted"
+    private var isOverBudget: Bool {
+        totalBudget > 0 && totalSpent > totalBudget
     }
 
     private var budgetProgressFraction: Double {
         guard totalBudget > 0 else { return 0 }
-        return min(totalCenterValue / totalBudget, 1)
+        return min(totalSpent / totalBudget, 1)
     }
 
     private var typicalMonthly: Double {
@@ -89,7 +82,8 @@ struct BudgetSpendPieChart: View {
         GeometryReader { geo in
             let metrics = BudgetWheelMetrics(
                 width: geo.size.width,
-                innerRadiusRatio: segmentInnerRadiusRatio
+                innerRadiusRatio: segmentInnerRadiusRatio,
+                progressRingGapPoints: progressRingGapPoints
             )
 
             ZStack {
@@ -107,9 +101,8 @@ struct BudgetSpendPieChart: View {
                 }
 
                 centerLabels
-                    .frame(maxWidth: metrics.labelMaxWidth, minHeight: metrics.labelAreaHeight, alignment: .bottom)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
-                    .padding(.bottom, metrics.labelBottomPadding)
+                    .frame(maxWidth: metrics.labelMaxWidth)
+                    .position(metrics.centerLabelCenter(in: geo.size))
             }
             .frame(width: geo.size.width, height: metrics.totalHeight, alignment: .bottom)
             .frame(maxWidth: .infinity)
@@ -211,7 +204,7 @@ struct BudgetSpendPieChart: View {
     @ViewBuilder
     private var centerLabels: some View {
         if let segment = selectedSegment {
-            VStack(spacing: 1) {
+            VStack(spacing: 2) {
                 Text(segment.progress.category)
                     .font(.caption.weight(.semibold))
                     .multilineTextAlignment(.center)
@@ -226,12 +219,12 @@ struct BudgetSpendPieChart: View {
                     .foregroundStyle(.secondary)
             }
         } else {
-            VStack(spacing: 1) {
-                Text(centerTitle)
+            VStack(spacing: 2) {
+                Text("Spent")
                     .font(.caption2.weight(.semibold))
                     .foregroundStyle(.secondary)
                     .textCase(.uppercase)
-                Text(FinanceFormatting.currency(totalCenterValue))
+                Text(FinanceFormatting.currency(totalSpent))
                     .font(.title3.weight(.bold))
                     .minimumScaleFactor(0.75)
                     .lineLimit(1)
@@ -242,23 +235,23 @@ struct BudgetSpendPieChart: View {
                         .minimumScaleFactor(0.75)
                         .lineLimit(1)
                 }
-                if !usesSpendingSlices, typicalMonthly > 0 {
-                    Text("Typical \(FinanceFormatting.currency(typicalMonthly))/mo")
-                        .font(.caption2)
-                        .foregroundStyle(.tertiary)
-                        .multilineTextAlignment(.center)
-                        .lineLimit(2)
-                } else if !usesSpendingSlices, !hasTransactions {
+                if totalSpent == 0, !hasTransactions {
                     Text("Sync transactions to track spending")
                         .font(.caption2)
                         .foregroundStyle(.tertiary)
                         .multilineTextAlignment(.center)
                         .lineLimit(2)
-                } else if !usesSpendingSlices, hasTransactions {
+                } else if totalSpent == 0, hasTransactions {
                     Text("No spending this month yet")
                         .font(.caption2)
                         .foregroundStyle(.tertiary)
                         .multilineTextAlignment(.center)
+                } else if typicalMonthly > 0 {
+                    Text("Typical \(FinanceFormatting.currency(typicalMonthly))/mo")
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                        .multilineTextAlignment(.center)
+                        .lineLimit(2)
                 }
             }
         }
@@ -412,36 +405,46 @@ private struct BudgetWheelMetrics {
     let progressRingDiameter: CGFloat
     let progressLineWidth: CGFloat
     let iconRadiusRatio: CGFloat
-    let labelAreaHeight: CGFloat
-    let labelBottomPadding: CGFloat
     let labelMaxWidth: CGFloat
+    let bottomInset: CGFloat
+    let progressRingGapPoints: CGFloat
 
     static var preferredTotalHeight: CGFloat {
-        let metrics = BudgetWheelMetrics(width: 320, innerRadiusRatio: 0.64)
+        let metrics = BudgetWheelMetrics(width: 320, innerRadiusRatio: 0.64, progressRingGapPoints: 8)
         return metrics.totalHeight
     }
 
-    init(width: CGFloat, innerRadiusRatio: CGFloat) {
+    init(width: CGFloat, innerRadiusRatio: CGFloat, progressRingGapPoints: CGFloat) {
         self.innerRadiusRatio = innerRadiusRatio
+        self.progressRingGapPoints = progressRingGapPoints
         chartDiameter = min(max(width - 24, 240), 272)
         let outerRadius = chartDiameter / 2
-        labelAreaHeight = 74
-        labelBottomPadding = 12
-        progressLineWidth = 3
-        labelMaxWidth = chartDiameter * 0.52
+        bottomInset = 12
+        progressLineWidth = 2.5
+        labelMaxWidth = chartDiameter * 0.46
         iconRadiusRatio = (1 + innerRadiusRatio) / 2
+        totalHeight = outerRadius + bottomInset
 
-        let labelReserve = labelAreaHeight + labelBottomPadding
-        totalHeight = outerRadius + labelReserve + 8
-
-        // Slightly outside the chart inner radius so the stroke hugs the category band.
-        progressRingDiameter = chartDiameter * (innerRadiusRatio + 0.022)
+        let categoryInnerRadius = outerRadius * innerRadiusRatio
+        let progressRingRadius = categoryInnerRadius - progressRingGapPoints - progressLineWidth / 2
+        progressRingDiameter = max(progressRingRadius * 2, chartDiameter * 0.46)
     }
 
     func arcCenter(in size: CGSize) -> CGPoint {
         CGPoint(
             x: size.width / 2,
-            y: totalHeight - labelAreaHeight - labelBottomPadding
+            y: totalHeight - bottomInset
+        )
+    }
+
+    func centerLabelCenter(in size: CGSize) -> CGPoint {
+        let center = arcCenter(in: size)
+        let progressRingRadius = progressRingDiameter / 2
+        // Lower third of the inner bowl — below the progress arc apex, above the arc opening.
+        let labelOffset = progressRingRadius * 0.36 + bottomInset * 0.25
+        return CGPoint(
+            x: size.width / 2,
+            y: center.y - labelOffset
         )
     }
 
