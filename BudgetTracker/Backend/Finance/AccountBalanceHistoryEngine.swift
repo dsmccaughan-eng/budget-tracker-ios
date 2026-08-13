@@ -212,15 +212,16 @@ enum AccountBalanceHistoryEngine {
                 merged[point.dateString] = undisplayBalance(point.balance, accountType: account.type)
             }
         } else {
-            let reconstructed = InvestmentHistoryEngine.reconstructedDailyPoints(
+            let points = InvestmentHistoryEngine.mergedDailyPoints(
                 account: account,
+                snapshots: snapshots,
                 transactions: investmentTransactions,
                 cashTransactions: transactions,
                 referenceDate: referenceDate,
                 range: range,
                 calendar: calendar
             )
-            for point in reconstructed {
+            for point in points {
                 merged[point.dateString] = point.balance
             }
         }

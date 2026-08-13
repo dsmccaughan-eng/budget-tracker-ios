@@ -380,6 +380,13 @@ Entry format
 - **Guardrails:** Do not block budget fetch on Plaid sync.
 - **Verification:** Cold unlock → Dashboard shows loading then the month summary without opening Budgets.
 
+### 2026-08-13 — Investment charts overwrote snapshot forward-fill
+- **Symptom:** Codemagic build 78 unit tests failed: investment net-worth days jumped to today's live balance instead of the last snapshot (`testChartPointsForwardFillsSparseInvestmentSnapshots`, `testChartPointsFromAccountHistoryBackfillsInvestmentBeforeFirstSnapshot`).
+- **Root cause:** `rawDailyBalances` dense-filled investment reconstruction from current value on every day, so snapshots only won on their exact dates and could not forward-fill.
+- **Fix pattern:** When snapshots exist, anchor the series on those marks, apply contribution/withdrawal amounts only between them, and use live balance for today. Reconstruct from current only when there are no snapshots.
+- **Guardrails:** Do not treat buy/sell as NAV changes; do not replace snapshot forward-fill with current-balance reconstruction.
+- **Verification:** `NetWorthHistoryEngineTests` snapshot fill tests; `InvestmentHistoryEngineTests` forward-fill and contribution-between-snapshots.
+
 ### 2026-08-13 — Unreviewed review still returned to Dashboard
 - **Symptom:** After saving a category, review still felt like a dashboard dropdown and kicked the user out of the list.
 - **Root cause:** Review lived on the Dashboard `NavigationStack`; store updates and list identity still interacted with the tab root.

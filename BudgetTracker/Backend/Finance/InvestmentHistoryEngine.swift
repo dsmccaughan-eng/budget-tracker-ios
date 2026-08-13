@@ -23,41 +23,114 @@ enum InvestmentHistoryEngine {
         referenceDate: Date = Date(),
         calendar: Calendar = .current
     ) -> [AccountBalancePoint] {
-        let accountSnapshots = snapshots
-            .filter { $0.accountId == account.id }
-            .compactMap { snapshot -> AccountBalancePoint? in
-                guard let date = parseDate(snapshot.date, calendar: calendar),
-                      let balance = snapshot.currentBalance else { return nil }
-                return AccountBalancePoint(
-                    date: date,
-                    dateString: snapshot.date,
-                    balance: balance,
-                    source: .snapshot
-                )
-            }
-
-        let reconstructed = reconstructedDailyPoints(
+        mergedDailyPoints(
             account: account,
+            snapshots: snapshots,
             transactions: transactions,
             cashTransactions: cashTransactions,
             referenceDate: referenceDate,
             range: range,
             calendar: calendar
         )
+    }
 
+    /// Snapshots are market marks and forward-fill. Cash/NAV flows jump between them.
+    /// With no snapshots, walk back from today's live value using those flows only.
+    static func mergedDailyPoints(
+        account: Account,
+        snapshots: [AccountBalanceSnapshot],
+        transactions: [InvestmentTransaction],
+        cashTransactions: [Transaction] = [],
+        referenceDate: Date = Date(),
+        range: NetWorthTimeRange = .oneYear,
+        calendar: Calendar = .current
+    ) -> [AccountBalancePoint] {
+        var snapshotByDate: [String: Double] = [:]
+        for snapshot in snapshots where snapshot.accountId == account.id {
+            guard let balance = snapshot.currentBalance else { continue }
+            snapshotByDate[snapshot.date] = balance
+        }
+
+        if snapshotByDate.isEmpty {
+            return reconstructedDailyPoints(
+                account: account,
+                transactions: transactions,
+                cashTransactions: cashTransactions,
+                referenceDate: referenceDate,
+                range: range,
+                calendar: calendar
+            )
+        }
+
+        var amountByDate: [String: Double] = [:]
+        for txn in transactions where txn.accountId == account.id
+            && affectsTotalValue(type: txn.type, subtype: txn.subtype)
+        {
+            amountByDate[txn.date, default: 0] += txn.amount
+        }
+        for txn in cashTransactions where txn.accountId == account.id && !txn.pending {
+            amountByDate[txn.date, default: 0] += txn.amount
+        }
+
+        let anchor = calendar.startOfDay(for: referenceDate)
+        let startDate = range.cutoffDate(before: anchor, calendar: calendar)
+            ?? calendar.date(byAdding: .month, value: -AccountBalanceHistoryEngine.historyMonthCount, to: anchor)
+            ?? anchor
+        guard let firstDateString = snapshotByDate.keys.sorted().first,
+              let firstBalance = snapshotByDate[firstDateString],
+              var day = parseDate(firstDateString, calendar: calendar)
+        else {
+            return reconstructedDailyPoints(
+                account: account,
+                transactions: transactions,
+                cashTransactions: cashTransactions,
+                referenceDate: referenceDate,
+                range: range,
+                calendar: calendar
+            )
+        }
+
+        let todayString = formatDate(anchor, calendar: calendar)
         var merged: [String: AccountBalancePoint] = [:]
-        for point in reconstructed {
-            merged[point.dateString] = point
+        var running = firstBalance
+        while day <= anchor {
+            let dateString = formatDate(day, calendar: calendar)
+            let source: AccountBalancePoint.Source
+            if dateString == todayString, let current = account.currentBalance {
+                running = current
+                source = .snapshot
+            } else if let snap = snapshotByDate[dateString] {
+                running = snap
+                source = .snapshot
+            } else {
+                running -= amountByDate[dateString, default: 0]
+                source = .reconstructed
+            }
+            merged[dateString] = AccountBalancePoint(
+                date: day,
+                dateString: dateString,
+                balance: running,
+                source: source
+            )
+            guard let next = calendar.date(byAdding: .day, value: 1, to: day) else { break }
+            day = next
         }
-        for point in accountSnapshots {
-            merged[point.dateString] = point
+
+        running = firstBalance
+        day = parseDate(firstDateString, calendar: calendar) ?? day
+        let start = calendar.startOfDay(for: startDate)
+        while day > start {
+            running += amountByDate[formatDate(day, calendar: calendar), default: 0]
+            guard let previous = calendar.date(byAdding: .day, value: -1, to: day) else { break }
+            day = previous
+            let dateString = formatDate(day, calendar: calendar)
+            merged[dateString] = AccountBalancePoint(
+                date: day,
+                dateString: dateString,
+                balance: running,
+                source: .reconstructed
+            )
         }
-        applyTodayLiveBalance(
-            account: account,
-            referenceDate: referenceDate,
-            calendar: calendar,
-            merged: &merged
-        )
 
         var points = merged.values.sorted { $0.date < $1.date }
         if let cutoff = range.cutoffDate(before: referenceDate, calendar: calendar) {
@@ -118,23 +191,6 @@ enum InvestmentHistoryEngine {
         }
 
         return points
-    }
-
-    private static func applyTodayLiveBalance(
-        account: Account,
-        referenceDate: Date,
-        calendar: Calendar,
-        merged: inout [String: AccountBalancePoint]
-    ) {
-        guard let current = account.currentBalance else { return }
-        let day = calendar.startOfDay(for: referenceDate)
-        let todayString = formatDate(day, calendar: calendar)
-        merged[todayString] = AccountBalancePoint(
-            date: day,
-            dateString: todayString,
-            balance: current,
-            source: .snapshot
-        )
     }
 
     private static func parseDate(_ value: String, calendar: Calendar) -> Date? {

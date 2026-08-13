@@ -132,6 +132,96 @@ final class InvestmentHistoryEngineTests: XCTestCase {
         XCTAssertEqual(byDate["2026-06-02"], 1_200)
     }
 
+    func testChartPointsForwardFillsSnapshotsInsteadOfLiveBalance() {
+        let account = Account(
+            id: accountId,
+            plaidItemId: "item",
+            plaidAccountId: "acc",
+            name: "Brokerage",
+            officialName: nil,
+            type: "investment",
+            subtype: "brokerage",
+            mask: nil,
+            currentBalance: 12_000,
+            availableBalance: nil
+        )
+        let snapshots = [
+            AccountBalanceSnapshot(
+                id: UUID(),
+                accountId: accountId,
+                date: "2026-06-05",
+                currentBalance: 11_000,
+                availableBalance: nil
+            )
+        ]
+        let reference = calendar.date(from: DateComponents(year: 2026, month: 6, day: 7))!
+        let points = InvestmentHistoryEngine.chartPoints(
+            account: account,
+            snapshots: snapshots,
+            transactions: [],
+            range: .oneMonth,
+            referenceDate: reference,
+            calendar: calendar
+        )
+        let byDate = Dictionary(uniqueKeysWithValues: points.map { ($0.dateString, $0.balance) })
+        XCTAssertEqual(byDate["2026-06-05"] ?? 0, 11_000, accuracy: 0.01)
+        XCTAssertEqual(byDate["2026-06-06"] ?? 0, 11_000, accuracy: 0.01)
+        XCTAssertEqual(byDate["2026-06-07"] ?? 0, 12_000, accuracy: 0.01)
+    }
+
+    func testChartPointsAppliesContributionBetweenSnapshots() {
+        let account = Account(
+            id: accountId,
+            plaidItemId: "item",
+            plaidAccountId: "acc",
+            name: "IRA",
+            officialName: nil,
+            type: "investment",
+            subtype: "ira",
+            mask: nil,
+            currentBalance: 11_100,
+            availableBalance: nil
+        )
+        let snapshots = [
+            AccountBalanceSnapshot(
+                id: UUID(),
+                accountId: accountId,
+                date: "2026-06-01",
+                currentBalance: 10_000,
+                availableBalance: nil
+            ),
+            AccountBalanceSnapshot(
+                id: UUID(),
+                accountId: accountId,
+                date: "2026-06-10",
+                currentBalance: 11_000,
+                availableBalance: nil
+            )
+        ]
+        let contribution = investmentTransaction(
+            date: "2026-06-05",
+            amount: -500,
+            type: "cash",
+            subtype: "contribution"
+        )
+        let reference = calendar.date(from: DateComponents(year: 2026, month: 6, day: 12))!
+        let points = InvestmentHistoryEngine.chartPoints(
+            account: account,
+            snapshots: snapshots,
+            transactions: [contribution],
+            range: .oneMonth,
+            referenceDate: reference,
+            calendar: calendar
+        )
+        let byDate = Dictionary(uniqueKeysWithValues: points.map { ($0.dateString, $0.balance) })
+        XCTAssertEqual(byDate["2026-06-04"] ?? 0, 10_000, accuracy: 0.01)
+        XCTAssertEqual(byDate["2026-06-05"] ?? 0, 10_500, accuracy: 0.01)
+        XCTAssertEqual(byDate["2026-06-09"] ?? 0, 10_500, accuracy: 0.01)
+        XCTAssertEqual(byDate["2026-06-10"] ?? 0, 11_000, accuracy: 0.01)
+        XCTAssertEqual(byDate["2026-06-11"] ?? 0, 11_000, accuracy: 0.01)
+        XCTAssertEqual(byDate["2026-06-12"] ?? 0, 11_100, accuracy: 0.01)
+    }
+
     func testAffectsTotalValueSkipsSecurityTrades() {
         XCTAssertFalse(InvestmentHistoryEngine.affectsTotalValue(type: "buy", subtype: "buy"))
         XCTAssertFalse(InvestmentHistoryEngine.affectsTotalValue(type: "sell", subtype: "sell"))
