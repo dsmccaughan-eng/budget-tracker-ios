@@ -373,6 +373,13 @@ Entry format
 - **Guardrails:** Do not auto-mark reviewed or auto-advance to the next transaction on save; keep Confirm all categorized.
 - **Verification:** Open a mid-list unreviewed row → Save category → land back on the unreviewed overview near that row without jumping to the top of Dashboard.
 
+### 2026-08-13 — Dashboard showed Set up budgets until Budgets tab opened
+- **Symptom:** Dashboard Budget section stayed on “Set up budgets” after unlock; visiting Budgets then returning showed this month’s spend.
+- **Root cause:** `beginFinancialSession` waited on Plaid `syncIfNeeded` before `budgetStore.reload`, and that reload used `showsLoading: false` while `isLoading` started false, so the empty state rendered as “no budgets.”
+- **Fix pattern:** Load secondary data (budgets) immediately after `loadAll`; default `BudgetStore.isLoading` to true until the first fetch finishes; Dashboard `.task` reloads if still empty.
+- **Guardrails:** Do not block budget fetch on Plaid sync.
+- **Verification:** Cold unlock → Dashboard shows loading then the month summary without opening Budgets.
+
 ### 2026-08-13 — Unreviewed review still returned to Dashboard
 - **Symptom:** After saving a category, review still felt like a dashboard dropdown and kicked the user out of the list.
 - **Root cause:** Review lived on the Dashboard `NavigationStack`; store updates and list identity still interacted with the tab root.

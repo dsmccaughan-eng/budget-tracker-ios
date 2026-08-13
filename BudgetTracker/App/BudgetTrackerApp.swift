@@ -75,6 +75,7 @@ struct BudgetTrackerApp: App {
 
         await transactionStore.loadAll(client: client, showsLoading: false)
         applyLocalDerivedState()
+        await loadSecondaryFinancialData(client: client)
 
         Task { @MainActor in
             if transactionStore.needsAutomaticSync(userId: authStore.userId) {
@@ -84,7 +85,6 @@ struct BudgetTrackerApp: App {
                 )
                 applyLocalDerivedState()
             }
-            await loadSecondaryFinancialData(client: client)
         }
     }
 
@@ -110,6 +110,9 @@ struct BudgetTrackerApp: App {
             if didSync {
                 applyLocalDerivedState()
             }
+            if budgetStore.budgets.isEmpty {
+                await loadSecondaryFinancialData(client: client)
+            }
             return
         }
 
@@ -127,7 +130,8 @@ struct BudgetTrackerApp: App {
         netWorthStore.syncFromLocal(
             accounts: transactionStore.accounts,
             accountSnapshots: accountBalanceStore.snapshots,
-            transactions: transactionStore.transactions
+            transactions: transactionStore.transactions,
+            investmentTransactions: investmentStore.transactions
         )
     }
 
@@ -160,7 +164,8 @@ struct BudgetTrackerApp: App {
             client: client,
             accounts: transactionStore.accounts,
             accountSnapshots: accountBalanceStore.snapshots,
-            transactions: transactionStore.transactions
+            transactions: transactionStore.transactions,
+            investmentTransactions: investmentStore.transactions
         )
         await netWorthStore.recordDailySnapshotIfNeeded(
             client: client,

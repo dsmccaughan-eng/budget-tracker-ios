@@ -104,6 +104,34 @@ enum AccountBalanceHistoryEngine {
         return points
     }
 
+    /// First-of-month points (or earliest day in that month), plus today's latest point.
+    static func monthlyChartPoints(
+        from points: [AccountBalancePoint],
+        calendar: Calendar = .current
+    ) -> [AccountBalancePoint] {
+        var byMonth: [String: AccountBalancePoint] = [:]
+        var monthOrder: [String] = []
+
+        for point in points {
+            let components = calendar.dateComponents([.year, .month, .day], from: point.date)
+            let key = String(format: "%04d-%02d", components.year ?? 0, components.month ?? 0)
+            let isMonthStart = components.day == 1
+            if byMonth[key] == nil {
+                byMonth[key] = point
+                monthOrder.append(key)
+            } else if isMonthStart {
+                byMonth[key] = point
+            }
+        }
+
+        var monthly = monthOrder.compactMap { byMonth[$0] }
+        if let last = points.last,
+           monthly.last?.id != last.id {
+            monthly.append(last)
+        }
+        return monthly
+    }
+
     /// Plaid: positive amounts are outflows. Balance at end of day D =
     /// current balance + sum(amount) for settled transactions after D.
     static func reconstructedDailyPoints(
@@ -165,6 +193,7 @@ enum AccountBalanceHistoryEngine {
         account: Account,
         snapshots: [AccountBalanceSnapshot],
         transactions: [Transaction],
+        investmentTransactions: [InvestmentTransaction] = [],
         referenceDate: Date = Date(),
         range: NetWorthTimeRange = .oneYear,
         calendar: Calendar = .current
@@ -181,6 +210,18 @@ enum AccountBalanceHistoryEngine {
             )
             for point in reconstructed {
                 merged[point.dateString] = undisplayBalance(point.balance, accountType: account.type)
+            }
+        } else {
+            let reconstructed = InvestmentHistoryEngine.reconstructedDailyPoints(
+                account: account,
+                transactions: investmentTransactions,
+                cashTransactions: transactions,
+                referenceDate: referenceDate,
+                range: range,
+                calendar: calendar
+            )
+            for point in reconstructed {
+                merged[point.dateString] = point.balance
             }
         }
         for snapshot in accountSnapshots {

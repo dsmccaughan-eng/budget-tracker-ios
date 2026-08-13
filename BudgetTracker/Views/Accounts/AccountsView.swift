@@ -6,6 +6,7 @@ struct AccountsView: View {
     @EnvironmentObject private var transactions: TransactionStore
     @EnvironmentObject private var accountBalances: AccountBalanceStore
     @EnvironmentObject private var netWorth: NetWorthStore
+    @EnvironmentObject private var investments: InvestmentStore
     @State private var connectionPendingRemoval: BankConnection?
 
     var body: some View {
@@ -154,7 +155,8 @@ struct AccountsView: View {
             client: client,
             accounts: transactions.accounts,
             accountSnapshots: accountBalances.snapshots,
-            transactions: transactions.transactions
+            transactions: transactions.transactions,
+            investmentTransactions: investments.transactions
         )
         await netWorth.recordDailySnapshotIfNeeded(
             client: client,

@@ -1,10 +1,24 @@
 import Foundation
 
 enum InvestmentHistoryEngine {
+    /// Security trades convert cash ↔ holdings and do not change total account value.
+    static func affectsTotalValue(type: String?, subtype: String?) -> Bool {
+        let type = (type ?? "").lowercased()
+        let subtype = (subtype ?? "").lowercased()
+        if type == "buy" || type == "sell" || type == "cancel" {
+            return false
+        }
+        if subtype == "buy" || subtype == "sell" || subtype.contains("reinvest") {
+            return false
+        }
+        return true
+    }
+
     static func chartPoints(
         account: Account,
         snapshots: [AccountBalanceSnapshot],
         transactions: [InvestmentTransaction],
+        cashTransactions: [Transaction] = [],
         range: NetWorthTimeRange = .oneYear,
         referenceDate: Date = Date(),
         calendar: Calendar = .current
@@ -25,6 +39,7 @@ enum InvestmentHistoryEngine {
         let reconstructed = reconstructedDailyPoints(
             account: account,
             transactions: transactions,
+            cashTransactions: cashTransactions,
             referenceDate: referenceDate,
             range: range,
             calendar: calendar
@@ -54,6 +69,7 @@ enum InvestmentHistoryEngine {
     static func reconstructedDailyPoints(
         account: Account,
         transactions: [InvestmentTransaction],
+        cashTransactions: [Transaction] = [],
         referenceDate: Date = Date(),
         range: NetWorthTimeRange = .oneYear,
         calendar: Calendar = .current
@@ -65,20 +81,19 @@ enum InvestmentHistoryEngine {
             ?? calendar.date(byAdding: .month, value: -AccountBalanceHistoryEngine.historyMonthCount, to: anchor)
             ?? anchor
 
-        let accountTxns = transactions
-            .filter { $0.accountId == account.id }
-            .sorted { $0.date < $1.date }
-
         var amountByDate: [String: Double] = [:]
-        for txn in accountTxns {
+        for txn in transactions where txn.accountId == account.id && affectsTotalValue(type: txn.type, subtype: txn.subtype) {
+            amountByDate[txn.date, default: 0] += txn.amount
+        }
+        for txn in cashTransactions where txn.accountId == account.id && !txn.pending {
             amountByDate[txn.date, default: 0] += txn.amount
         }
 
         let startString = formatDate(calendar.startOfDay(for: startDate), calendar: calendar)
         let referenceString = formatDate(anchor, calendar: calendar)
-        var futureSum = accountTxns
-            .filter { $0.date > startString && $0.date <= referenceString }
-            .reduce(0) { $0 + $1.amount }
+        var futureSum = amountByDate
+            .filter { $0.key > startString && $0.key <= referenceString }
+            .reduce(0) { $0 + $1.value }
 
         var points: [AccountBalancePoint] = []
         var day = calendar.startOfDay(for: startDate)

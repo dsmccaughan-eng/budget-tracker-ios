@@ -32,7 +32,11 @@ struct NetWorthView: View {
     var body: some View {
         List {
             Section {
-                NetWorthChartView(points: chartPoints, selectedRange: $selectedRange)
+                NetWorthChartView(
+                    points: chartPoints,
+                    selectedRange: $selectedRange,
+                    allowsMonthlyGranularity: true
+                )
             }
             .listRowInsets(EdgeInsets(top: 12, leading: 16, bottom: 12, trailing: 16))
             .listRowBackground(Color.clear)
@@ -172,7 +176,8 @@ struct NetWorthView: View {
             client: client,
             accounts: transactions.accounts,
             accountSnapshots: accountBalances.snapshots,
-            transactions: transactions.transactions
+            transactions: transactions.transactions,
+            investmentTransactions: investments.transactions
         )
     }
 

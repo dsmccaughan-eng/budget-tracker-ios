@@ -109,6 +109,7 @@ enum NetWorthHistoryEngine {
         accounts: [Account] = [],
         accountSnapshots: [AccountBalanceSnapshot] = [],
         transactions: [Transaction] = [],
+        investmentTransactions: [InvestmentTransaction] = [],
         currentAssets: Double,
         currentLiabilities: Double,
         currentNetWorth: Double,
@@ -122,6 +123,7 @@ enum NetWorthHistoryEngine {
                 accounts: accounts,
                 accountSnapshots: accountSnapshots,
                 transactions: transactions,
+                investmentTransactions: investmentTransactions,
                 referenceDate: referenceDate,
                 range: range,
                 calendar: calendar
@@ -177,6 +179,7 @@ enum NetWorthHistoryEngine {
         accounts: [Account],
         accountSnapshots: [AccountBalanceSnapshot],
         transactions: [Transaction],
+        investmentTransactions: [InvestmentTransaction] = [],
         referenceDate: Date = Date(),
         range: NetWorthTimeRange = .oneYear,
         calendar: Calendar = .current
@@ -193,6 +196,7 @@ enum NetWorthHistoryEngine {
                 account: account,
                 snapshots: accountSnapshots,
                 transactions: transactions,
+                investmentTransactions: investmentTransactions,
                 referenceDate: referenceDate,
                 range: range,
                 calendar: calendar
@@ -385,6 +389,7 @@ enum NetWorthHistoryEngine {
         accounts: [Account],
         accountSnapshots: [AccountBalanceSnapshot] = [],
         transactions: [Transaction] = [],
+        investmentTransactions: [InvestmentTransaction] = [],
         referenceDate: Date = Date(),
         range: NetWorthTimeRange = .oneYear,
         calendar: Calendar = .current
@@ -394,6 +399,7 @@ enum NetWorthHistoryEngine {
             accounts: filtered,
             accountSnapshots: accountSnapshots,
             transactions: transactions,
+            investmentTransactions: investmentTransactions,
             referenceDate: referenceDate,
             range: range,
             calendar: calendar

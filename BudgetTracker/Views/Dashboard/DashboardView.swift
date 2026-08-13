@@ -10,6 +10,7 @@ struct DashboardView: View {
     @EnvironmentObject private var notifications: NotificationSettingsStore
     @EnvironmentObject private var appLock: AppLockStore
     @EnvironmentObject private var transactionReview: TransactionReviewStore
+    @EnvironmentObject private var investments: InvestmentStore
 
     @Binding var selectedTab: AppTab
 
@@ -196,10 +197,16 @@ struct DashboardView: View {
                     transactionReview.setActiveUser(auth.userId)
                 }
                 .task {
-                    guard auth.activeSupabaseClient != nil else { return }
+                    guard let client = auth.activeSupabaseClient else { return }
+                    if budgets.budgets.isEmpty {
+                        await budgets.reload(
+                            client: client,
+                            transactions: transactions.transactions,
+                            showsLoading: budgets.isLoading || budgets.budgets.isEmpty
+                        )
+                    }
                     guard transactions.accounts.isEmpty,
                           !transactions.bankConnections.isEmpty || !transactions.transactions.isEmpty else { return }
-                    guard let client = auth.activeSupabaseClient else { return }
                     await transactions.refreshAccountsIfMissing(
                         client: client,
                         userId: auth.userId
@@ -260,7 +267,8 @@ struct DashboardView: View {
             client: client,
             accounts: transactions.accounts,
             accountSnapshots: accountBalances.snapshots,
-            transactions: transactions.transactions
+            transactions: transactions.transactions,
+            investmentTransactions: investments.transactions
         )
         await netWorth.recordDailySnapshotIfNeeded(
             client: client,

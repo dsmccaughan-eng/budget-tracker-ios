@@ -30,11 +30,15 @@ struct AccountDetailView: View {
     }
 
     private var usesActivityHistory: Bool {
-        isInvestmentAccount && !investmentTransactions.isEmpty
+        isInvestmentAccount && (!investmentTransactions.isEmpty || hasCashActivity)
+    }
+
+    private var hasCashActivity: Bool {
+        transactions.transactions.contains { $0.accountId == accountId && !$0.pending }
     }
 
     private var usesSnapshotHistory: Bool {
-        !usesActivityHistory && isInvestmentAccount
+        isInvestmentAccount && !usesActivityHistory
     }
 
     var body: some View {
@@ -44,7 +48,8 @@ struct AccountDetailView: View {
                     accountLabel: FinanceFormatting.accountLabel(account),
                     points: historyPoints,
                     selectedRange: $selectedRange,
-                    usesSnapshotHistory: usesSnapshotHistory
+                    usesSnapshotHistory: usesSnapshotHistory,
+                    allowsMonthlyGranularity: true
                 )
             }
             .listRowInsets(EdgeInsets(top: 12, leading: 16, bottom: 12, trailing: 16))
@@ -167,25 +172,24 @@ struct AccountDetailView: View {
 
     private var historyTaskID: String {
         let balanceKey = account.currentBalance.map { String($0) } ?? "nil"
-        return "\(accountId.uuidString)-\(selectedRange.rawValue)-\(balanceKey)-\(accountBalances.snapshots.count)-\(investmentTransactions.count)-\(investments.holdings.count)"
+        let cashCount = transactions.transactions.filter { $0.accountId == accountId }.count
+        return "\(accountId.uuidString)-\(selectedRange.rawValue)-\(balanceKey)-\(accountBalances.snapshots.count)-\(investmentTransactions.count)-\(cashCount)-\(investments.holdings.count)"
     }
 
     private var historyExplanation: String {
-        if usesActivityHistory {
-            return "History combines synced investment activity with saved daily balance snapshots. Market moves between activity days may not appear until you refresh accounts."
-        }
         if isInvestmentAccount {
-            return "Investment balances change with the market. History comes from saved daily balance snapshots when you refresh accounts on Net Worth. Sync investment activity for richer history."
+            return "Total value includes contributions and withdrawals, plus market value from saved snapshots when you refresh accounts. Buys and sells inside the account are ignored because they don’t change the total."
         }
         return "Balances are estimated day-by-day from your synced transactions and current balance. Saved snapshots from account refreshes replace estimates when available."
     }
 
     private func rebuildHistoryPoints() {
-        if usesActivityHistory {
+        if isInvestmentAccount {
             historyPoints = InvestmentHistoryEngine.chartPoints(
                 account: account,
                 snapshots: accountBalances.snapshots,
                 transactions: investmentTransactions,
+                cashTransactions: transactions.transactions,
                 range: selectedRange
             ).map { point in
                 AccountBalancePoint(
@@ -208,7 +212,7 @@ struct AccountDetailView: View {
 
     private func ensureInvestmentDataLoaded() async {
         guard isInvestmentAccount, let client = auth.activeSupabaseClient else { return }
-        if investments.holdings.isEmpty && investmentTransactions.isEmpty {
+        if investments.holdings.isEmpty || investmentTransactions.isEmpty {
             await investments.loadAll(client: client)
         }
     }

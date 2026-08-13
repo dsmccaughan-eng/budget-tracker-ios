@@ -17,7 +17,8 @@ final class NetWorthStore: ObservableObject {
         client: SupabaseClient,
         accounts: [Account],
         accountSnapshots: [AccountBalanceSnapshot] = [],
-        transactions: [Transaction] = []
+        transactions: [Transaction] = [],
+        investmentTransactions: [InvestmentTransaction] = []
     ) async {
         errorMessage = nil
         cachedAccounts = accounts
@@ -33,14 +34,16 @@ final class NetWorthStore: ObservableObject {
         updateChartInputs(
             accounts: accounts,
             accountSnapshots: accountSnapshots,
-            transactions: transactions
+            transactions: transactions,
+            investmentTransactions: investmentTransactions
         )
     }
 
     func syncFromLocal(
         accounts: [Account],
         accountSnapshots: [AccountBalanceSnapshot],
-        transactions: [Transaction]
+        transactions: [Transaction],
+        investmentTransactions: [InvestmentTransaction] = []
     ) {
         cachedAccounts = accounts
         let totals = NetWorthCalculator.totals(from: accounts)
@@ -50,7 +53,8 @@ final class NetWorthStore: ObservableObject {
         updateChartInputs(
             accounts: accounts,
             accountSnapshots: accountSnapshots,
-            transactions: transactions
+            transactions: transactions,
+            investmentTransactions: investmentTransactions
         )
     }
 
@@ -84,6 +88,7 @@ final class NetWorthStore: ObservableObject {
             accounts: inputs.accounts,
             accountSnapshots: inputs.accountSnapshots,
             transactions: inputs.transactions,
+            investmentTransactions: inputs.investmentTransactions,
             currentAssets: currentAssets,
             currentLiabilities: currentLiabilities,
             currentNetWorth: currentNetWorth,
@@ -122,6 +127,7 @@ final class NetWorthStore: ObservableObject {
                     accounts: inputs.accounts,
                     accountSnapshots: inputs.accountSnapshots,
                     transactions: inputs.transactions,
+                    investmentTransactions: inputs.investmentTransactions,
                     currentAssets: assets,
                     currentLiabilities: liabilities,
                     currentNetWorth: net,
@@ -183,7 +189,8 @@ final class NetWorthStore: ObservableObject {
                 updateChartInputs(
                     accounts: inputs.accounts,
                     accountSnapshots: inputs.accountSnapshots,
-                    transactions: inputs.transactions
+                    transactions: inputs.transactions,
+                    investmentTransactions: inputs.investmentTransactions
                 )
             } else {
                 scheduleChartRebuild()
@@ -200,6 +207,7 @@ final class NetWorthStore: ObservableObject {
         let accounts: [Account]
         let accountSnapshots: [AccountBalanceSnapshot]
         let transactions: [Transaction]
+        let investmentTransactions: [InvestmentTransaction]
     }
 
     private struct ChartCacheKey: Equatable {
@@ -207,6 +215,7 @@ final class NetWorthStore: ObservableObject {
         let snapshotSignature: String
         let netWorthSnapshotSignature: String
         let transactionCount: Int
+        let investmentTransactionCount: Int
     }
 
     private var cachedChartInputs: ChartInputs?
@@ -215,7 +224,8 @@ final class NetWorthStore: ObservableObject {
     private func chartCacheKey(
         accounts: [Account],
         accountSnapshots: [AccountBalanceSnapshot],
-        transactions: [Transaction]
+        transactions: [Transaction],
+        investmentTransactions: [InvestmentTransaction]
     ) -> ChartCacheKey {
         ChartCacheKey(
             accountSignature: accounts
@@ -227,26 +237,30 @@ final class NetWorthStore: ObservableObject {
             netWorthSnapshotSignature: snapshots
                 .map { "\($0.date)-\($0.netWorth)" }
                 .joined(separator: "|"),
-            transactionCount: transactions.count
+            transactionCount: transactions.count,
+            investmentTransactionCount: investmentTransactions.count
         )
     }
 
     private func updateChartInputs(
         accounts: [Account],
         accountSnapshots: [AccountBalanceSnapshot],
-        transactions: [Transaction]
+        transactions: [Transaction],
+        investmentTransactions: [InvestmentTransaction] = []
     ) {
         let key = chartCacheKey(
             accounts: accounts,
             accountSnapshots: accountSnapshots,
-            transactions: transactions
+            transactions: transactions,
+            investmentTransactions: investmentTransactions
         )
         guard key != chartCacheKey else { return }
         chartCacheKey = key
         cachedChartInputs = ChartInputs(
             accounts: accounts,
             accountSnapshots: accountSnapshots,
-            transactions: transactions
+            transactions: transactions,
+            investmentTransactions: investmentTransactions
         )
         scheduleChartRebuild()
     }

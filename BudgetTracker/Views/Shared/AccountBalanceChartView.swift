@@ -6,41 +6,50 @@ struct AccountBalanceChartView: View {
     let points: [AccountBalancePoint]
     @Binding var selectedRange: NetWorthTimeRange
     var usesSnapshotHistory: Bool = false
+    var allowsMonthlyGranularity: Bool = false
 
     @State private var selectedPoint: AccountBalancePoint?
+    @State private var granularity: NetWorthChartGranularity = .daily
+
+    private var displayPoints: [AccountBalancePoint] {
+        guard allowsMonthlyGranularity, granularity == .monthly else { return points }
+        return AccountBalanceHistoryEngine.monthlyChartPoints(from: points)
+    }
 
     private var displayPoint: AccountBalancePoint? {
-        selectedPoint ?? points.last
+        selectedPoint ?? displayPoints.last
     }
 
     private var change: (amount: Double, percent: Double)? {
         guard let point = displayPoint else { return nil }
-        guard let first = points.first else { return nil }
-        guard first.balance != 0 else {
-            let amount = point.balance - first.balance
-            return amount == 0 ? nil : (amount, 0)
+        if allowsMonthlyGranularity, granularity == .monthly {
+            return changeFromPrevious(selected: point, series: displayPoints)
         }
-        let amount = point.balance - first.balance
-        let percent = amount / abs(first.balance) * 100
-        return (amount, percent)
+        return changeFromStart(selected: point, series: displayPoints)
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             chartHeader
             chartBody
+            if allowsMonthlyGranularity {
+                granularityPicker
+            }
             rangePicker
         }
         .onAppear {
-            selectedPoint = points.last
+            selectedPoint = displayPoints.last
         }
-        .onChange(of: points.map(\.id)) { _, _ in
+        .onChange(of: displayPoints.map(\.id)) { _, _ in
             if let selectedPoint,
-               !points.contains(where: { $0.id == selectedPoint.id }) {
-                self.selectedPoint = points.last
+               !displayPoints.contains(where: { $0.id == selectedPoint.id }) {
+                self.selectedPoint = displayPoints.last
             } else if selectedPoint == nil {
-                selectedPoint = points.last
+                selectedPoint = displayPoints.last
             }
+        }
+        .onChange(of: granularity) { _, _ in
+            selectedPoint = displayPoints.last
         }
     }
 
@@ -59,10 +68,15 @@ struct AccountBalanceChartView: View {
             Spacer()
             if let point = displayPoint {
                 VStack(alignment: .trailing, spacing: 2) {
-                    Text(point.date, format: .dateTime.day().month(.abbreviated).year())
+                    Text(point.date, format: dateFormat)
                         .font(.caption.weight(.semibold))
                     if let change {
                         changeLabel(change)
+                    }
+                    if allowsMonthlyGranularity, granularity == .monthly, change != nil {
+                        Text("vs previous month")
+                            .font(.caption2)
+                            .foregroundStyle(.tertiary)
                     }
                     if point.source == .reconstructed {
                         Text("Estimated from activity")
@@ -92,7 +106,7 @@ struct AccountBalanceChartView: View {
 
     @ViewBuilder
     private var chartBody: some View {
-        if points.count < 2 {
+        if displayPoints.count < 2 {
             ContentUnavailableView {
                 Label("Not enough history", systemImage: "chart.xyaxis.line")
             } description: {
@@ -105,7 +119,7 @@ struct AccountBalanceChartView: View {
             .frame(height: 200)
         } else {
             Chart {
-                ForEach(points) { point in
+                ForEach(displayPoints) { point in
                     AreaMark(
                         x: .value("Date", point.date),
                         y: .value("Balance", point.balance)
@@ -216,9 +230,65 @@ struct AccountBalanceChartView: View {
     }
 
     private func nearestPoint(to date: Date) -> AccountBalancePoint? {
-        points.min { lhs, rhs in
+        displayPoints.min { lhs, rhs in
             abs(lhs.date.timeIntervalSince(date)) < abs(rhs.date.timeIntervalSince(date))
         }
+    }
+
+    private var dateFormat: Date.FormatStyle {
+        if allowsMonthlyGranularity, granularity == .monthly {
+            return .dateTime.month(.abbreviated).year()
+        }
+        return .dateTime.day().month(.abbreviated).year()
+    }
+
+    private var granularityPicker: some View {
+        HStack(spacing: 6) {
+            ForEach(NetWorthChartGranularity.allCases) { option in
+                Button {
+                    granularity = option
+                } label: {
+                    Text(option.rawValue)
+                        .font(.caption.weight(.semibold))
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .background(
+                            granularity == option
+                                ? Color(.systemGray5)
+                                : Color.clear,
+                            in: Capsule()
+                        )
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityLabel("Chart interval")
+    }
+
+    private func changeFromStart(
+        selected: AccountBalancePoint,
+        series: [AccountBalancePoint]
+    ) -> (amount: Double, percent: Double)? {
+        guard let first = series.first else { return nil }
+        return change(from: first.balance, to: selected.balance)
+    }
+
+    private func changeFromPrevious(
+        selected: AccountBalancePoint,
+        series: [AccountBalancePoint]
+    ) -> (amount: Double, percent: Double)? {
+        guard let index = series.firstIndex(where: { $0.id == selected.id }),
+              index > 0 else { return nil }
+        return change(from: series[index - 1].balance, to: selected.balance)
+    }
+
+    private func change(from start: Double, to end: Double) -> (amount: Double, percent: Double)? {
+        let amount = end - start
+        if start == 0 {
+            return amount == 0 ? nil : (amount, 0)
+        }
+        return (amount, amount / abs(start) * 100)
     }
 
     private func compactCurrency(_ value: Double) -> String {

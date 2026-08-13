@@ -169,6 +169,7 @@ Documentation duties (agents)
 - Do not paste secrets into this file or `LESSONS_LEARNED.md`.
 
 Update Log
+- 2026-08-13: Net Worth Daily/Monthly on all charts; dashboard budgets load on first open; investment charts show total value (contributions + snapshots, ignore buys/sells).
 - 2026-08-13: Unreviewed transactions open in a dedicated review sheet (not a dashboard dropdown); Cash / Investments / Debts charts can switch Daily ↔ Monthly (1st-of-month points).
 - 2026-08-12: **Budget alerts** only for Groceries, Dining & Bars, Shopping, Entertainment, Transport (`BudgetAlertEngine.alertableCategories`); review category save returns to unreviewed list with scroll preserved; Net Worth group charts for Cash / Investments / Debts.
 - 2026-06-10: **Plaid Investments** — holdings + ~24mo investment transaction sync (Edge Functions + `investment_*` tables); brokerage account detail shows holdings breakdown and activity-driven history; link token includes `investments` product (existing items may need update-mode reconnect).

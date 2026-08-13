@@ -4,6 +4,7 @@ struct NetWorthGroupDetailView: View {
     @EnvironmentObject private var transactions: TransactionStore
     @EnvironmentObject private var accountBalances: AccountBalanceStore
     @EnvironmentObject private var netWorth: NetWorthStore
+    @EnvironmentObject private var investments: InvestmentStore
 
     let kind: NetWorthAccountGroupKind
 
@@ -26,6 +27,7 @@ struct NetWorthGroupDetailView: View {
             accounts: groupAccounts,
             accountSnapshots: accountBalances.snapshots,
             transactions: transactions.transactions,
+            investmentTransactions: investments.transactions,
             range: selectedRange
         )
     }

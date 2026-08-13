@@ -6,7 +6,9 @@
 
 - Dashboard is primary overview tab
 - **Unreviewed transactions:** dashboard row opens a review sheet (not a dropdown). Category save returns to that list and keeps scroll; Confirm all stays in the sheet
-- **Net Worth group charts** (Cash / Investments / Debts): Daily or Monthly (1st of month) interval toggle
+- **Net Worth charts** (overall, Cash / Investments / Debts, and each account): Daily or Monthly (1st of month) interval toggle
+- Dashboard loads budgets on first unlock (does not wait for the Budgets tab or Plaid sync)
+- Investment history is **total account value**: contributions/withdrawals plus snapshots; internal buys/sells are ignored
 - Insights may use Gemini when it materially helps; keep deterministic fallbacks
 - Smart features must not override user categorization rules
 

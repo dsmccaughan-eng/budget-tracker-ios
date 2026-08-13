@@ -7,7 +7,7 @@ final class BudgetStore: ObservableObject {
     @Published private(set) var progress: [BudgetProgress] = []
     /// Bumped whenever spend index or month caches refresh (drives Budget tab UI).
     @Published private(set) var spendDataVersion = 0
-    @Published private(set) var isLoading = false
+    @Published private(set) var isLoading = true
     @Published private(set) var errorMessage: String?
 
     private var spendIndex: BudgetSpendIndex?
@@ -24,14 +24,12 @@ final class BudgetStore: ObservableObject {
         transactions: [Transaction],
         showsLoading: Bool = true
     ) async {
-        if showsLoading {
+        if showsLoading || budgets.isEmpty {
             isLoading = true
         }
         errorMessage = nil
         defer {
-            if showsLoading {
-                isLoading = false
-            }
+            isLoading = false
         }
 
         do {
