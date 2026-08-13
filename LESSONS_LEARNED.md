@@ -365,3 +365,10 @@ Entry format
 - **Fix pattern:** Housing heuristics before transfer; token-normalized mobile card payment detection with carrier exclusions; skip ambiguous transport merchant_db when payment context present; skeleton similarity for variable descriptors; Plaid detailed rent/transport overrides; `shouldPreserveExistingCategory` for `user`/`merchant_rule`; merchant_db migration for rent + mobile pmt patterns.
 - **Guardrails:** Do not run bulk recategorize on user-fixed rows; `recategorize-transactions` still limited to `Other` + plaid source.
 - **Verification:** `HousingHeuristicsTests`, `TransferHeuristicsTests`, `CategorizationEngineTests`; redeploy edge functions + apply migration `20260701120000_merchant_db_housing_rent_patterns.sql`.
+
+### 2026-08-12 — Category save kicked out of unreviewed list / scroll reset
+- **Symptom:** Changing a transaction category from Dashboard review popped all the way back to the main screen and forced re-scrolling the unreviewed list.
+- **Root cause:** Destination-based `NavigationLink` inside a `ForEach`/`DisclosureGroup` was invalidated when `TransactionStore` published after save; list remount also lost scroll position.
+- **Fix pattern:** Value-based `NavigationLink(value: UUID)` + `navigationDestination(for:)`; dismiss detail after successful category save; `ScrollViewReader` restores `scrollTo` the last-opened transaction id when the review path pops.
+- **Guardrails:** Do not auto-mark reviewed or auto-advance to the next transaction on save; keep Confirm all categorized.
+- **Verification:** Open a mid-list unreviewed row → Save category → land back on the unreviewed overview near that row without jumping to the top of Dashboard.

@@ -40,6 +40,13 @@ struct NetWorthView: View {
             if !accountGroups.isEmpty {
                 ForEach(accountGroups) { group in
                     Section {
+                        if group.kind != .other {
+                            NavigationLink {
+                                NetWorthGroupDetailView(kind: group.kind)
+                            } label: {
+                                Label("\(group.title) chart", systemImage: "chart.xyaxis.line")
+                            }
+                        }
                         ForEach(group.accounts) { account in
                             if let linked = accountsByID[account.id] {
                                 NavigationLink {
@@ -49,7 +56,7 @@ struct NetWorthView: View {
                                         name: account.name,
                                         balance: displayBalance(
                                             linked.currentBalance ?? account.balance,
-                                            groupTitle: group.title
+                                            groupKind: group.kind
                                         )
                                     )
                                 }
@@ -57,7 +64,7 @@ struct NetWorthView: View {
                             } else {
                                 NetWorthAccountRowLabel(
                                     name: account.name,
-                                    balance: displayBalance(account.balance, groupTitle: group.title)
+                                    balance: displayBalance(account.balance, groupKind: group.kind)
                                 )
                                 .listRowInsets(Self.accountRowInsets)
                             }
@@ -178,8 +185,8 @@ struct NetWorthView: View {
         )
     }
 
-    private func displayBalance(_ balance: Double, groupTitle: String) -> Double {
-        groupTitle == "Loan" ? -abs(balance) : balance
+    private func displayBalance(_ balance: Double, groupKind: NetWorthAccountGroupKind) -> Double {
+        groupKind == .debts ? -abs(balance) : balance
     }
 
     private static let accountRowInsets = EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16)

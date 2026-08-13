@@ -4,6 +4,7 @@ import SwiftUI
 struct NetWorthChartView: View {
     let points: [NetWorthChartPoint]
     @Binding var selectedRange: NetWorthTimeRange
+    var title: String = "NET WORTH"
 
     @State private var selectedPoint: NetWorthChartPoint?
 
@@ -38,7 +39,7 @@ struct NetWorthChartView: View {
     private var chartHeader: some View {
         HStack(alignment: .top) {
             VStack(alignment: .leading, spacing: 2) {
-                Text("NET WORTH")
+                Text(title)
                     .font(.caption2.weight(.semibold))
                     .foregroundStyle(.secondary)
                 Text(FinanceFormatting.currency(displayPoint?.netWorth ?? 0))

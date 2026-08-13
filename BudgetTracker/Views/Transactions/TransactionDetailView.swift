@@ -4,8 +4,12 @@ struct TransactionDetailView: View {
     @EnvironmentObject private var auth: AuthStore
     @EnvironmentObject private var transactions: TransactionStore
     @EnvironmentObject private var merchantRules: MerchantRulesStore
+    @Environment(\.dismiss) private var dismiss
 
     let transaction: Transaction
+    /// When true (dashboard review), pop back to the list after a successful category save.
+    var dismissOnCategorySave: Bool = false
+
     @State private var selectedCategory: String
     @State private var saveMerchantRule = true
     @State private var isFixedBill: Bool
@@ -18,8 +22,9 @@ struct TransactionDetailView: View {
     @State private var showSavedConfirmation = false
     @State private var showBillSavedConfirmation = false
 
-    init(transaction: Transaction) {
+    init(transaction: Transaction, dismissOnCategorySave: Bool = false) {
         self.transaction = transaction
+        self.dismissOnCategorySave = dismissOnCategorySave
         _selectedCategory = State(initialValue: transaction.category)
         _isFixedBill = State(initialValue: transaction.isFixedBill)
         _billNickname = State(initialValue: BillsEngine.displayName(for: transaction))
@@ -190,7 +195,11 @@ struct TransactionDetailView: View {
             client: client
         )
         if transactions.errorMessage == nil {
-            showSavedConfirmation = true
+            if dismissOnCategorySave {
+                dismiss()
+            } else {
+                showSavedConfirmation = true
+            }
         }
     }
 

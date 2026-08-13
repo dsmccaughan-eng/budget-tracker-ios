@@ -16,12 +16,69 @@ final class BudgetAlertEngineTests: XCTestCase {
         XCTAssertEqual(alerts.count, 1)
     }
 
+    func testAlertsForAllAllowlistedCategories() {
+        let categories = [
+            "Groceries",
+            "Dining & Bars",
+            "Shopping",
+            "Entertainment",
+            "Transport",
+        ]
+        let rows = categories.map { category in
+            BudgetProgress(
+                category: category,
+                monthlyLimit: 100,
+                spent: 85,
+                projectedSpend: 100,
+                isFixed: false,
+                isRollover: false,
+                color: "#000000"
+            )
+        }
+        let alerts = BudgetAlertEngine.alerts(progress: rows, threshold: 0.8)
+        XCTAssertEqual(alerts.count, 5)
+    }
+
+    func testSkipsNonAllowlistedCategoriesEvenWhenOverBudget() {
+        let rows = [
+            BudgetProgress(
+                category: "Health & Wellness",
+                monthlyLimit: 100,
+                spent: 150,
+                projectedSpend: 150,
+                isFixed: false,
+                isRollover: false,
+                color: "#000000"
+            ),
+            BudgetProgress(
+                category: "Travel",
+                monthlyLimit: 200,
+                spent: 190,
+                projectedSpend: 200,
+                isFixed: false,
+                isRollover: false,
+                color: "#000000"
+            ),
+            BudgetProgress(
+                category: "Other",
+                monthlyLimit: 50,
+                spent: 80,
+                projectedSpend: 80,
+                isFixed: false,
+                isRollover: false,
+                color: "#000000"
+            ),
+        ]
+        let alerts = BudgetAlertEngine.alerts(progress: rows, threshold: 0.8)
+        XCTAssertTrue(alerts.isEmpty)
+    }
+
     func testSkipsFixedBudgetAtThreshold() {
         let row = BudgetProgress(
-            category: "Housing & Utilities",
-            monthlyLimit: 2_000,
-            spent: 1_900,
-            projectedSpend: 2_000,
+            category: "Groceries",
+            monthlyLimit: 100,
+            spent: 90,
+            projectedSpend: 100,
             isFixed: true,
             isRollover: false,
             color: "#000000"
@@ -32,10 +89,10 @@ final class BudgetAlertEngineTests: XCTestCase {
 
     func testSkipsFixedBillCategoryAtThreshold() {
         let row = BudgetProgress(
-            category: "Housing & Utilities",
-            monthlyLimit: 2_000,
-            spent: 1_900,
-            projectedSpend: 2_000,
+            category: "Groceries",
+            monthlyLimit: 100,
+            spent: 90,
+            projectedSpend: 100,
             isFixed: false,
             isRollover: false,
             color: "#000000"
@@ -43,7 +100,7 @@ final class BudgetAlertEngineTests: XCTestCase {
         let alerts = BudgetAlertEngine.alerts(
             progress: [row],
             threshold: 0.8,
-            fixedBillCategories: ["Housing & Utilities"]
+            fixedBillCategories: ["Groceries"]
         )
         XCTAssertTrue(alerts.isEmpty)
     }
@@ -122,10 +179,10 @@ final class BudgetAlertEngineTests: XCTestCase {
 
     func testSkipsFixedBudgetWhenOverBudget() {
         let row = BudgetProgress(
-            category: "Housing & Utilities",
-            monthlyLimit: 2_000,
-            spent: 2_100,
-            projectedSpend: 2_100,
+            category: "Groceries",
+            monthlyLimit: 100,
+            spent: 120,
+            projectedSpend: 120,
             isFixed: true,
             isRollover: false,
             color: "#000000"

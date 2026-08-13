@@ -17,6 +17,8 @@ struct DashboardView: View {
     @State private var showSettings = false
     @State private var showReviewConfirmed = false
     @State private var unreviewedExpanded = false
+    @State private var reviewNavigationPath = NavigationPath()
+    @State private var scrollAnchorTransactionID: UUID?
 
     private var dashboardSpendingProgress: [BudgetProgress] {
         _ = budgets.spendDataVersion
@@ -40,208 +42,235 @@ struct DashboardView: View {
     }
 
     var body: some View {
-        NavigationStack {
-            List {
-                if !appLock.hasPIN {
-                    Section {
-                        NavigationLink {
-                            SetupAppLockSettingsView(lock: appLock)
-                        } label: {
-                            Label("Set up Face ID and PIN", systemImage: "lock.shield")
-                        }
-                    } footer: {
-                        Text("Protect your budget when you leave the app. You can also enable this under Settings → Security.")
-                    }
-                }
-
-                Section("Budget") {
-                    if budgets.isLoading {
-                        ProgressView("Loading budgets…")
-                    } else if budgets.budgets.isEmpty {
-                        Text("Set monthly limits per category to track spending.")
-                            .foregroundStyle(.secondary)
-                        Button {
-                            showAddBudget = true
-                        } label: {
-                            Label("Set up budgets", systemImage: "plus.circle.fill")
-                        }
-                        .buttonStyle(.borderedProminent)
-                    } else {
-                        DashboardBudgetSummary(
-                            spent: dashboardBudgetSpent,
-                            budget: dashboardBudgetLimit,
-                            onViewFullBudget: { selectedTab = .budgets }
-                        )
-                    }
-                }
-
-                Section("Alerts") {
-                    if dashboardBudgetAlerts.isEmpty {
-                        Text("No budget alerts right now.")
-                            .foregroundStyle(.secondary)
-                    } else {
-                        ForEach(dashboardBudgetAlerts, id: \.self) { alert in
-                            Label(alert, systemImage: "exclamationmark.circle")
-                                .foregroundStyle(.orange)
-                        }
-                    }
-                }
-
-                Section("Bills") {
-                    if monthlyBills.isEmpty {
-                        Text("Mark a transaction as a fixed monthly expense to see due dates here.")
-                            .foregroundStyle(.secondary)
-                    } else {
-                        NavigationLink {
-                            BillsListView()
-                        } label: {
-                            Label(billsSummaryLabel, systemImage: "calendar")
-                        }
-                        ForEach(monthlyBills.prefix(3)) { bill in
-                            HStack {
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text(bill.name)
-                                        .font(.subheadline.weight(.semibold))
-                                    Text(bill.displayDue)
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
-                                }
-                                Spacer()
-                                Text(FinanceFormatting.currency(bill.amount))
-                                    .font(.subheadline.weight(.semibold))
+        NavigationStack(path: $reviewNavigationPath) {
+            ScrollViewReader { proxy in
+                List {
+                    if !appLock.hasPIN {
+                        Section {
+                            NavigationLink {
+                                SetupAppLockSettingsView(lock: appLock)
+                            } label: {
+                                Label("Set up Face ID and PIN", systemImage: "lock.shield")
                             }
+                        } footer: {
+                            Text("Protect your budget when you leave the app. You can also enable this under Settings → Security.")
                         }
                     }
-                }
 
-                if let budgetError = budgets.errorMessage {
-                    Section {
-                        Text(budgetError)
-                            .foregroundStyle(.red)
-                            .font(.footnote)
-                    }
-                }
-
-                Section {
-                    if unreviewedTransactions.isEmpty {
-                        Text("You're caught up. New synced transactions will appear here for review.")
-                            .foregroundStyle(.secondary)
-                    } else {
-                        DisclosureGroup(isExpanded: $unreviewedExpanded) {
-                            ForEach(unreviewedTransactions) { transaction in
-                                NavigationLink {
-                                    TransactionDetailView(transaction: transaction)
-                                } label: {
-                                    HStack {
-                                        VStack(alignment: .leading) {
-                                            Text(FinanceFormatting.displayName(for: transaction))
-                                            Text(transaction.category)
-                                                .font(.caption)
-                                                .foregroundStyle(.secondary)
-                                        }
-                                        Spacer()
-                                        Text(TransactionFormatting.formattedAmount(transaction.amount))
-                                            .font(.subheadline.weight(.semibold))
-                                            .foregroundStyle(TransactionFormatting.amountColor(transaction.amount))
-                                    }
-                                }
-                            }
-
-                            Button("Confirm all categorized") {
-                                transactionReview.markAllReviewed(transactions: transactions.transactions)
-                                showReviewConfirmed = true
+                    Section("Budget") {
+                        if budgets.isLoading {
+                            ProgressView("Loading budgets…")
+                        } else if budgets.budgets.isEmpty {
+                            Text("Set monthly limits per category to track spending.")
+                                .foregroundStyle(.secondary)
+                            Button {
+                                showAddBudget = true
+                            } label: {
+                                Label("Set up budgets", systemImage: "plus.circle.fill")
                             }
                             .buttonStyle(.borderedProminent)
-                        } label: {
-                            HStack {
-                                Text("Unreviewed transactions")
-                                Spacer()
-                                Text("\(unreviewedTransactions.count)")
-                                    .font(.subheadline.weight(.semibold))
+                        } else {
+                            DashboardBudgetSummary(
+                                spent: dashboardBudgetSpent,
+                                budget: dashboardBudgetLimit,
+                                onViewFullBudget: { selectedTab = .budgets }
+                            )
+                        }
+                    }
+
+                    Section("Alerts") {
+                        if dashboardBudgetAlerts.isEmpty {
+                            Text("No budget alerts right now.")
+                                .foregroundStyle(.secondary)
+                        } else {
+                            ForEach(dashboardBudgetAlerts, id: \.self) { alert in
+                                Label(alert, systemImage: "exclamationmark.circle")
+                                    .foregroundStyle(.orange)
+                            }
+                        }
+                    }
+
+                    Section("Bills") {
+                        if monthlyBills.isEmpty {
+                            Text("Mark a transaction as a fixed monthly expense to see due dates here.")
+                                .foregroundStyle(.secondary)
+                        } else {
+                            NavigationLink {
+                                BillsListView()
+                            } label: {
+                                Label(billsSummaryLabel, systemImage: "calendar")
+                            }
+                            ForEach(monthlyBills.prefix(3)) { bill in
+                                HStack {
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(bill.name)
+                                            .font(.subheadline.weight(.semibold))
+                                        Text(bill.displayDue)
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                    }
+                                    Spacer()
+                                    Text(FinanceFormatting.currency(bill.amount))
+                                        .font(.subheadline.weight(.semibold))
+                                }
+                            }
+                        }
+                    }
+
+                    if let budgetError = budgets.errorMessage {
+                        Section {
+                            Text(budgetError)
+                                .foregroundStyle(.red)
+                                .font(.footnote)
+                        }
+                    }
+
+                    Section {
+                        if unreviewedTransactions.isEmpty {
+                            Text("You're caught up. New synced transactions will appear here for review.")
+                                .foregroundStyle(.secondary)
+                        } else {
+                            DisclosureGroup(isExpanded: $unreviewedExpanded) {
+                                ForEach(unreviewedTransactions) { transaction in
+                                    NavigationLink(value: transaction.id) {
+                                        HStack {
+                                            VStack(alignment: .leading) {
+                                                Text(FinanceFormatting.displayName(for: transaction))
+                                                Text(transaction.category)
+                                                    .font(.caption)
+                                                    .foregroundStyle(.secondary)
+                                            }
+                                            Spacer()
+                                            Text(TransactionFormatting.formattedAmount(transaction.amount))
+                                                .font(.subheadline.weight(.semibold))
+                                                .foregroundStyle(TransactionFormatting.amountColor(transaction.amount))
+                                        }
+                                    }
+                                    .id(transaction.id)
+                                    .simultaneousGesture(TapGesture().onEnded {
+                                        scrollAnchorTransactionID = transaction.id
+                                    })
+                                }
+
+                                Button("Confirm all categorized") {
+                                    transactionReview.markAllReviewed(transactions: transactions.transactions)
+                                    showReviewConfirmed = true
+                                }
+                                .buttonStyle(.borderedProminent)
+                            } label: {
+                                HStack {
+                                    Text("Unreviewed transactions")
+                                    Spacer()
+                                    Text("\(unreviewedTransactions.count)")
+                                        .font(.subheadline.weight(.semibold))
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+
+                            if !unreviewedExpanded && unreviewedTransactions.count > 3 {
+                                Text("Tap to expand and review categories.")
+                                    .font(.caption)
                                     .foregroundStyle(.secondary)
                             }
                         }
-
-                        if !unreviewedExpanded && unreviewedTransactions.count > 3 {
-                            Text("Tap to expand and review categories.")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
+                    } footer: {
+                        if !unreviewedTransactions.isEmpty && unreviewedExpanded {
+                            Text("Tap each transaction to verify its category, then confirm when you're done.")
                         }
                     }
-                } footer: {
-                    if !unreviewedTransactions.isEmpty && unreviewedExpanded {
-                        Text("Tap each transaction to verify its category, then confirm when you're done.")
-                    }
-                }
 
-                Section("Accounts") {
-                    NavigationLink {
-                        AccountsView()
-                    } label: {
-                        Label(accountsSummaryLabel, systemImage: "building.columns")
+                    Section("Accounts") {
+                        NavigationLink {
+                            AccountsView()
+                        } label: {
+                            Label(accountsSummaryLabel, systemImage: "building.columns")
+                        }
+                        NavigationLink {
+                            BankLinkView()
+                        } label: {
+                            Label("Connect bank", systemImage: "link")
+                        }
                     }
-                    NavigationLink {
-                        BankLinkView()
-                    } label: {
-                        Label("Connect bank", systemImage: "link")
+                }
+                .navigationTitle("Dashboard")
+                .navigationDestination(for: UUID.self) { transactionID in
+                    if let transaction = transactions.transactions.first(where: { $0.id == transactionID }) {
+                        TransactionDetailView(
+                            transaction: transaction,
+                            dismissOnCategorySave: true
+                        )
+                    } else {
+                        ContentUnavailableView(
+                            "Transaction unavailable",
+                            systemImage: "creditcard",
+                            description: Text("This transaction is no longer in your list.")
+                        )
                     }
                 }
-            }
-            .navigationTitle("Dashboard")
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        showSettings = true
-                    } label: {
-                        Image(systemName: "gearshape")
+                .toolbar {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Button {
+                            showSettings = true
+                        } label: {
+                            Image(systemName: "gearshape")
+                        }
+                        .accessibilityLabel("Settings")
                     }
-                    .accessibilityLabel("Settings")
                 }
-            }
-            .sheet(isPresented: $showAddBudget, onDismiss: {
-                Task { await reloadDashboardData() }
-            }) {
-                NavigationStack {
-                    SetupBudgetPlanView()
+                .sheet(isPresented: $showAddBudget, onDismiss: {
+                    Task { await reloadDashboardData() }
+                }) {
+                    NavigationStack {
+                        SetupBudgetPlanView()
+                    }
                 }
-            }
-            .sheet(isPresented: $showSettings) {
-                NavigationStack {
-                    SettingsView()
+                .sheet(isPresented: $showSettings) {
+                    NavigationStack {
+                        SettingsView()
+                    }
                 }
-            }
-            .refreshable {
-                await reloadAll()
-            }
-            .task(id: auth.userId) {
-                transactionReview.setActiveUser(auth.userId)
-            }
-            .task {
-                guard auth.activeSupabaseClient != nil else { return }
-                guard transactions.accounts.isEmpty,
-                      !transactions.bankConnections.isEmpty || !transactions.transactions.isEmpty else { return }
-                guard let client = auth.activeSupabaseClient else { return }
-                await transactions.refreshAccountsIfMissing(
-                    client: client,
-                    userId: auth.userId
-                )
-            }
-            .onAppear {
-                applyUnreviewedExpansionPolicy(count: unreviewedTransactions.count)
-            }
-            .onChange(of: unreviewedTransactions.count) { oldCount, newCount in
-                if newCount == 0 {
-                    unreviewedExpanded = false
-                } else if oldCount > 3 && newCount <= 3 {
-                    unreviewedExpanded = true
-                } else if oldCount <= 3 && newCount > 3 {
-                    unreviewedExpanded = false
+                .refreshable {
+                    await reloadAll()
                 }
-            }
-            .alert("Review complete", isPresented: $showReviewConfirmed) {
-                Button("OK", role: .cancel) {}
-            } message: {
-                Text("New transactions will appear here after your next sync.")
+                .task(id: auth.userId) {
+                    transactionReview.setActiveUser(auth.userId)
+                }
+                .task {
+                    guard auth.activeSupabaseClient != nil else { return }
+                    guard transactions.accounts.isEmpty,
+                          !transactions.bankConnections.isEmpty || !transactions.transactions.isEmpty else { return }
+                    guard let client = auth.activeSupabaseClient else { return }
+                    await transactions.refreshAccountsIfMissing(
+                        client: client,
+                        userId: auth.userId
+                    )
+                }
+                .onAppear {
+                    applyUnreviewedExpansionPolicy(count: unreviewedTransactions.count)
+                }
+                .onChange(of: unreviewedTransactions.count) { oldCount, newCount in
+                    if newCount == 0 {
+                        unreviewedExpanded = false
+                    } else if oldCount > 3 && newCount <= 3 {
+                        unreviewedExpanded = true
+                    } else if oldCount <= 3 && newCount > 3 {
+                        unreviewedExpanded = false
+                    }
+                }
+                .onChange(of: reviewNavigationPath.count) { oldCount, newCount in
+                    guard newCount == 0, oldCount > 0,
+                          let anchorID = scrollAnchorTransactionID else { return }
+                    DispatchQueue.main.async {
+                        withAnimation(.easeInOut(duration: 0.2)) {
+                            proxy.scrollTo(anchorID, anchor: .center)
+                        }
+                    }
+                }
+                .alert("Review complete", isPresented: $showReviewConfirmed) {
+                    Button("OK", role: .cancel) {}
+                } message: {
+                    Text("New transactions will appear here after your next sync.")
+                }
             }
         }
     }

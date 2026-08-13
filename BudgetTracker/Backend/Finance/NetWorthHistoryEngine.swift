@@ -43,11 +43,57 @@ struct NetWorthAccountRow: Identifiable, Equatable {
     let balance: Double
 }
 
+enum NetWorthAccountGroupKind: String, CaseIterable, Identifiable, Equatable {
+    case cash
+    case investments
+    case debts
+    case other
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .cash: return "Cash"
+        case .investments: return "Investments"
+        case .debts: return "Debts"
+        case .other: return "Other"
+        }
+    }
+
+    var chartTitle: String { title.uppercased() }
+
+    func matches(accountType: String) -> Bool {
+        let type = accountType.lowercased()
+        switch self {
+        case .cash:
+            return type == "depository"
+        case .investments:
+            return type == "investment" || type == "brokerage"
+        case .debts:
+            return type == "credit" || type == "loan"
+        case .other:
+            return !NetWorthAccountGroupKind.cash.matches(accountType: type)
+                && !NetWorthAccountGroupKind.investments.matches(accountType: type)
+                && !NetWorthAccountGroupKind.debts.matches(accountType: type)
+        }
+    }
+
+    static func kind(forAccountType accountType: String) -> NetWorthAccountGroupKind {
+        let type = accountType.lowercased()
+        if cash.matches(accountType: type) { return .cash }
+        if investments.matches(accountType: type) { return .investments }
+        if debts.matches(accountType: type) { return .debts }
+        return .other
+    }
+}
+
 struct NetWorthAccountGroup: Identifiable, Equatable {
-    var id: String { title }
-    let title: String
+    var id: String { kind.id }
+    let kind: NetWorthAccountGroupKind
     let total: Double
     let accounts: [NetWorthAccountRow]
+
+    var title: String { kind.title }
 }
 
 enum NetWorthHistoryEngine {
@@ -249,7 +295,7 @@ enum NetWorthHistoryEngine {
     static func accountGroups(from accounts: [Account]) -> [NetWorthAccountGroup] {
         var cash: [NetWorthAccountRow] = []
         var investments: [NetWorthAccountRow] = []
-        var loans: [NetWorthAccountRow] = []
+        var debts: [NetWorthAccountRow] = []
         var other: [NetWorthAccountRow] = []
 
         for account in accounts {
@@ -259,43 +305,64 @@ enum NetWorthHistoryEngine {
                 name: FinanceFormatting.accountLabel(account),
                 balance: balance
             )
-            switch account.type.lowercased() {
-            case "depository":
+            switch NetWorthAccountGroupKind.kind(forAccountType: account.type) {
+            case .cash:
                 cash.append(row)
-            case "investment", "brokerage":
+            case .investments:
                 investments.append(row)
-            case "credit", "loan":
-                loans.append(row)
-            default:
+            case .debts:
+                debts.append(row)
+            case .other:
                 other.append(row)
             }
         }
 
         var groups: [NetWorthAccountGroup] = []
         if !cash.isEmpty {
-            groups.append(group(title: "Cash", accounts: cash, liabilities: false))
+            groups.append(group(kind: .cash, accounts: cash, liabilities: false))
         }
         if !investments.isEmpty {
-            groups.append(group(title: "Investments", accounts: investments, liabilities: false))
+            groups.append(group(kind: .investments, accounts: investments, liabilities: false))
         }
-        if !loans.isEmpty {
-            groups.append(group(title: "Loan", accounts: loans, liabilities: true))
+        if !debts.isEmpty {
+            groups.append(group(kind: .debts, accounts: debts, liabilities: true))
         }
         if !other.isEmpty {
-            groups.append(group(title: "Other", accounts: other, liabilities: false))
+            groups.append(group(kind: .other, accounts: other, liabilities: false))
         }
         return groups
     }
 
+    /// Time series for a Cash / Investments / Debts group (filtered account history).
+    static func groupChartPoints(
+        kind: NetWorthAccountGroupKind,
+        accounts: [Account],
+        accountSnapshots: [AccountBalanceSnapshot] = [],
+        transactions: [Transaction] = [],
+        referenceDate: Date = Date(),
+        range: NetWorthTimeRange = .oneYear,
+        calendar: Calendar = .current
+    ) -> [NetWorthChartPoint] {
+        let filtered = accounts.filter { kind.matches(accountType: $0.type) }
+        return chartPointsFromAccountHistory(
+            accounts: filtered,
+            accountSnapshots: accountSnapshots,
+            transactions: transactions,
+            referenceDate: referenceDate,
+            range: range,
+            calendar: calendar
+        )
+    }
+
     private static func group(
-        title: String,
+        kind: NetWorthAccountGroupKind,
         accounts: [NetWorthAccountRow],
         liabilities: Bool
     ) -> NetWorthAccountGroup {
         let total = accounts.reduce(0) { partial, row in
             liabilities ? partial - abs(row.balance) : partial + row.balance
         }
-        return NetWorthAccountGroup(title: title, total: total, accounts: accounts)
+        return NetWorthAccountGroup(kind: kind, total: total, accounts: accounts)
     }
 
     private static func parseDate(_ value: String, calendar: Calendar) -> Date? {

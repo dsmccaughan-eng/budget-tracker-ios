@@ -348,6 +348,56 @@ final class NetWorthHistoryEngineTests: XCTestCase {
         let groups = NetWorthHistoryEngine.accountGroups(from: accounts)
         XCTAssertEqual(groups.count, 2)
         XCTAssertEqual(groups.first?.title, "Cash")
-        XCTAssertTrue(groups.contains { $0.title == "Loan" })
+        XCTAssertTrue(groups.contains { $0.kind == .debts })
+        XCTAssertEqual(groups.first { $0.kind == .debts }?.total ?? 0, -200, accuracy: 0.01)
+    }
+
+    func testGroupChartPointsUsesOnlyMatchingAccounts() {
+        let cashID = UUID()
+        let creditID = UUID()
+        let accounts = [
+            Account(
+                id: cashID,
+                plaidItemId: "item",
+                plaidAccountId: "chk",
+                name: "Checking",
+                officialName: nil,
+                type: "depository",
+                subtype: "checking",
+                mask: "1111",
+                currentBalance: 1_000,
+                availableBalance: 1_000
+            ),
+            Account(
+                id: creditID,
+                plaidItemId: "item",
+                plaidAccountId: "cc",
+                name: "Visa",
+                officialName: nil,
+                type: "credit",
+                subtype: "credit card",
+                mask: "2222",
+                currentBalance: 250,
+                availableBalance: nil
+            ),
+        ]
+        let cashPoints = NetWorthHistoryEngine.groupChartPoints(
+            kind: .cash,
+            accounts: accounts,
+            referenceDate: referenceDate,
+            range: .oneMonth,
+            calendar: calendar
+        )
+        let debtPoints = NetWorthHistoryEngine.groupChartPoints(
+            kind: .debts,
+            accounts: accounts,
+            referenceDate: referenceDate,
+            range: .oneMonth,
+            calendar: calendar
+        )
+        XCTAssertFalse(cashPoints.isEmpty)
+        XCTAssertEqual(cashPoints.last?.netWorth ?? 0, 1_000, accuracy: 0.01)
+        XCTAssertFalse(debtPoints.isEmpty)
+        XCTAssertEqual(debtPoints.last?.netWorth ?? 0, -250, accuracy: 0.01)
     }
 }

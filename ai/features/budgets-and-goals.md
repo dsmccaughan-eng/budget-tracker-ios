@@ -9,6 +9,7 @@
 - **Bills:** Fixed-expense budgets → `BillsListView` (calendar strip + dated list); linked from Dashboard and Budgets tab
 - **Transactions:** Grouped by month via `TransactionMonthGrouping`
 - Budget math and alerts are deterministic (`BudgetMath`, `BudgetAlertEngine`)
+- **Budget % alerts** only for discretionary categories: Groceries, Dining & Bars, Shopping, Entertainment, Transport (still skip fixed / fixed-bill)
 - Debt payoff (avalanche/snowball) stays client-side — no third-party debt payloads
 - Tabs: Dashboard, Transactions, Budgets, Goals, Insights
 
@@ -17,6 +18,7 @@
 | Area | Path |
 |------|------|
 | Budget store/math | `BudgetTracker/Backend/Finance/BudgetStore.swift`, `BudgetMath.swift` |
+| Budget alerts | `BudgetTracker/Backend/Finance/BudgetAlertEngine.swift` |
 | Goals | `GoalsStore.swift`, `GoalsMath.swift` |
 | Cash flow | `CashFlowEngine.swift` |
 | Cloud extensions | `Backend/Cloud/SupabaseService+Finance.swift`, `+Goals.swift` |
