@@ -28,6 +28,13 @@ enum NetWorthTimeRange: String, CaseIterable, Identifiable {
     }
 }
 
+enum NetWorthChartGranularity: String, CaseIterable, Identifiable {
+    case daily = "Daily"
+    case monthly = "Monthly"
+
+    var id: String { rawValue }
+}
+
 struct NetWorthChartPoint: Identifiable, Equatable {
     var id: String { dateString }
     let date: Date
@@ -282,14 +289,53 @@ enum NetWorthHistoryEngine {
         selected: NetWorthChartPoint,
         series: [NetWorthChartPoint]
     ) -> (amount: Double, percent: Double)? {
-        guard let first = series.first, first.netWorth != 0 else {
-            guard let first = series.first else { return nil }
-            let amount = selected.netWorth - first.netWorth
+        guard let first = series.first else { return nil }
+        return change(from: first.netWorth, to: selected.netWorth)
+    }
+
+    static func changeFromPrevious(
+        selected: NetWorthChartPoint,
+        series: [NetWorthChartPoint]
+    ) -> (amount: Double, percent: Double)? {
+        guard let index = series.firstIndex(where: { $0.dateString == selected.dateString }),
+              index > 0 else { return nil }
+        return change(from: series[index - 1].netWorth, to: selected.netWorth)
+    }
+
+    /// First-of-month points (or earliest day in that month), plus today's latest point.
+    static func monthlyChartPoints(
+        from points: [NetWorthChartPoint],
+        calendar: Calendar = .current
+    ) -> [NetWorthChartPoint] {
+        var byMonth: [String: NetWorthChartPoint] = [:]
+        var monthOrder: [String] = []
+
+        for point in points {
+            let components = calendar.dateComponents([.year, .month, .day], from: point.date)
+            let key = String(format: "%04d-%02d", components.year ?? 0, components.month ?? 0)
+            let isMonthStart = components.day == 1
+            if byMonth[key] == nil {
+                byMonth[key] = point
+                monthOrder.append(key)
+            } else if isMonthStart {
+                byMonth[key] = point
+            }
+        }
+
+        var monthly = monthOrder.compactMap { byMonth[$0] }
+        if let last = points.last,
+           monthly.last?.dateString != last.dateString {
+            monthly.append(last)
+        }
+        return monthly
+    }
+
+    private static func change(from start: Double, to end: Double) -> (amount: Double, percent: Double)? {
+        let amount = end - start
+        if start == 0 {
             return amount == 0 ? nil : (amount, 0)
         }
-        let amount = selected.netWorth - first.netWorth
-        let percent = amount / abs(first.netWorth) * 100
-        return (amount, percent)
+        return (amount, amount / abs(start) * 100)
     }
 
     static func accountGroups(from accounts: [Account]) -> [NetWorthAccountGroup] {

@@ -15,10 +15,7 @@ struct DashboardView: View {
 
     @State private var showAddBudget = false
     @State private var showSettings = false
-    @State private var showReviewConfirmed = false
-    @State private var unreviewedExpanded = false
-    @State private var reviewNavigationPath = NavigationPath()
-    @State private var scrollAnchorTransactionID: UUID?
+    @State private var showUnreviewedReview = false
 
     private var dashboardSpendingProgress: [BudgetProgress] {
         _ = budgets.spendDataVersion
@@ -42,9 +39,8 @@ struct DashboardView: View {
     }
 
     var body: some View {
-        NavigationStack(path: $reviewNavigationPath) {
-            ScrollViewReader { proxy in
-                List {
+        NavigationStack {
+            List {
                     if !appLock.hasPIN {
                         Section {
                             NavigationLink {
@@ -130,52 +126,25 @@ struct DashboardView: View {
                             Text("You're caught up. New synced transactions will appear here for review.")
                                 .foregroundStyle(.secondary)
                         } else {
-                            DisclosureGroup(isExpanded: $unreviewedExpanded) {
-                                ForEach(unreviewedTransactions) { transaction in
-                                    NavigationLink(value: transaction.id) {
-                                        HStack {
-                                            VStack(alignment: .leading) {
-                                                Text(FinanceFormatting.displayName(for: transaction))
-                                                Text(transaction.category)
-                                                    .font(.caption)
-                                                    .foregroundStyle(.secondary)
-                                            }
-                                            Spacer()
-                                            Text(TransactionFormatting.formattedAmount(transaction.amount))
-                                                .font(.subheadline.weight(.semibold))
-                                                .foregroundStyle(TransactionFormatting.amountColor(transaction.amount))
-                                        }
-                                    }
-                                    .id(transaction.id)
-                                    .simultaneousGesture(TapGesture().onEnded {
-                                        scrollAnchorTransactionID = transaction.id
-                                    })
-                                }
-
-                                Button("Confirm all categorized") {
-                                    transactionReview.markAllReviewed(transactions: transactions.transactions)
-                                    showReviewConfirmed = true
-                                }
-                                .buttonStyle(.borderedProminent)
+                            Button {
+                                showUnreviewedReview = true
                             } label: {
                                 HStack {
                                     Text("Unreviewed transactions")
+                                        .foregroundStyle(.primary)
                                     Spacer()
                                     Text("\(unreviewedTransactions.count)")
                                         .font(.subheadline.weight(.semibold))
                                         .foregroundStyle(.secondary)
+                                    Image(systemName: "chevron.right")
+                                        .font(.caption.weight(.semibold))
+                                        .foregroundStyle(.tertiary)
                                 }
-                            }
-
-                            if !unreviewedExpanded && unreviewedTransactions.count > 3 {
-                                Text("Tap to expand and review categories.")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
                             }
                         }
                     } footer: {
-                        if !unreviewedTransactions.isEmpty && unreviewedExpanded {
-                            Text("Tap each transaction to verify its category, then confirm when you're done.")
+                        if !unreviewedTransactions.isEmpty {
+                            Text("Opens a review list. Saving a category returns you to that list, not the dashboard.")
                         }
                     }
 
@@ -193,20 +162,6 @@ struct DashboardView: View {
                     }
                 }
                 .navigationTitle("Dashboard")
-                .navigationDestination(for: UUID.self) { transactionID in
-                    if let transaction = transactions.transactions.first(where: { $0.id == transactionID }) {
-                        TransactionDetailView(
-                            transaction: transaction,
-                            dismissOnCategorySave: true
-                        )
-                    } else {
-                        ContentUnavailableView(
-                            "Transaction unavailable",
-                            systemImage: "creditcard",
-                            description: Text("This transaction is no longer in your list.")
-                        )
-                    }
-                }
                 .toolbar {
                     ToolbarItem(placement: .topBarTrailing) {
                         Button {
@@ -229,6 +184,11 @@ struct DashboardView: View {
                         SettingsView()
                     }
                 }
+                .sheet(isPresented: $showUnreviewedReview) {
+                    UnreviewedTransactionsView()
+                        .presentationDetents([.large])
+                        .presentationDragIndicator(.visible)
+                }
                 .refreshable {
                     await reloadAll()
                 }
@@ -245,33 +205,6 @@ struct DashboardView: View {
                         userId: auth.userId
                     )
                 }
-                .onAppear {
-                    applyUnreviewedExpansionPolicy(count: unreviewedTransactions.count)
-                }
-                .onChange(of: unreviewedTransactions.count) { oldCount, newCount in
-                    if newCount == 0 {
-                        unreviewedExpanded = false
-                    } else if oldCount > 3 && newCount <= 3 {
-                        unreviewedExpanded = true
-                    } else if oldCount <= 3 && newCount > 3 {
-                        unreviewedExpanded = false
-                    }
-                }
-                .onChange(of: reviewNavigationPath.count) { oldCount, newCount in
-                    guard newCount == 0, oldCount > 0,
-                          let anchorID = scrollAnchorTransactionID else { return }
-                    DispatchQueue.main.async {
-                        withAnimation(.easeInOut(duration: 0.2)) {
-                            proxy.scrollTo(anchorID, anchor: .center)
-                        }
-                    }
-                }
-                .alert("Review complete", isPresented: $showReviewConfirmed) {
-                    Button("OK", role: .cancel) {}
-                } message: {
-                    Text("New transactions will appear here after your next sync.")
-                }
-            }
         }
     }
 
@@ -304,10 +237,6 @@ struct DashboardView: View {
             return "\(connectionCount) bank connection\(connectionCount == 1 ? "" : "s")"
         }
         return "No accounts linked"
-    }
-
-    private func applyUnreviewedExpansionPolicy(count: Int) {
-        unreviewedExpanded = count > 0 && count <= 3
     }
 
     private func reloadDashboardData() async {

@@ -5,34 +5,50 @@ struct NetWorthChartView: View {
     let points: [NetWorthChartPoint]
     @Binding var selectedRange: NetWorthTimeRange
     var title: String = "NET WORTH"
+    var allowsMonthlyGranularity: Bool = false
 
     @State private var selectedPoint: NetWorthChartPoint?
+    @State private var granularity: NetWorthChartGranularity = .daily
+
+    private var displayPoints: [NetWorthChartPoint] {
+        guard allowsMonthlyGranularity, granularity == .monthly else { return points }
+        return NetWorthHistoryEngine.monthlyChartPoints(from: points)
+    }
 
     private var displayPoint: NetWorthChartPoint? {
-        selectedPoint ?? points.last
+        selectedPoint ?? displayPoints.last
     }
 
     private var change: (amount: Double, percent: Double)? {
         guard let point = displayPoint else { return nil }
-        return NetWorthHistoryEngine.changeFromStart(selected: point, series: points)
+        if allowsMonthlyGranularity, granularity == .monthly {
+            return NetWorthHistoryEngine.changeFromPrevious(selected: point, series: displayPoints)
+        }
+        return NetWorthHistoryEngine.changeFromStart(selected: point, series: displayPoints)
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             chartHeader
             chartBody
+            if allowsMonthlyGranularity {
+                granularityPicker
+            }
             rangePicker
         }
         .onAppear {
-            selectedPoint = points.last
+            selectedPoint = displayPoints.last
         }
-        .onChange(of: points.map(\.id)) { _, _ in
+        .onChange(of: displayPoints.map(\.id)) { _, _ in
             if let selectedPoint,
-               !points.contains(where: { $0.id == selectedPoint.id }) {
-                self.selectedPoint = points.last
+               !displayPoints.contains(where: { $0.id == selectedPoint.id }) {
+                self.selectedPoint = displayPoints.last
             } else if selectedPoint == nil {
-                selectedPoint = points.last
+                selectedPoint = displayPoints.last
             }
+        }
+        .onChange(of: granularity) { _, _ in
+            selectedPoint = displayPoints.last
         }
     }
 
@@ -50,10 +66,15 @@ struct NetWorthChartView: View {
             Spacer()
             if let point = displayPoint {
                 VStack(alignment: .trailing, spacing: 2) {
-                    Text(point.date, format: .dateTime.day().month(.abbreviated).year())
+                    Text(point.date, format: dateFormat)
                         .font(.caption.weight(.semibold))
                     if let change {
                         changeLabel(change)
+                    }
+                    if allowsMonthlyGranularity, granularity == .monthly, change != nil {
+                        Text("vs previous month")
+                            .font(.caption2)
+                            .foregroundStyle(.tertiary)
                     }
                 }
             }
@@ -74,7 +95,7 @@ struct NetWorthChartView: View {
 
     @ViewBuilder
     private var chartBody: some View {
-        if points.count < 2 {
+        if displayPoints.count < 2 {
             ContentUnavailableView {
                 Label("Building history", systemImage: "chart.line.uptrend.xyaxis")
             } description: {
@@ -83,7 +104,7 @@ struct NetWorthChartView: View {
             .frame(height: 200)
         } else {
             Chart {
-                ForEach(points) { point in
+                ForEach(displayPoints) { point in
                     AreaMark(
                         x: .value("Date", point.date),
                         y: .value("Net worth", point.netWorth)
@@ -190,7 +211,38 @@ struct NetWorthChartView: View {
         let origin = geometry[plotFrame].origin
         let x = location.x - origin.x
         guard let date: Date = proxy.value(atX: x) else { return }
-        selectedPoint = NetWorthHistoryEngine.nearestPoint(to: date, in: points)
+        selectedPoint = NetWorthHistoryEngine.nearestPoint(to: date, in: displayPoints)
+    }
+
+    private var dateFormat: Date.FormatStyle {
+        if allowsMonthlyGranularity, granularity == .monthly {
+            return .dateTime.month(.abbreviated).year()
+        }
+        return .dateTime.day().month(.abbreviated).year()
+    }
+
+    private var granularityPicker: some View {
+        HStack(spacing: 6) {
+            ForEach(NetWorthChartGranularity.allCases) { option in
+                Button {
+                    granularity = option
+                } label: {
+                    Text(option.rawValue)
+                        .font(.caption.weight(.semibold))
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .background(
+                            granularity == option
+                                ? Color(.systemGray5)
+                                : Color.clear,
+                            in: Capsule()
+                        )
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityLabel("Chart interval")
     }
 
     private func compactCurrency(_ value: Double) -> String {

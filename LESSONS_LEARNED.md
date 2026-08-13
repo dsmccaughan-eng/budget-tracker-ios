@@ -372,3 +372,10 @@ Entry format
 - **Fix pattern:** Value-based `NavigationLink(value: UUID)` + `navigationDestination(for:)`; dismiss detail after successful category save; `ScrollViewReader` restores `scrollTo` the last-opened transaction id when the review path pops.
 - **Guardrails:** Do not auto-mark reviewed or auto-advance to the next transaction on save; keep Confirm all categorized.
 - **Verification:** Open a mid-list unreviewed row → Save category → land back on the unreviewed overview near that row without jumping to the top of Dashboard.
+
+### 2026-08-13 — Unreviewed review still returned to Dashboard
+- **Symptom:** After saving a category, review still felt like a dashboard dropdown and kicked the user out of the list.
+- **Root cause:** Review lived on the Dashboard `NavigationStack`; store updates and list identity still interacted with the tab root.
+- **Fix pattern:** Dashboard row opens `UnreviewedTransactionsView` in a sheet with its own `NavigationStack`. Save category dismisses only the detail; `ScrollViewReader` restores the last-opened row.
+- **Guardrails:** Do not push review onto the dashboard stack; keep Confirm all in the sheet.
+- **Verification:** Tap Unreviewed → change a mid-list category → back on the review sheet at the same row; Done returns to Dashboard.

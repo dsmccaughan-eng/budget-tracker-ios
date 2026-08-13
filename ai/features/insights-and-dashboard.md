@@ -5,8 +5,8 @@
 ## Behavior
 
 - Dashboard is primary overview tab
-- **Unreviewed transactions:** show synced transactions not yet confirmed on the dashboard; user reviews categories then taps **Confirm all categorized**
-- Category save from review uses value-based navigation and returns to the unreviewed list at the same scroll position (does not kick to top of Dashboard)
+- **Unreviewed transactions:** dashboard row opens a review sheet (not a dropdown). Category save returns to that list and keeps scroll; Confirm all stays in the sheet
+- **Net Worth group charts** (Cash / Investments / Debts): Daily or Monthly (1st of month) interval toggle
 - Insights may use Gemini when it materially helps; keep deterministic fallbacks
 - Smart features must not override user categorization rules
 
@@ -14,7 +14,7 @@
 
 | Area | Path |
 |------|------|
-| Dashboard UI | `BudgetTracker/Views/Dashboard/DashboardView.swift` |
+| Dashboard UI | `BudgetTracker/Views/Dashboard/DashboardView.swift`, `UnreviewedTransactionsView.swift` |
 | Transaction review | `BudgetTracker/Backend/Finance/TransactionReviewEngine.swift`, `TransactionReviewStore.swift` |
 | Net Worth UI | `BudgetTracker/Views/Accounts/NetWorthView.swift`, `NetWorthGroupDetailView.swift` |
 | Insights UI | `BudgetTracker/Views/Insights/InsightsViews.swift` |

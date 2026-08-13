@@ -42,7 +42,8 @@ struct NetWorthGroupDetailView: View {
                 NetWorthChartView(
                     points: chartPoints,
                     selectedRange: $selectedRange,
-                    title: kind.chartTitle
+                    title: kind.chartTitle,
+                    allowsMonthlyGranularity: true
                 )
             }
             .listRowInsets(EdgeInsets(top: 12, leading: 16, bottom: 12, trailing: 16))

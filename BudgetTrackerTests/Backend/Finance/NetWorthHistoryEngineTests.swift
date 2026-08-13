@@ -400,4 +400,60 @@ final class NetWorthHistoryEngineTests: XCTestCase {
         XCTAssertFalse(debtPoints.isEmpty)
         XCTAssertEqual(debtPoints.last?.netWorth ?? 0, -250, accuracy: 0.01)
     }
+
+    func testMonthlyChartPointsUsesFirstOfMonthAndKeepsToday() {
+        let daily = [
+            chartPoint(date: "2026-01-01", net: 100),
+            chartPoint(date: "2026-01-15", net: 110),
+            chartPoint(date: "2026-02-01", net: 120),
+            chartPoint(date: "2026-02-10", net: 125),
+            chartPoint(date: "2026-03-01", net: 140),
+            chartPoint(date: "2026-03-15", net: 150),
+        ]
+        let monthly = NetWorthHistoryEngine.monthlyChartPoints(from: daily, calendar: calendar)
+        XCTAssertEqual(monthly.map(\.dateString), [
+            "2026-01-01",
+            "2026-02-01",
+            "2026-03-01",
+            "2026-03-15",
+        ])
+        XCTAssertEqual(monthly[0].netWorth, 100, accuracy: 0.01)
+        XCTAssertEqual(monthly[1].netWorth, 120, accuracy: 0.01)
+        XCTAssertEqual(monthly[2].netWorth, 140, accuracy: 0.01)
+        XCTAssertEqual(monthly[3].netWorth, 150, accuracy: 0.01)
+    }
+
+    func testMonthlyChartPointsFallsBackToFirstDayInMonth() {
+        let daily = [
+            chartPoint(date: "2026-01-15", net: 100),
+            chartPoint(date: "2026-02-01", net: 120),
+        ]
+        let monthly = NetWorthHistoryEngine.monthlyChartPoints(from: daily, calendar: calendar)
+        XCTAssertEqual(monthly.map(\.dateString), ["2026-01-15", "2026-02-01"])
+    }
+
+    func testChangeFromPreviousComputesMonthOverMonth() {
+        let series = [
+            chartPoint(date: "2026-01-01", net: 100_000),
+            chartPoint(date: "2026-02-01", net: 120_000),
+        ]
+        let change = NetWorthHistoryEngine.changeFromPrevious(selected: series[1], series: series)
+        XCTAssertEqual(change?.amount ?? 0, 20_000, accuracy: 0.01)
+        XCTAssertEqual(change?.percent ?? 0, 20, accuracy: 0.01)
+    }
+
+    private func chartPoint(date: String, net: Double) -> NetWorthChartPoint {
+        let parsed = calendar.date(from: DateComponents(
+            year: Int(date.prefix(4)),
+            month: Int(date.dropFirst(5).prefix(2)),
+            day: Int(date.suffix(2))
+        ))!
+        return NetWorthChartPoint(
+            date: parsed,
+            dateString: date,
+            netWorth: net,
+            totalAssets: max(net, 0),
+            totalLiabilities: net < 0 ? abs(net) : 0
+        )
+    }
 }
