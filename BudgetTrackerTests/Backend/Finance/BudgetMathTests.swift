@@ -221,6 +221,50 @@ final class BudgetMathTests: XCTestCase {
         let groceries = rows.first { $0.category == "Groceries" }
         XCTAssertEqual(groceries?.spent ?? 0, 100, accuracy: 0.01)
         XCTAssertEqual(groceries?.projectedSpend ?? 0, 100, accuracy: 0.01)
+        XCTAssertEqual(groceries?.typicalByNow ?? 0, 250, accuracy: 0.01)
+    }
+
+    func testTypicalSpendByNowUsesSameDayOfPriorMonthsAndSkipsCurrent() {
+        let txns = [
+            txn(category: "Groceries", amount: 40, date: "2026-05-10"),
+            txn(category: "Groceries", amount: 10, date: "2026-05-20"),
+            txn(category: "Groceries", amount: 30, date: "2026-04-10"),
+            txn(category: "Groceries", amount: 80, date: "2026-04-20"),
+            txn(category: "Groceries", amount: 50, date: "2026-03-05"),
+            txn(category: "Groceries", amount: 5, date: "2026-03-20")
+        ]
+        let index = BudgetSpendIndex(transactions: txns, calendar: calendar)
+        let typical = index.typicalSpendByNow(
+            category: "Groceries",
+            referenceDate: referenceDate,
+            monthCount: 6,
+            calendar: calendar
+        )
+        XCTAssertEqual(typical, 40, accuracy: 0.01)
+    }
+
+    func testTypicalSpendByNowCapsFebruaryWhenDayIsLater() {
+        let march = calendar.date(from: DateComponents(year: 2026, month: 3, day: 31))!
+        let txns = [
+            txn(category: "Groceries", amount: 20, date: "2026-02-10"),
+            txn(category: "Groceries", amount: 30, date: "2026-02-28")
+        ]
+        let index = BudgetSpendIndex(transactions: txns, calendar: calendar)
+        let typical = index.typicalSpendByNow(
+            category: "Groceries",
+            referenceDate: march,
+            monthCount: 6,
+            calendar: calendar
+        )
+        XCTAssertEqual(typical, 50, accuracy: 0.01)
+    }
+
+    func testPaceReferenceDateUsesLastDayForPastMonth() {
+        let julyStart = calendar.date(from: DateComponents(year: 2026, month: 7, day: 1))!
+        let now = calendar.date(from: DateComponents(year: 2026, month: 8, day: 18))!
+        let pace = BudgetMath.paceReferenceDate(julyStart, now: now, calendar: calendar)
+        XCTAssertEqual(calendar.component(.day, from: pace), 31)
+        XCTAssertEqual(calendar.component(.month, from: pace), 7)
     }
 
     func testChartSliceSegmentsSumToFullSemicircle() {

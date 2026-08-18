@@ -1,6 +1,6 @@
 # Lessons Learned
 
-Last updated: 2026-06-01
+Last updated: 2026-08-18
 
 Purpose
 - Capture resolved issues and proven fixes so future agents do not re-open solved problems.
@@ -393,3 +393,11 @@ Entry format
 - **Fix pattern:** Dashboard row opens `UnreviewedTransactionsView` in a sheet with its own `NavigationStack`. Save category dismisses only the detail; `ScrollViewReader` restores the last-opened row.
 - **Guardrails:** Do not push review onto the dashboard stack; keep Confirm all in the sheet.
 - **Verification:** Tap Unreviewed → change a mid-list category → back on the review sheet at the same row; Done returns to Dashboard.
+
+### 2026-08-18 — Investment charts stayed flat until recent snapshots
+- **Symptom:** Overall Net Worth, Investments group, and brokerage/401k charts were a flat line until the last couple of months, then only small movement.
+- **Root cause:** Saved daily snapshots only exist after the app started tracking. History before the first snapshot was filled with that first balance, so older contributions never appeared as steps. Market moves between snapshot days were also held flat instead of allocated across the days in between. Some 401k inflows only show up as bank “Investments” outflows, not Plaid investment transactions.
+- **Fix pattern:** Build a dated accumulation series: apply contributions/withdrawals (including inferred bank Investments outflows) on their dates, interpolate unexplained P/L between snapshot marks, and pin today to the live balance. Ignore buys/sells. Do not treat missing Plaid history as “balance was always today’s value.”
+- **Guardrails:** Do not count security trades as NAV changes; do not replace today’s live point; keep cash/loan reconstruction unchanged.
+- **Verification:** `InvestmentHistoryEngineTests` (pre-snapshot stairs, sign-independent contributions, inferred bank inflows, market interpolation); `NetWorthHistoryEngineTests` investment group/overall series.
+

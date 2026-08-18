@@ -169,6 +169,8 @@ Documentation duties (agents)
 - Do not paste secrets into this file or `LESSONS_LEARNED.md`.
 
 Update Log
+- 2026-08-18: **Typical by now** — overall and per-category spend compared to the same day-of-month average over the prior 6 months (current month excluded). Alerts fire only when spend exceeds that pace, and still when over the budget limit (discretionary categories only).
+- 2026-08-18: Investment / Investments-group / Net Worth charts are an accumulation curve: dated contributions and withdrawals first, market P/L between snapshots, today pinned to live value (buys/sells ignored).
 - 2026-08-13: Net Worth Daily/Monthly on all charts; dashboard budgets load on first open; investment charts show total value (contributions + snapshots, ignore buys/sells).
 - 2026-08-13: Unreviewed transactions open in a dedicated review sheet (not a dashboard dropdown); Cash / Investments / Debts charts can switch Daily ↔ Monthly (1st-of-month points).
 - 2026-08-12: **Budget alerts** only for Groceries, Dining & Bars, Shopping, Entertainment, Transport (`BudgetAlertEngine.alertableCategories`); review category save returns to unreviewed list with scroll preserved; Net Worth group charts for Cash / Investments / Debts.

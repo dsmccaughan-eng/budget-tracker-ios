@@ -1,35 +1,5 @@
 import Foundation
 
-struct BudgetProgress: Equatable, Identifiable {
-    var id: String { category }
-    let category: String
-    let monthlyLimit: Double
-    let spent: Double
-    let projectedSpend: Double
-    let isFixed: Bool
-    let isRollover: Bool
-    let color: String
-
-    var remaining: Double { monthlyLimit - spent }
-    var percentUsed: Double {
-        guard monthlyLimit > 0 else { return 0 }
-        return min(spent / monthlyLimit, 1.5)
-    }
-    var isOverBudget: Bool { spent > monthlyLimit }
-    var showsBudgetLimit: Bool { monthlyLimit > 0 }
-
-    var listDisplaySpent: Double {
-        BudgetMath.listDisplaySpent(category: category, netAmount: spent)
-    }
-}
-
-struct BudgetChartSliceSegment: Equatable {
-    let progress: BudgetProgress
-    let amount: Double
-    let startFraction: Double
-    let endFraction: Double
-}
-
 enum BudgetMath {
     static let excludedCategories: Set<String> = ["Income", "Transfers"]
 
@@ -61,11 +31,17 @@ enum BudgetMath {
                 referenceDate: referenceDate,
                 calendar: calendar
             )
+            let typicalByNow = index.typicalSpendByNow(
+                category: budget.category,
+                referenceDate: referenceDate,
+                calendar: calendar
+            )
             let progress = BudgetProgress(
                 category: budget.category,
                 monthlyLimit: budget.monthlyLimit,
                 spent: spent,
                 projectedSpend: projected,
+                typicalByNow: typicalByNow,
                 isFixed: budget.isFixed,
                 isRollover: budget.isRollover,
                 color: budget.color
@@ -161,11 +137,19 @@ enum BudgetMath {
         calendar: Calendar
     ) -> BudgetMonthRow {
         let spent = index.spent(category: category, referenceDate: referenceDate, calendar: calendar)
+        let typicalByNow = BudgetMath.excludedCategories.contains(category)
+            ? 0
+            : index.typicalSpendByNow(
+                category: category,
+                referenceDate: referenceDate,
+                calendar: calendar
+            )
         let progress = BudgetProgress(
             category: category,
             monthlyLimit: 0,
             spent: spent,
             projectedSpend: 0,
+            typicalByNow: typicalByNow,
             isFixed: false,
             isRollover: false,
             color: BudgetPalette.color(forCategory: category)
@@ -258,6 +242,28 @@ enum BudgetMath {
         }
     }
 
+    /// Day used for “typical by now”: today in the current month, last day of a past month.
+    /// If `monthDate` already has a day-of-month (tests), that day is kept.
+    static func paceReferenceDate(
+        _ monthDate: Date,
+        now: Date = Date(),
+        calendar: Calendar = .current
+    ) -> Date {
+        if calendar.component(.day, from: monthDate) > 1 {
+            return monthDate
+        }
+        let selected = startOfMonth(monthDate, calendar: calendar)
+        let current = startOfMonth(now, calendar: calendar)
+        if selected == current {
+            return now
+        }
+        guard let nextMonth = calendar.date(byAdding: .month, value: 1, to: selected),
+              let lastDay = calendar.date(byAdding: .day, value: -1, to: nextMonth) else {
+            return monthDate
+        }
+        return lastDay
+    }
+
     static func cacheKey(
         referenceDate: Date,
         transactionCount: Int,
@@ -265,8 +271,9 @@ enum BudgetMath {
         calendar: Calendar = .current
     ) -> String {
         let month = BudgetSpendIndex.monthKey(from: referenceDate, calendar: calendar)
+        let paceDay = calendar.component(.day, from: paceReferenceDate(referenceDate, calendar: calendar))
         let budgetKey = budgets.map { "\($0.id.uuidString):\($0.monthlyLimit)" }.joined(separator: "|")
-        return "\(month)-\(transactionCount)-\(budgetKey)"
+        return "\(month)-d\(paceDay)-\(transactionCount)-\(budgetKey)"
     }
 
     static func isInMonth(

@@ -3,6 +3,7 @@ import SwiftUI
 struct DashboardBudgetSummary: View {
     let spent: Double
     let budget: Double
+    var typicalByNow: Double = 0
     var onViewFullBudget: () -> Void
 
     private var isOverBudget: Bool {
@@ -34,6 +35,12 @@ struct DashboardBudgetSummary: View {
                 }
             }
             .frame(height: 10)
+
+            if typicalByNow > 0 {
+                Text("Typical by now \(FinanceFormatting.currency(typicalByNow))")
+                    .font(.caption)
+                    .foregroundStyle(spent > typicalByNow ? Color.orange : Color.secondary)
+            }
 
             Button("View full budget", action: onViewFullBudget)
                 .font(.subheadline.weight(.semibold))

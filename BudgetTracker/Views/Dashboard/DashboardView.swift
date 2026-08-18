@@ -31,11 +31,14 @@ struct DashboardView: View {
         budgets.budgets.reduce(0) { $0 + $1.monthlyLimit }
     }
 
+    private var dashboardTypicalByNow: Double {
+        dashboardSpendingProgress.reduce(0) { $0 + $1.typicalByNow }
+    }
+
     private var dashboardBudgetAlerts: [String] {
         BudgetAlertEngine.alerts(
-            progress: budgets.progress,
-            transactions: transactions.transactions,
-            threshold: notifications.alertThreshold
+            progress: dashboardSpendingProgress,
+            transactions: transactions.transactions
         )
     }
 
@@ -70,6 +73,7 @@ struct DashboardView: View {
                             DashboardBudgetSummary(
                                 spent: dashboardBudgetSpent,
                                 budget: dashboardBudgetLimit,
+                                typicalByNow: dashboardTypicalByNow,
                                 onViewFullBudget: { selectedTab = .budgets }
                             )
                         }
@@ -282,9 +286,8 @@ struct DashboardView: View {
         await transactions.sync(client: client, userId: auth.userId)
         await reloadDashboardData()
         let alerts = BudgetAlertEngine.alerts(
-            progress: budgets.progress,
-            transactions: transactions.transactions,
-            threshold: notifications.alertThreshold
+            progress: budgets.spendingProgress(transactions: transactions.transactions),
+            transactions: transactions.transactions
         )
         notifications.scheduleBudgetAlerts(messages: alerts)
     }

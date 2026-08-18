@@ -178,7 +178,7 @@ struct AccountDetailView: View {
 
     private var historyExplanation: String {
         if isInvestmentAccount {
-            return "Total value includes contributions and withdrawals, plus market value from saved snapshots when you refresh accounts. Buys and sells inside the account are ignored because they don’t change the total."
+            return "Total value is an accumulation curve: contributions, withdrawals, and transfers are added on their dates, market gains or losses are filled in from saved snapshots, and today is pinned to the live balance. Buys and sells inside the account are ignored."
         }
         return "Balances are estimated day-by-day from your synced transactions and current balance. Saved snapshots from account refreshes replace estimates when available."
     }
@@ -190,6 +190,9 @@ struct AccountDetailView: View {
                 snapshots: accountBalances.snapshots,
                 transactions: investmentTransactions,
                 cashTransactions: transactions.transactions,
+                investmentAccounts: transactions.accounts.filter {
+                    !AccountBalanceHistoryEngine.supportsTransactionReconstruction(accountType: $0.type)
+                },
                 range: selectedRange
             ).map { point in
                 AccountBalancePoint(

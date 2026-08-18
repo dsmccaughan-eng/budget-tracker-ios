@@ -33,17 +33,22 @@ struct BudgetCategorySpendRow: View {
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(amountColor)
                 if progress.showsBudgetLimit {
-                    if progress.projectedSpend > 0 {
-                        Text("Typical \(FinanceFormatting.currency(progress.projectedSpend))")
+                    if progress.typicalByNow > 0 {
+                        Text("Typical by now \(FinanceFormatting.currency(progress.typicalByNow))")
                             .font(.caption2)
                             .foregroundStyle(
-                                progress.projectedSpend > progress.monthlyLimit ? Color.orange : Color.secondary
+                                progress.isAheadOfTypical ? Color.orange : Color.secondary
                             )
                     }
                     Text(remainingLabel)
                         .font(.caption)
                         .foregroundStyle(progress.remaining >= 0 ? Color.secondary : Color.red)
                 } else {
+                    if progress.typicalByNow > 0, progress.category != "Income", progress.category != "Transfers" {
+                        Text("Typical by now \(FinanceFormatting.currency(progress.typicalByNow))")
+                            .font(.caption2)
+                            .foregroundStyle(progress.isAheadOfTypical ? Color.orange : Color.secondary)
+                    }
                     Text(informationalSubtitle)
                         .font(.caption)
                         .foregroundStyle(.secondary)

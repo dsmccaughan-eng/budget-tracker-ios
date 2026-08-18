@@ -47,8 +47,8 @@ struct BudgetSpendPieChart: View {
         return min(totalSpent / totalBudget, 1)
     }
 
-    private var typicalMonthly: Double {
-        progress.reduce(0) { $0 + $1.projectedSpend }
+    private var typicalByNow: Double {
+        progress.reduce(0) { $0 + $1.typicalByNow }
     }
 
     private var selectedSegment: BudgetChartSliceSegment? {
@@ -252,10 +252,10 @@ struct BudgetSpendPieChart: View {
                         .font(.caption2)
                         .foregroundStyle(.tertiary)
                         .multilineTextAlignment(.center)
-                } else if typicalMonthly > 0 {
-                    Text("Typical \(FinanceFormatting.currency(typicalMonthly))/mo")
+                } else if typicalByNow > 0 {
+                    Text("Typical by now \(FinanceFormatting.currency(typicalByNow))")
                         .font(.caption2)
-                        .foregroundStyle(.tertiary)
+                        .foregroundStyle(totalSpent > typicalByNow ? .orange : .tertiary)
                         .multilineTextAlignment(.center)
                         .lineLimit(2)
                 }

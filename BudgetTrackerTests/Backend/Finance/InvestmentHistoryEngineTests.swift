@@ -165,7 +165,7 @@ final class InvestmentHistoryEngineTests: XCTestCase {
         )
         let byDate = Dictionary(uniqueKeysWithValues: points.map { ($0.dateString, $0.balance) })
         XCTAssertEqual(byDate["2026-06-05"] ?? 0, 11_000, accuracy: 0.01)
-        XCTAssertEqual(byDate["2026-06-06"] ?? 0, 11_000, accuracy: 0.01)
+        XCTAssertEqual(byDate["2026-06-06"] ?? 0, 11_500, accuracy: 0.01)
         XCTAssertEqual(byDate["2026-06-07"] ?? 0, 12_000, accuracy: 0.01)
     }
 
@@ -193,7 +193,7 @@ final class InvestmentHistoryEngineTests: XCTestCase {
             AccountBalanceSnapshot(
                 id: UUID(),
                 accountId: accountId,
-                date: "2026-06-10",
+                date: "2026-06-11",
                 currentBalance: 11_000,
                 availableBalance: nil
             )
@@ -204,7 +204,7 @@ final class InvestmentHistoryEngineTests: XCTestCase {
             type: "cash",
             subtype: "contribution"
         )
-        let reference = calendar.date(from: DateComponents(year: 2026, month: 6, day: 12))!
+        let reference = calendar.date(from: DateComponents(year: 2026, month: 6, day: 13))!
         let points = InvestmentHistoryEngine.chartPoints(
             account: account,
             snapshots: snapshots,
@@ -214,12 +214,129 @@ final class InvestmentHistoryEngineTests: XCTestCase {
             calendar: calendar
         )
         let byDate = Dictionary(uniqueKeysWithValues: points.map { ($0.dateString, $0.balance) })
-        XCTAssertEqual(byDate["2026-06-04"] ?? 0, 10_000, accuracy: 0.01)
-        XCTAssertEqual(byDate["2026-06-05"] ?? 0, 10_500, accuracy: 0.01)
-        XCTAssertEqual(byDate["2026-06-09"] ?? 0, 10_500, accuracy: 0.01)
-        XCTAssertEqual(byDate["2026-06-10"] ?? 0, 11_000, accuracy: 0.01)
+        XCTAssertEqual(byDate["2026-06-01"] ?? 0, 10_000, accuracy: 0.01)
+        XCTAssertEqual(byDate["2026-06-04"] ?? 0, 10_150, accuracy: 0.01)
+        XCTAssertEqual(byDate["2026-06-05"] ?? 0, 10_700, accuracy: 0.01)
         XCTAssertEqual(byDate["2026-06-11"] ?? 0, 11_000, accuracy: 0.01)
-        XCTAssertEqual(byDate["2026-06-12"] ?? 0, 11_100, accuracy: 0.01)
+        XCTAssertEqual(byDate["2026-06-12"] ?? 0, 11_050, accuracy: 0.01)
+        XCTAssertEqual(byDate["2026-06-13"] ?? 0, 11_100, accuracy: 0.01)
+    }
+
+    func testContributionIncreasesValueRegardlessOfPlaidSign() {
+        let account = Account(
+            id: accountId,
+            plaidItemId: "item",
+            plaidAccountId: "acc",
+            name: "IRA",
+            officialName: nil,
+            type: "investment",
+            subtype: "ira",
+            mask: nil,
+            currentBalance: 1_000,
+            availableBalance: nil
+        )
+        let txns = [
+            investmentTransaction(date: "2026-06-01", amount: 500, type: "cash", subtype: "contribution")
+        ]
+        let reference = calendar.date(from: DateComponents(year: 2026, month: 6, day: 2))!
+        let points = InvestmentHistoryEngine.reconstructedDailyPoints(
+            account: account,
+            transactions: txns,
+            referenceDate: reference,
+            range: .oneMonth,
+            calendar: calendar
+        )
+        let byDate = Dictionary(uniqueKeysWithValues: points.map { ($0.dateString, $0.balance) })
+        XCTAssertEqual(byDate["2026-05-31"] ?? 0, 500, accuracy: 0.01)
+        XCTAssertEqual(byDate["2026-06-01"] ?? 0, 1_000, accuracy: 0.01)
+        XCTAssertEqual(byDate["2026-06-02"] ?? 0, 1_000, accuracy: 0.01)
+    }
+
+    func testChartPointsStairsWithContributionsBeforeFirstSnapshot() {
+        let account = Account(
+            id: accountId,
+            plaidItemId: "item",
+            plaidAccountId: "acc",
+            name: "401k",
+            officialName: nil,
+            type: "investment",
+            subtype: "401k",
+            mask: nil,
+            currentBalance: 10_000,
+            availableBalance: nil
+        )
+        let snapshots = [
+            AccountBalanceSnapshot(
+                id: UUID(),
+                accountId: accountId,
+                date: "2026-06-01",
+                currentBalance: 8_000,
+                availableBalance: nil
+            )
+        ]
+        let contribution = investmentTransaction(
+            date: "2026-05-15",
+            amount: -1_000,
+            type: "cash",
+            subtype: "contribution"
+        )
+        let reference = calendar.date(from: DateComponents(year: 2026, month: 6, day: 2))!
+        let points = InvestmentHistoryEngine.chartPoints(
+            account: account,
+            snapshots: snapshots,
+            transactions: [contribution],
+            range: .oneMonth,
+            referenceDate: reference,
+            calendar: calendar
+        )
+        let byDate = Dictionary(uniqueKeysWithValues: points.map { ($0.dateString, $0.balance) })
+        XCTAssertEqual(byDate["2026-05-14"] ?? 0, 7_000, accuracy: 0.01)
+        XCTAssertEqual(byDate["2026-05-15"] ?? 0, 8_000, accuracy: 0.01)
+        XCTAssertEqual(byDate["2026-06-01"] ?? 0, 8_000, accuracy: 0.01)
+        XCTAssertEqual(byDate["2026-06-02"] ?? 0, 10_000, accuracy: 0.01)
+    }
+
+    func testInfersBankInvestmentOutflowsAsContributions() {
+        let checkingId = UUID(uuidString: "00000000-0000-0000-0000-000000000202")!
+        let account = Account(
+            id: accountId,
+            plaidItemId: "item",
+            plaidAccountId: "acc",
+            name: "401k",
+            officialName: nil,
+            type: "investment",
+            subtype: "401k",
+            mask: nil,
+            currentBalance: 10_500,
+            availableBalance: nil
+        )
+        let deposit = Transaction(
+            id: UUID(),
+            accountId: checkingId,
+            plaidTransactionId: "dep",
+            amount: 500,
+            date: "2026-06-01",
+            merchantName: "Payroll",
+            name: "401k contribution",
+            category: "Investments",
+            subcategory: nil,
+            pending: false,
+            isManual: false,
+            splitItems: nil
+        )
+        let reference = calendar.date(from: DateComponents(year: 2026, month: 6, day: 2))!
+        let points = InvestmentHistoryEngine.reconstructedDailyPoints(
+            account: account,
+            transactions: [],
+            cashTransactions: [deposit],
+            investmentAccounts: [account],
+            referenceDate: reference,
+            range: .oneMonth,
+            calendar: calendar
+        )
+        let byDate = Dictionary(uniqueKeysWithValues: points.map { ($0.dateString, $0.balance) })
+        XCTAssertEqual(byDate["2026-05-31"] ?? 0, 10_000, accuracy: 0.01)
+        XCTAssertEqual(byDate["2026-06-01"] ?? 0, 10_500, accuracy: 0.01)
     }
 
     func testAffectsTotalValueSkipsSecurityTrades() {

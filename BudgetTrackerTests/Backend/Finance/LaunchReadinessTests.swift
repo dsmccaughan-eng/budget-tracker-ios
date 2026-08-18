@@ -3,18 +3,30 @@ import XCTest
 
 /// Threshold and constant guards (TDD) — update tests before changing production values.
 final class LaunchReadinessTests: XCTestCase {
-    func testBudgetAlertDefaultThresholdIsPointEight() {
-        let row = BudgetProgress(
+    func testBudgetAlertRequiresTypicalByNowOrOverLimit() {
+        let underTypical = BudgetProgress(
             category: "Groceries",
             monthlyLimit: 100,
             spent: 85,
             projectedSpend: 90,
+            typicalByNow: 90,
             isFixed: false,
             isRollover: false,
             color: "#000000"
         )
-        let alerts = BudgetAlertEngine.alerts(progress: [row], threshold: 0.8)
-        XCTAssertEqual(alerts.count, 1)
+        XCTAssertTrue(BudgetAlertEngine.alerts(progress: [underTypical]).isEmpty)
+
+        let overTypical = BudgetProgress(
+            category: "Groceries",
+            monthlyLimit: 100,
+            spent: 85,
+            projectedSpend: 90,
+            typicalByNow: 80,
+            isFixed: false,
+            isRollover: false,
+            color: "#000000"
+        )
+        XCTAssertTrue(BudgetAlertEngine.alerts(progress: [overTypical]).contains { $0.contains("Groceries") })
     }
 
     func testAccountDecodesMissingProviderAndStringBalance() throws {

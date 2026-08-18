@@ -191,12 +191,16 @@ enum NetWorthHistoryEngine {
             ?? calendar.date(byAdding: .month, value: -AccountBalanceHistoryEngine.historyMonthCount, to: anchor)
             ?? anchor
 
+        let investmentAccounts = accounts.filter {
+            !AccountBalanceHistoryEngine.supportsTransactionReconstruction(accountType: $0.type)
+        }
         let sparseBalances = accounts.map { account in
             var balances = AccountBalanceHistoryEngine.rawDailyBalances(
                 account: account,
                 snapshots: accountSnapshots,
                 transactions: transactions,
                 investmentTransactions: investmentTransactions,
+                investmentAccounts: investmentAccounts,
                 referenceDate: referenceDate,
                 range: range,
                 calendar: calendar

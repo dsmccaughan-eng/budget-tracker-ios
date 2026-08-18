@@ -194,6 +194,7 @@ enum AccountBalanceHistoryEngine {
         snapshots: [AccountBalanceSnapshot],
         transactions: [Transaction],
         investmentTransactions: [InvestmentTransaction] = [],
+        investmentAccounts: [Account] = [],
         referenceDate: Date = Date(),
         range: NetWorthTimeRange = .oneYear,
         calendar: Calendar = .current
@@ -217,6 +218,7 @@ enum AccountBalanceHistoryEngine {
                 snapshots: snapshots,
                 transactions: investmentTransactions,
                 cashTransactions: transactions,
+                investmentAccounts: investmentAccounts,
                 referenceDate: referenceDate,
                 range: range,
                 calendar: calendar

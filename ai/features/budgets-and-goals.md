@@ -9,7 +9,8 @@
 - **Bills:** Fixed-expense budgets → `BillsListView` (calendar strip + dated list); linked from Dashboard and Budgets tab
 - **Transactions:** Grouped by month via `TransactionMonthGrouping`
 - Budget math and alerts are deterministic (`BudgetMath`, `BudgetAlertEngine`)
-- **Budget % alerts** only for discretionary categories: Groceries, Dining & Bars, Shopping, Entertainment, Transport (still skip fixed / fixed-bill)
+- **Typical by now:** overall wheel and category rows show average spend through this day-of-month across the prior 6 months (skip months with no data; current month excluded)
+- **Budget alerts** only for discretionary categories: Groceries, Dining & Bars, Shopping, Entertainment, Transport (still skip fixed / fixed-bill). Fire when spend is above typical-by-now, and when over the budget limit (not at 80% of the limit)
 - Debt payoff (avalanche/snowball) stays client-side — no third-party debt payloads
 - Tabs: Dashboard, Transactions, Budgets, Goals, Insights
 
@@ -17,7 +18,7 @@
 
 | Area | Path |
 |------|------|
-| Budget store/math | `BudgetTracker/Backend/Finance/BudgetStore.swift`, `BudgetMath.swift` |
+| Budget store/math | `BudgetTracker/Backend/Finance/BudgetStore.swift`, `BudgetMath.swift`, `BudgetSpendIndex.swift`, `BudgetProgress.swift` |
 | Budget alerts | `BudgetTracker/Backend/Finance/BudgetAlertEngine.swift` |
 | Goals | `GoalsStore.swift`, `GoalsMath.swift` |
 | Cash flow | `CashFlowEngine.swift` |

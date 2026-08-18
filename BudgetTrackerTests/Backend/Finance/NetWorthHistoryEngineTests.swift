@@ -280,7 +280,9 @@ final class NetWorthHistoryEngineTests: XCTestCase {
             calendar: calendar
         )
         let june3 = points.first { $0.dateString == "2026-06-03" }
-        XCTAssertEqual(june3?.netWorth ?? 0, 9_000, accuracy: 0.01)
+        XCTAssertEqual(june3?.netWorth ?? 0, 10_000, accuracy: 0.01)
+        let may20 = points.first { $0.dateString == "2026-05-20" }
+        XCTAssertEqual(may20?.netWorth ?? 0, 9_000, accuracy: 0.01)
     }
 
     func testChartPointsForwardFillsSparseInvestmentSnapshots() {
@@ -315,7 +317,7 @@ final class NetWorthHistoryEngineTests: XCTestCase {
             calendar: calendar
         )
         let june6 = points.first { $0.dateString == "2026-06-06" }
-        XCTAssertEqual(june6?.netWorth ?? 0, 11_000, accuracy: 0.01)
+        XCTAssertEqual(june6?.netWorth ?? 0, 11_500, accuracy: 0.01)
     }
 
     func testAccountGroupsBucketsByType() {

@@ -42,11 +42,11 @@ struct BudgetProgressBar: View {
                 }
             }
             .frame(height: 8)
-            if !progress.isFixed {
-                Text("Typical: \(FinanceFormatting.currency(progress.projectedSpend))")
+            if !progress.isFixed, progress.typicalByNow > 0 {
+                Text("Typical by now \(FinanceFormatting.currency(progress.typicalByNow))")
                     .font(.caption2)
                     .foregroundStyle(
-                        progress.projectedSpend > progress.monthlyLimit ? Color.red : Color.secondary
+                        progress.isAheadOfTypical ? Color.orange : Color.secondary
                     )
             }
         }

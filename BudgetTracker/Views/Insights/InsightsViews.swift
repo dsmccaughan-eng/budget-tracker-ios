@@ -166,19 +166,15 @@ struct NotificationSettingsView: View {
     var body: some View {
         Form {
             Toggle("Budget alerts", isOn: $notifications.budgetAlertsEnabled)
-            Section("Alert threshold") {
-                Slider(value: $notifications.alertThreshold, in: 0.5...1.0, step: 0.05) {
-                    Text("Threshold")
-                }
-                Text("Notify when a variable category reaches \(Int(notifications.alertThreshold * 100))% of its budget. Housing, subscriptions, insurance, fixed costs, and monthly bills are excluded.")
+            Section {
+                Text("Alerts fire when a variable category or overall spending is above typical for this point in the month (last 6 months), or when it exceeds the budget limit. Housing, subscriptions, insurance, fixed costs, and monthly bills are excluded.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
             Button("Send test alert") {
                 let alerts = BudgetAlertEngine.alerts(
-                    progress: budgets.progress,
-                    transactions: transactions.transactions,
-                    threshold: notifications.alertThreshold
+                    progress: budgets.spendingProgress(transactions: transactions.transactions),
+                    transactions: transactions.transactions
                 )
                 notifications.scheduleBudgetAlerts(messages: alerts.isEmpty ? ["Budget alerts are configured."] : alerts)
             }
