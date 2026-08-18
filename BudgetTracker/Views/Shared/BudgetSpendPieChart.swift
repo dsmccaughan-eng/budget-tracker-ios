@@ -255,7 +255,7 @@ struct BudgetSpendPieChart: View {
                 } else if typicalByNow > 0 {
                     Text("Typical by now \(FinanceFormatting.currency(typicalByNow))")
                         .font(.caption2)
-                        .foregroundStyle(totalSpent > typicalByNow ? .orange : .tertiary)
+                        .foregroundStyle(totalSpent > typicalByNow ? Color.orange : Color.secondary)
                         .multilineTextAlignment(.center)
                         .lineLimit(2)
                 }
