@@ -40,7 +40,8 @@ struct AccountsView: View {
                                         .foregroundStyle(.secondary)
                                 }
                                 Spacer()
-                                if let balance = account.currentBalance {
+                                if let balance = investments.preferredBalance(for: account)
+                                    ?? account.currentBalance {
                                     Text(FinanceFormatting.currency(
                                         AccountBalanceHistoryEngine.displayBalance(
                                             balance,
@@ -69,7 +70,9 @@ struct AccountsView: View {
                             client: client,
                             userId: auth.userId
                         )
+                        // Holdings last so corrected investment balances win over /accounts/get.
                         await investments.syncFromPlaid(client: client)
+                        await transactions.loadAll(client: client, showsLoading: false)
                         await reloadAccountSnapshots(client: client)
                         await reloadNetWorth(client: client)
                     }
@@ -144,25 +147,40 @@ struct AccountsView: View {
             userId: auth.userId
         )
         await investments.syncFromPlaid(client: client)
+        await transactions.loadAll(client: client, showsLoading: false)
         await reloadAccountSnapshots(client: client)
+    }
+
+    private func accountsWithPreferredBalances() -> [Account] {
+        transactions.accounts.map { account in
+            var copy = account
+            if let preferred = investments.preferredBalance(for: account) {
+                copy.currentBalance = preferred
+            }
+            return copy
+        }
     }
 
     private func reloadAccountSnapshots(client: SupabaseClient) async {
         await accountBalances.reload(client: client)
-        await accountBalances.recordTodaySnapshots(accounts: transactions.accounts, client: client)
+        await accountBalances.recordTodaySnapshots(
+            accounts: accountsWithPreferredBalances(),
+            client: client
+        )
     }
 
     private func reloadNetWorth(client: SupabaseClient) async {
+        let accounts = accountsWithPreferredBalances()
         await netWorth.reload(
             client: client,
-            accounts: transactions.accounts,
+            accounts: accounts,
             accountSnapshots: accountBalances.snapshots,
             transactions: transactions.transactions,
             investmentTransactions: investments.transactions
         )
         await netWorth.recordDailySnapshotIfNeeded(
             client: client,
-            accounts: transactions.accounts,
+            accounts: accounts,
             accountBalances: accountBalances
         )
     }

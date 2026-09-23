@@ -18,7 +18,16 @@ struct NetWorthGroupDetailView: View {
     }
 
     private var groupAccounts: [Account] {
-        displayAccounts.filter { kind.matches(accountType: $0.type) }
+        displayAccounts
+            .filter { kind.matches(accountType: $0.type) }
+            .map { account in
+                guard let preferred = investments.preferredBalance(for: account) else {
+                    return account
+                }
+                var copy = account
+                copy.currentBalance = preferred
+                return copy
+            }
     }
 
     private var chartPoints: [NetWorthChartPoint] {

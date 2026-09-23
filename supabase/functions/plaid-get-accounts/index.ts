@@ -21,6 +21,10 @@ type RequestBody = {
   plaid_item_id?: string;
 };
 
+function isInvestmentAccountType(type: string): boolean {
+  return type === "investment" || type === "brokerage";
+}
+
 Deno.serve(async (req) => {
   const options = handleOptions(req);
   if (options) return options;
@@ -74,28 +78,58 @@ Deno.serve(async (req) => {
 
         allAccounts.push(...payload.accounts);
 
-        const accountRows = payload.accounts.map((account) => ({
-          user_id: user.id,
-          plaid_item_id: item.plaid_item_id,
-          plaid_account_id: account.account_id,
-          name: account.name,
-          official_name: account.official_name,
-          type: account.type,
-          subtype: account.subtype,
-          mask: account.mask,
-          current_balance: account.balances.current,
-          available_balance: account.balances.available,
-        }));
+        const plaidAccountIds = payload.accounts.map((account) => account.account_id);
+        const { data: existingAccounts } = await admin
+          .from("accounts")
+          .select("plaid_account_id, current_balance, available_balance")
+          .eq("user_id", user.id)
+          .in("plaid_account_id", plaidAccountIds);
+        const existingByPlaidId = new Map(
+          ((existingAccounts as Array<{
+            plaid_account_id: string;
+            current_balance: number | null;
+            available_balance: number | null;
+          }> | null) ?? []).map((row) => [row.plaid_account_id, row]),
+        );
+
+        const accountRows = payload.accounts.map((account) => {
+          const existing = existingByPlaidId.get(account.account_id);
+          let current = account.balances.current;
+          let available = account.balances.available;
+          // Retirement/brokerage /accounts/get balances are often months stale.
+          // Never regress a higher stored balance; holdings sync corrects next.
+          if (isInvestmentAccountType(account.type) && existing) {
+            if (
+              existing.current_balance != null &&
+              (current == null || existing.current_balance > current + 0.01)
+            ) {
+              current = existing.current_balance;
+            }
+            if (
+              existing.available_balance != null &&
+              (available == null || existing.available_balance > available + 0.01)
+            ) {
+              available = existing.available_balance;
+            }
+          }
+          return {
+            user_id: user.id,
+            plaid_item_id: item.plaid_item_id,
+            plaid_account_id: account.account_id,
+            name: account.name,
+            official_name: account.official_name,
+            type: account.type,
+            subtype: account.subtype,
+            mask: account.mask,
+            current_balance: current,
+            available_balance: available,
+          };
+        });
 
         if (accountRows.length > 0) {
           await admin.from("accounts").upsert(accountRows, {
             onConflict: "plaid_account_id",
           });
-          await recordAccountBalanceSnapshots(
-            admin,
-            user.id,
-            accountRows.map((row) => row.plaid_account_id),
-          );
           try {
             await syncPlaidInvestmentsForUser(
               admin,
@@ -109,6 +143,12 @@ Deno.serve(async (req) => {
               investmentError,
             );
           }
+          // Snapshot only after holdings sync so investment balances are current.
+          await recordAccountBalanceSnapshots(
+            admin,
+            user.id,
+            accountRows.map((row) => row.plaid_account_id),
+          );
         }
       } catch (error) {
         console.error("plaid_get_accounts_failed", item.plaid_item_id, error);

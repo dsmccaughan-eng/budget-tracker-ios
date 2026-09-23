@@ -182,8 +182,6 @@ struct NetWorthView: View {
 
     private func refreshFromPlaid() async {
         guard let client = auth.activeSupabaseClient else { return }
-        // Investments first so account balances can be corrected from holdings before UI reload.
-        await investments.syncFromPlaid(client: client)
         await transactions.refreshAccountsFromPlaid(
             client: client,
             userId: auth.userId,
@@ -193,6 +191,9 @@ struct NetWorthView: View {
             client: client,
             userId: auth.userId
         )
+        // Holdings last — corrects stale retirement balances and reloads securities.
+        await investments.syncFromPlaid(client: client)
+        await transactions.loadAll(client: client, showsLoading: false)
         await reloadNetWorthFromStore(client: client)
         await netWorth.recordDailySnapshotIfNeeded(
             client: client,

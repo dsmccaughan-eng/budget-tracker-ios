@@ -119,14 +119,9 @@ struct AccountDetailView: View {
             if investments.isSyncing {
                 ProgressView("Syncing holdings…")
             } else if accountHoldings.isEmpty {
-                Text("No holdings yet. Pull to refresh to sync from Plaid. If this bank was linked before Investments was enabled, reconnect it from Accounts.")
+                Text("No holdings yet. Pull to refresh to sync from Plaid. If this bank was linked before Investments was enabled, reconnect it from Accounts → Enable holdings.")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
-                Button("Sync holdings now") {
-                    Task { await reloadFromServer() }
-                }
-                .buttonStyle(.bordered)
-                .disabled(investments.isSyncing)
             } else {
                 ForEach(accountHoldings.sorted(by: { ($0.institutionValue ?? 0) > ($1.institutionValue ?? 0) })) { holding in
                     let security = investments.security(for: holding, lookup: lookup)
@@ -156,6 +151,11 @@ struct AccountDetailView: View {
                     .padding(.vertical, 2)
                 }
             }
+            Button("Sync holdings now") {
+                Task { await reloadFromServer() }
+            }
+            .buttonStyle(.bordered)
+            .disabled(investments.isSyncing)
         }
     }
 
@@ -260,16 +260,22 @@ struct AccountDetailView: View {
     private func reloadFromServer() async {
         guard let client = auth.activeSupabaseClient else { return }
         if isInvestmentAccount {
+            // Holdings sync writes corrected balances. Do not call /accounts/get afterward —
+            // retirement providers often return a stale balance that overwrites the fix.
             await investments.syncFromPlaid(client: client)
+            await transactions.loadAll(client: client, showsLoading: false)
+        } else {
+            await transactions.refreshAccountsFromPlaid(
+                client: client,
+                userId: auth.userId,
+                showsLoading: true
+            )
         }
-        // Reload balances after investments sync — holdings update account rows on the server.
-        await transactions.refreshAccountsFromPlaid(
-            client: client,
-            userId: auth.userId,
-            showsLoading: true
-        )
         await accountBalances.reload(client: client)
-        let liveAccount = transactions.account(for: accountId) ?? account
+        var liveAccount = transactions.account(for: accountId) ?? account
+        if isInvestmentAccount, let preferred = investments.preferredBalance(for: liveAccount) {
+            liveAccount.currentBalance = preferred
+        }
         await accountBalances.recordTodaySnapshots(accounts: [liveAccount], client: client)
         rebuildHistoryPoints()
     }

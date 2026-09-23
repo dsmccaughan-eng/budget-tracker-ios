@@ -415,5 +415,18 @@ Entry format
 - **Guardrails:** Do not lower a higher live Plaid balance; Enable holdings still required when Investments product is missing.
 - **Verification:** `InvestmentStoreBalanceTests`; Sync holdings on Principal updates Today balance when holdings return; Codemagic TestFlight after deploy.
 
+### 2026-09-23 — Principal balance stayed stale after Sync holdings
+- **Symptom:** Sync holdings on Principal did not move the displayed balance; Net Worth still showed an old amount.
+- **Root cause:** UI balance came from Plaid `/accounts/get`, which many retirement providers leave stale. Investments holdings sync stored holdings but never wrote a corrected `accounts.current_balance`. Client also refreshed accounts *before* holdings sync, so the UI kept the old row.
+- **Fix pattern:** After `/investments/holdings/get`, update each account balance from the holdings response (and from sum of `institution_value` when higher). Sync holdings first, then reload accounts. Prefer holdings market value in Net Worth / account detail when it exceeds the bank feed.
+- **Guardrails:** Do not lower a higher live Plaid balance; Enable holdings still required when Investments product is missing.
+- **Verification:** `InvestmentStoreBalanceTests`; Sync holdings on Principal updates Today balance when holdings return; Codemagic TestFlight after deploy.
+
+### 2026-09-23 — Sync holdings still left Principal on the old balance
+- **Symptom:** Tap Sync holdings / refresh; Principal (and other retirement accounts) stayed on the old incorrect amount.
+- **Root cause:** After holdings sync wrote the correct `current_balance`, the client immediately called `plaid-get-accounts`, which upserted stale `/accounts/get` balances and recorded today's snapshot *before* re-running investments sync. Accounts list also showed raw Plaid balance, ignoring holdings market value.
+- **Fix pattern:** Never call `/accounts/get` after a dedicated holdings sync on investment account detail — reload DB rows only. On Accounts/Net Worth refresh, sync holdings last then `loadAll`. Prefer holdings value in the Accounts list. In `plaid-get-accounts`, do not regress higher investment balances; record snapshots only after holdings sync.
+- **Guardrails:** Cash/checking still use `/accounts/get`; Enable holdings still required when the Investments product is missing.
+- **Verification:** Sync holdings on Principal updates Today + Accounts row without a following accounts refresh wiping it; Codemagic TestFlight after `deploy-backend.ps1`.
 
 
