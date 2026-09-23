@@ -159,6 +159,32 @@ extension SupabaseService {
             .value
     }
 
+    func updateAccountBalance(
+        accountId: UUID,
+        currentBalance: Double,
+        client: SupabaseClient
+    ) async throws {
+        struct AccountBalancePatch: Encodable {
+            let currentBalance: Double
+            let availableBalance: Double
+
+            enum CodingKeys: String, CodingKey {
+                case currentBalance = "current_balance"
+                case availableBalance = "available_balance"
+            }
+        }
+        let session = try await client.auth.session
+        try await client
+            .from("accounts")
+            .update(AccountBalancePatch(
+                currentBalance: currentBalance,
+                availableBalance: currentBalance
+            ))
+            .eq("id", value: accountId.uuidString)
+            .eq("user_id", value: session.user.id.uuidString)
+            .execute()
+    }
+
     func upsertAccountBalanceSnapshots(
         _ snapshots: [AccountBalanceSnapshot],
         client: SupabaseClient

@@ -136,9 +136,60 @@ async function upsertSecurities(
   return map;
 }
 
+/**
+ * Holdings/get often returns retirement accounts that never appeared in
+ * /accounts/get. Upsert them so holdings and balances can attach.
+ */
+async function ensureAccountsFromHoldingsPayload(
+  admin: SupabaseClient,
+  userId: string,
+  plaidItemId: string,
+  accounts: PlaidAccount[],
+  accountByPlaidId: Map<string, string>,
+): Promise<void> {
+  const missing = accounts.filter((account) =>
+    !accountByPlaidId.has(account.account_id)
+  );
+  if (missing.length === 0) return;
+
+  const rows = missing.map((account) => ({
+    user_id: userId,
+    plaid_item_id: plaidItemId,
+    plaid_account_id: account.account_id,
+    name: account.name,
+    official_name: account.official_name,
+    type: account.type,
+    subtype: account.subtype,
+    mask: account.mask,
+    current_balance: account.balances.current,
+    available_balance: account.balances.available,
+    provider: "plaid",
+  }));
+
+  const { error } = await admin.from("accounts").upsert(rows, {
+    onConflict: "plaid_account_id",
+  });
+  if (error) throw new Error(error.message);
+
+  const { data, error: reloadError } = await admin
+    .from("accounts")
+    .select("id, plaid_account_id")
+    .eq("user_id", userId)
+    .in(
+      "plaid_account_id",
+      missing.map((account) => account.account_id),
+    );
+  if (reloadError) throw new Error(reloadError.message);
+
+  for (const row of (data as AccountRow[] | null) ?? []) {
+    accountByPlaidId.set(row.plaid_account_id, row.id);
+  }
+}
+
 async function syncHoldingsForItem(
   admin: SupabaseClient,
   userId: string,
+  plaidItemId: string,
   accessToken: string,
   accountByPlaidId: Map<string, string>,
 ): Promise<number> {
@@ -147,13 +198,25 @@ async function syncHoldingsForItem(
     { access_token: accessToken },
   );
 
+  await ensureAccountsFromHoldingsPayload(
+    admin,
+    userId,
+    plaidItemId,
+    payload.accounts,
+    accountByPlaidId,
+  );
+
   const securityMap = await upsertSecurities(admin, userId, payload.securities);
   const touchedAccountIds: string[] = [];
 
   const holdingRows = [];
+  let skippedUnmapped = 0;
   for (const holding of payload.holdings) {
     const accountId = accountByPlaidId.get(holding.account_id);
-    if (!accountId) continue;
+    if (!accountId) {
+      skippedUnmapped += 1;
+      continue;
+    }
     touchedAccountIds.push(accountId);
     holdingRows.push({
       user_id: userId,
@@ -168,6 +231,15 @@ async function syncHoldingsForItem(
       iso_currency_code: holding.iso_currency_code ?? "USD",
       synced_at: new Date().toISOString(),
     });
+  }
+  if (skippedUnmapped > 0) {
+    console.warn(
+      "investment_holdings_unmapped_accounts",
+      plaidItemId,
+      skippedUnmapped,
+      "of",
+      payload.holdings.length,
+    );
   }
 
   const uniqueAccountIds = [...new Set(touchedAccountIds)];
@@ -408,6 +480,7 @@ export async function syncPlaidInvestmentsForUser(
       holdings += await syncHoldingsForItem(
         admin,
         userId,
+        item.plaid_item_id,
         accessToken,
         accountByPlaidId,
       );

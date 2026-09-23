@@ -70,9 +70,12 @@ struct AccountsView: View {
                             client: client,
                             userId: auth.userId
                         )
-                        // Holdings last so corrected investment balances win over /accounts/get.
                         await investments.syncFromPlaid(client: client)
                         await transactions.loadAll(client: client, showsLoading: false)
+                        await transactions.applyHoldingsBalances(
+                            investments.holdingsMarketValuesByAccountId(),
+                            client: client
+                        )
                         await reloadAccountSnapshots(client: client)
                         await reloadNetWorth(client: client)
                     }
@@ -148,6 +151,10 @@ struct AccountsView: View {
         )
         await investments.syncFromPlaid(client: client)
         await transactions.loadAll(client: client, showsLoading: false)
+        await transactions.applyHoldingsBalances(
+            investments.holdingsMarketValuesByAccountId(),
+            client: client
+        )
         await reloadAccountSnapshots(client: client)
     }
 

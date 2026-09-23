@@ -328,6 +328,46 @@ final class TransactionStore: ObservableObject {
         accounts.first { $0.id == id }
     }
 
+    /// Apply holdings market values onto in-memory account balances (and optionally persist).
+    func applyHoldingsBalances(
+        _ balancesByAccountId: [UUID: Double],
+        client: SupabaseClient?,
+        persist: Bool = true
+    ) async {
+        guard !balancesByAccountId.isEmpty else { return }
+
+        var updated = accounts
+        var didChange = false
+        for index in updated.indices {
+            guard let holdingsValue = balancesByAccountId[updated[index].id] else { continue }
+            let current = updated[index].currentBalance ?? 0
+            // Always prefer holdings when they differ — retirement feeds stay stale for months.
+            guard abs(current - holdingsValue) > 0.01 else { continue }
+            updated[index].currentBalance = holdingsValue
+            if updated[index].availableBalance == nil {
+                updated[index].availableBalance = holdingsValue
+            }
+            didChange = true
+        }
+        if didChange {
+            accounts = updated
+        }
+
+        guard persist, let client else { return }
+        for (accountId, balance) in balancesByAccountId {
+            do {
+                try await SupabaseService.shared.updateAccountBalance(
+                    accountId: accountId,
+                    currentBalance: balance,
+                    client: client
+                )
+            } catch {
+                // Edge sync is primary; client persist is a safety net.
+                continue
+            }
+        }
+    }
+
     func filteredTransactions(search: String, category: String?) -> [Transaction] {
         transactions.filter { txn in
             let matchesCategory = category.map { txn.category == $0 } ?? true

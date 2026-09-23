@@ -41,8 +41,14 @@ final class InvestmentStore: ObservableObject {
                 lastSyncSummary =
                     "Bank responded but returned no holdings. Robinhood crypto is often not included by Plaid."
             } else {
-                lastSyncSummary =
-                    "Synced \(result.holdings) holdings and \(result.transactions) investment transactions."
+                let holdingsTotals = holdingsMarketValuesByAccountId()
+                if holdingsTotals.isEmpty {
+                    lastSyncSummary =
+                        "Synced \(result.holdings) holdings and \(result.transactions) investment transactions."
+                } else {
+                    lastSyncSummary =
+                        "Synced \(result.holdings) holdings. Account balances updated from holdings market value."
+                }
             }
         } catch {
             errorMessage = error.localizedDescription
@@ -67,12 +73,22 @@ final class InvestmentStore: ObservableObject {
     }
 
     func preferredBalance(for account: Account) -> Double? {
-        let plaid = account.currentBalance
-        guard let holdingsValue = holdingsMarketValue(for: account.id) else {
-            return plaid
+        // When holdings exist, they are the marked-to-market source of truth for
+        // retirement/brokerage (Plaid /accounts/get is often months stale).
+        if let holdingsValue = holdingsMarketValue(for: account.id) {
+            return holdingsValue
         }
-        guard let plaid else { return holdingsValue }
-        return max(plaid, holdingsValue)
+        return account.currentBalance
+    }
+
+    /// Per-account holdings totals for patching account rows after sync.
+    func holdingsMarketValuesByAccountId() -> [UUID: Double] {
+        var totals: [UUID: Double] = [:]
+        for holding in holdings {
+            guard let value = holding.institutionValue, value != 0 else { continue }
+            totals[holding.accountId, default: 0] += value
+        }
+        return totals.filter { $0.value > 0 }
     }
 
     func transactions(for accountId: UUID) -> [InvestmentTransaction] {

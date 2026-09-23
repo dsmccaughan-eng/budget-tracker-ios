@@ -264,6 +264,10 @@ struct AccountDetailView: View {
             // retirement providers often return a stale balance that overwrites the fix.
             await investments.syncFromPlaid(client: client)
             await transactions.loadAll(client: client, showsLoading: false)
+            await transactions.applyHoldingsBalances(
+                investments.holdingsMarketValuesByAccountId(),
+                client: client
+            )
         } else {
             await transactions.refreshAccountsFromPlaid(
                 client: client,

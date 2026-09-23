@@ -429,4 +429,11 @@ Entry format
 - **Guardrails:** Cash/checking still use `/accounts/get`; Enable holdings still required when the Investments product is missing.
 - **Verification:** Sync holdings on Principal updates Today + Accounts row without a following accounts refresh wiping it; Codemagic TestFlight after `deploy-backend.ps1`.
 
+### 2026-09-23 — Principal still stale: holdings accounts unmapped + UI not patched
+- **Symptom:** After prior sync fixes, Principal balance still incorrect / Sync holdings appeared to do nothing.
+- **Root cause:** (1) `/investments/holdings/get` can return retirement accounts never upserted from `/accounts/get`, so holdings were dropped (unmapped `account_id`). (2) UI still trusted Plaid account rows until a full reload; holdings market value was not forced onto in-memory/DB balances after sync. (3) TestFlight build with prior fix was not yet installed (builds queued).
+- **Fix pattern:** Upsert missing accounts from holdings payload before storing holdings; after sync, client `applyHoldingsBalances` patches local + `accounts.current_balance` from holdings sums; preferred balance uses holdings whenever present.
+- **Guardrails:** Enable holdings still required when Investments product missing; Robinhood crypto may still be absent from Plaid.
+- **Verification:** Sync holdings shows “balances updated from holdings market value”; Principal Today matches holdings sum; `InvestmentStoreBalanceTests`.
+
 

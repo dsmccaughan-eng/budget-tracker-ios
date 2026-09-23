@@ -194,6 +194,10 @@ struct NetWorthView: View {
         // Holdings last — corrects stale retirement balances and reloads securities.
         await investments.syncFromPlaid(client: client)
         await transactions.loadAll(client: client, showsLoading: false)
+        await transactions.applyHoldingsBalances(
+            investments.holdingsMarketValuesByAccountId(),
+            client: client
+        )
         await reloadNetWorthFromStore(client: client)
         await netWorth.recordDailySnapshotIfNeeded(
             client: client,
