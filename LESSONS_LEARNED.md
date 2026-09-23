@@ -408,4 +408,12 @@ Entry format
 - **Guardrails:** Do not treat empty Robinhood holdings as a decode bug when Plaid omits crypto; do not require login_required to offer Enable holdings.
 - **Verification:** `InvestmentModelsDecodingTests`; pull-to-refresh on investment account shows holdings or an actionable message; Enable holdings → sync returns holdings for Principal brokerage/401k when Plaid supports it.
 
+### 2026-09-23 — Principal balance stayed stale after Sync holdings
+- **Symptom:** Sync holdings on Principal did not move the displayed balance; Net Worth still showed an old amount.
+- **Root cause:** UI balance came from Plaid `/accounts/get`, which many retirement providers leave stale. Investments holdings sync stored holdings but never wrote a corrected `accounts.current_balance`. Client also refreshed accounts *before* holdings sync, so the UI kept the old row.
+- **Fix pattern:** After `/investments/holdings/get`, update each account balance from the holdings response (and from sum of `institution_value` when higher). Sync holdings first, then reload accounts. Prefer holdings market value in Net Worth / account detail when it exceeds the bank feed.
+- **Guardrails:** Do not lower a higher live Plaid balance; Enable holdings still required when Investments product is missing.
+- **Verification:** `InvestmentStoreBalanceTests`; Sync holdings on Principal updates Today balance when holdings return; Codemagic TestFlight after deploy.
+
+
 

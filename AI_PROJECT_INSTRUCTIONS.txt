@@ -169,6 +169,7 @@ Documentation duties (agents)
 - Do not paste secrets into this file or `LESSONS_LEARNED.md`.
 
 Update Log
+- 2026-09-23: Principal/brokerage balances refresh from investments holdings (not only stale `/accounts/get`); Sync holdings reloads account rows after sync; UI prefers holdings market value when higher.
 - 2026-09-23: Holdings refresh fixed — Net Worth/Accounts sync investments from Plaid; resilient holdings decoding; update-mode Link adds Investments via `additional_consented_products`; **Enable holdings** on Accounts for existing banks.
 - 2026-08-18: **Typical by now** — overall and per-category spend compared to the same day-of-month average over the prior 6 months (current month excluded). Alerts fire only when spend exceeds that pace, and still when over the budget limit (discretionary categories only).
 - 2026-08-18: Investment / Investments-group / Net Worth charts are an accumulation curve: dated contributions and withdrawals first, market P/L between snapshots, today pinned to live value (buys/sells ignored).

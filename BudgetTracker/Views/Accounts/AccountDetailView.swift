@@ -56,7 +56,7 @@ struct AccountDetailView: View {
             .listRowBackground(Color.clear)
 
             Section("Today") {
-                if let balance = account.currentBalance {
+                if let balance = displayBalance {
                     LabeledContent("Current balance", value: FinanceFormatting.currency(
                         AccountBalanceHistoryEngine.displayBalance(balance, accountType: account.type)
                     ))
@@ -65,6 +65,13 @@ struct AccountDetailView: View {
                     LabeledContent("Available", value: FinanceFormatting.currency(available))
                 }
                 LabeledContent("Type", value: account.type.capitalized)
+                if let holdingsTotal = investments.holdingsMarketValue(for: accountId),
+                   let plaid = account.currentBalance,
+                   holdingsTotal > plaid + 1 {
+                    Text("Balance uses holdings market value (\(FinanceFormatting.currency(holdingsTotal))); bank feed reported \(FinanceFormatting.currency(plaid)).")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
             }
 
             if isInvestmentAccount {
@@ -119,6 +126,7 @@ struct AccountDetailView: View {
                     Task { await reloadFromServer() }
                 }
                 .buttonStyle(.bordered)
+                .disabled(investments.isSyncing)
             } else {
                 ForEach(accountHoldings.sorted(by: { ($0.institutionValue ?? 0) > ($1.institutionValue ?? 0) })) { holding in
                     let security = investments.security(for: holding, lookup: lookup)
@@ -188,6 +196,13 @@ struct AccountDetailView: View {
         }
     }
 
+    private var displayBalance: Double? {
+        if isInvestmentAccount {
+            return investments.preferredBalance(for: account)
+        }
+        return account.currentBalance
+    }
+
     private var historyTaskID: String {
         let balanceKey = account.currentBalance.map { String($0) } ?? "nil"
         let cashCount = transactions.transactions.filter { $0.accountId == accountId }.count
@@ -203,8 +218,12 @@ struct AccountDetailView: View {
 
     private func rebuildHistoryPoints() {
         if isInvestmentAccount {
+            var chartAccount = account
+            if let preferred = investments.preferredBalance(for: account) {
+                chartAccount.currentBalance = preferred
+            }
             historyPoints = InvestmentHistoryEngine.chartPoints(
-                account: account,
+                account: chartAccount,
                 snapshots: accountBalances.snapshots,
                 transactions: investmentTransactions,
                 cashTransactions: transactions.transactions,
@@ -240,16 +259,18 @@ struct AccountDetailView: View {
 
     private func reloadFromServer() async {
         guard let client = auth.activeSupabaseClient else { return }
+        if isInvestmentAccount {
+            await investments.syncFromPlaid(client: client)
+        }
+        // Reload balances after investments sync — holdings update account rows on the server.
         await transactions.refreshAccountsFromPlaid(
             client: client,
             userId: auth.userId,
             showsLoading: true
         )
-        if isInvestmentAccount {
-            await investments.syncFromPlaid(client: client)
-        }
         await accountBalances.reload(client: client)
-        await accountBalances.recordTodaySnapshots(accounts: [account], client: client)
+        let liveAccount = transactions.account(for: accountId) ?? account
+        await accountBalances.recordTodaySnapshots(accounts: [liveAccount], client: client)
         rebuildHistoryPoints()
     }
 

@@ -58,6 +58,23 @@ final class InvestmentStore: ObservableObject {
         holdings.filter { $0.accountId == accountId }
     }
 
+    /// Marked-to-market total from synced holdings (often fresher than Plaid account balance).
+    func holdingsMarketValue(for accountId: UUID) -> Double? {
+        let rows = holdings(for: accountId)
+        guard !rows.isEmpty else { return nil }
+        let total = rows.reduce(0.0) { $0 + ($1.institutionValue ?? 0) }
+        return total > 0 ? total : nil
+    }
+
+    func preferredBalance(for account: Account) -> Double? {
+        let plaid = account.currentBalance
+        guard let holdingsValue = holdingsMarketValue(for: account.id) else {
+            return plaid
+        }
+        guard let plaid else { return holdingsValue }
+        return max(plaid, holdingsValue)
+    }
+
     func transactions(for accountId: UUID) -> [InvestmentTransaction] {
         transactions
             .filter { $0.accountId == accountId }
@@ -69,5 +86,10 @@ final class InvestmentStore: ObservableObject {
             return lookup[securityId]
         }
         return securities.first { $0.plaidSecurityId == holding.plaidSecurityId }
+    }
+
+    /// Test helper — not used by production UI.
+    func replaceHoldingsForTests(_ value: [InvestmentHolding]) {
+        holdings = value
     }
 }

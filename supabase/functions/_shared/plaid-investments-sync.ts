@@ -1,5 +1,5 @@
 import { SupabaseClient } from "npm:@supabase/supabase-js@2";
-import { plaidRequest } from "./plaid.ts";
+import { plaidRequest, type PlaidAccount } from "./plaid.ts";
 
 type PlaidInvestmentSecurity = {
   security_id: string;
@@ -23,7 +23,7 @@ type PlaidInvestmentHolding = {
 };
 
 type HoldingsResponse = {
-  accounts: { account_id: string }[];
+  accounts: PlaidAccount[];
   holdings: PlaidInvestmentHolding[];
   securities: PlaidInvestmentSecurity[];
 };
@@ -178,14 +178,103 @@ async function syncHoldingsForItem(
       .in("account_id", uniqueAccountIds);
   }
 
-  if (holdingRows.length === 0) return 0;
+  if (holdingRows.length === 0) {
+    await applyInvestmentAccountBalances(
+      admin,
+      userId,
+      payload.accounts,
+      payload.holdings,
+      accountByPlaidId,
+    );
+    return 0;
+  }
 
   const { error } = await admin.from("investment_holdings").upsert(
     holdingRows,
     { onConflict: "user_id,account_id,plaid_security_id" },
   );
   if (error) throw new Error(error.message);
+
+  await applyInvestmentAccountBalances(
+    admin,
+    userId,
+    payload.accounts,
+    payload.holdings,
+    accountByPlaidId,
+  );
   return holdingRows.length;
+}
+
+/**
+ * Retirement / brokerage balances from /accounts/get are often stale.
+ * Prefer investments/holdings/get account balances, then holdings value sum.
+ */
+async function applyInvestmentAccountBalances(
+  admin: SupabaseClient,
+  userId: string,
+  accounts: PlaidAccount[],
+  holdings: PlaidInvestmentHolding[],
+  accountByPlaidId: Map<string, string>,
+): Promise<void> {
+  const holdingsSumByPlaidAccount = new Map<string, number>();
+  for (const holding of holdings) {
+    const value = holding.institution_value;
+    if (value == null || Number.isNaN(value)) continue;
+    holdingsSumByPlaidAccount.set(
+      holding.account_id,
+      (holdingsSumByPlaidAccount.get(holding.account_id) ?? 0) + value,
+    );
+  }
+
+  const balanceByPlaidAccount = new Map<string, {
+    current: number | null;
+    available: number | null;
+  }>();
+
+  for (const account of accounts) {
+    balanceByPlaidAccount.set(account.account_id, {
+      current: account.balances.current,
+      available: account.balances.available,
+    });
+  }
+
+  const plaidIds = new Set([
+    ...balanceByPlaidAccount.keys(),
+    ...holdingsSumByPlaidAccount.keys(),
+  ]);
+
+  for (const plaidAccountId of plaidIds) {
+    const accountId = accountByPlaidId.get(plaidAccountId);
+    if (!accountId) continue;
+
+    const fromHoldingsApi = balanceByPlaidAccount.get(plaidAccountId);
+    const holdingsSum = holdingsSumByPlaidAccount.get(plaidAccountId);
+    let current = fromHoldingsApi?.current ?? null;
+    if (holdingsSum != null && holdingsSum > 0) {
+      // Prefer marked-to-market holdings total when Plaid under-reports account balance.
+      if (current == null || holdingsSum > current + 0.01) {
+        current = holdingsSum;
+      }
+    }
+    if (current == null) continue;
+
+    const { error } = await admin
+      .from("accounts")
+      .update({
+        current_balance: current,
+        available_balance: fromHoldingsApi?.available ?? current,
+      })
+      .eq("user_id", userId)
+      .eq("id", accountId);
+
+    if (error) {
+      console.error(
+        "investment_account_balance_update_failed",
+        plaidAccountId,
+        error.message,
+      );
+    }
+  }
 }
 
 async function syncInvestmentTransactionsForItem(

@@ -26,7 +26,19 @@ struct NetWorthView: View {
     }
 
     private var accountGroups: [NetWorthAccountGroup] {
-        NetWorthHistoryEngine.accountGroups(from: displayAccounts)
+        NetWorthHistoryEngine.accountGroups(from: displayAccountsWithPreferredBalances)
+    }
+
+    private var displayAccountsWithPreferredBalances: [Account] {
+        displayAccounts.map { account in
+            guard let preferred = investments.preferredBalance(for: account),
+                  preferred != account.currentBalance else {
+                return account
+            }
+            var copy = account
+            copy.currentBalance = preferred
+            return copy
+        }
     }
 
     var body: some View {
@@ -59,7 +71,9 @@ struct NetWorthView: View {
                                     NetWorthAccountRowLabel(
                                         name: account.name,
                                         balance: displayBalance(
-                                            linked.currentBalance ?? account.balance,
+                                            investments.preferredBalance(for: linked)
+                                                ?? linked.currentBalance
+                                                ?? account.balance,
                                             groupKind: group.kind
                                         )
                                     )
@@ -168,6 +182,8 @@ struct NetWorthView: View {
 
     private func refreshFromPlaid() async {
         guard let client = auth.activeSupabaseClient else { return }
+        // Investments first so account balances can be corrected from holdings before UI reload.
+        await investments.syncFromPlaid(client: client)
         await transactions.refreshAccountsFromPlaid(
             client: client,
             userId: auth.userId,
@@ -178,13 +194,11 @@ struct NetWorthView: View {
             userId: auth.userId
         )
         await reloadNetWorthFromStore(client: client)
-        await investments.syncFromPlaid(client: client)
         await netWorth.recordDailySnapshotIfNeeded(
             client: client,
-            accounts: transactions.accounts,
+            accounts: displayAccountsWithPreferredBalances,
             accountBalances: accountBalances
         )
-        // Rebuild charts with freshly synced investment activity.
         await reloadNetWorthFromStore(client: client)
     }
 
@@ -192,7 +206,9 @@ struct NetWorthView: View {
         await accountBalances.reload(client: client)
         await netWorth.reload(
             client: client,
-            accounts: transactions.accounts,
+            accounts: displayAccountsWithPreferredBalances.isEmpty
+                ? transactions.accounts
+                : displayAccountsWithPreferredBalances,
             accountSnapshots: accountBalances.snapshots,
             transactions: transactions.transactions,
             investmentTransactions: investments.transactions
