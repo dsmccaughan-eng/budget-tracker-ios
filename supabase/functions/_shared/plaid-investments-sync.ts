@@ -82,10 +82,14 @@ function isInvestmentsUnavailable(error: unknown): boolean {
   if (!(error instanceof Error)) return false;
   const message = error.message.toLowerCase();
   return message.includes("product_not_ready") ||
+    message.includes("products_not_supported") ||
     message.includes("products not supported") ||
     message.includes("no valid products") ||
+    message.includes("invalid product") ||
     message.includes("investments product") ||
-    message.includes("not authorized") && message.includes("investments");
+    message.includes("additional_consent_required") ||
+    (message.includes("not authorized") && message.includes("investments")) ||
+    (message.includes("product") && message.includes("not supported"));
 }
 
 function securityRows(

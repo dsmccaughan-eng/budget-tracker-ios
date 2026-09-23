@@ -117,6 +117,22 @@ struct NetWorthView: View {
                         .font(.footnote)
                 }
             }
+
+            if let investmentError = investments.errorMessage {
+                Section {
+                    Text(investmentError)
+                        .foregroundStyle(.orange)
+                        .font(.footnote)
+                }
+            }
+
+            if let summary = investments.lastSyncSummary, investments.errorMessage == nil {
+                Section {
+                    Text(summary)
+                        .foregroundStyle(.secondary)
+                        .font(.footnote)
+                }
+            }
         }
         .navigationTitle("Net Worth")
         .toolbar {
@@ -162,12 +178,14 @@ struct NetWorthView: View {
             userId: auth.userId
         )
         await reloadNetWorthFromStore(client: client)
-        await investments.loadAll(client: client)
+        await investments.syncFromPlaid(client: client)
         await netWorth.recordDailySnapshotIfNeeded(
             client: client,
             accounts: transactions.accounts,
             accountBalances: accountBalances
         )
+        // Rebuild charts with freshly synced investment activity.
+        await reloadNetWorthFromStore(client: client)
     }
 
     private func reloadNetWorthFromStore(client: SupabaseClient) async {

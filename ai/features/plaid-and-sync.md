@@ -8,7 +8,7 @@
 - `access_token` in Vault only; webhook for ongoing sync
 - Errors surface in UI (`TransactionStore.errorMessage`, Plaid link status)
 - Production: `docs/PLAID_PRODUCTION_CHECKLIST.md`
-- **Plaid Investments** (brokerage): link token requests `transactions` + `investments`; Edge Functions sync holdings + ~24 months of investment transactions into `investment_*` tables; account detail shows holdings breakdown and activity-driven balance history when synced. Existing links may need update-mode reconnect to add the Investments product.
+- **Plaid Investments** (brokerage): link token requests `transactions` + `investments`; update-mode reconnect uses `additional_consented_products: ["investments"]`; Edge Functions sync holdings + ~24 months of investment transactions into `investment_*` tables; account detail shows holdings breakdown and activity-driven balance history when synced. Existing links may need **Enable holdings** reconnect.
 
 ## Code map
 

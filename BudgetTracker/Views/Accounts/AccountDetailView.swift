@@ -72,6 +72,20 @@ struct AccountDetailView: View {
                 investmentActivitySection
             }
 
+            if let error = investments.errorMessage {
+                Section {
+                    Text(error)
+                        .foregroundStyle(.orange)
+                        .font(.footnote)
+                }
+            } else if let summary = investments.lastSyncSummary {
+                Section {
+                    Text(summary)
+                        .foregroundStyle(.secondary)
+                        .font(.footnote)
+                }
+            }
+
             Section("How this works") {
                 Text(historyExplanation)
                     .font(.subheadline)
@@ -98,9 +112,13 @@ struct AccountDetailView: View {
             if investments.isSyncing {
                 ProgressView("Syncing holdings…")
             } else if accountHoldings.isEmpty {
-                Text("No holdings yet. Pull to refresh after your bank supports Plaid Investments.")
+                Text("No holdings yet. Pull to refresh to sync from Plaid. If this bank was linked before Investments was enabled, reconnect it from Accounts.")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
+                Button("Sync holdings now") {
+                    Task { await reloadFromServer() }
+                }
+                .buttonStyle(.bordered)
             } else {
                 ForEach(accountHoldings.sorted(by: { ($0.institutionValue ?? 0) > ($1.institutionValue ?? 0) })) { holding in
                     let security = investments.security(for: holding, lookup: lookup)

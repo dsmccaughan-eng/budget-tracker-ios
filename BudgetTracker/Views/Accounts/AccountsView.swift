@@ -69,6 +69,7 @@ struct AccountsView: View {
                             client: client,
                             userId: auth.userId
                         )
+                        await investments.syncFromPlaid(client: client)
                         await reloadAccountSnapshots(client: client)
                         await reloadNetWorth(client: client)
                     }
@@ -142,6 +143,7 @@ struct AccountsView: View {
             client: client,
             userId: auth.userId
         )
+        await investments.syncFromPlaid(client: client)
         await reloadAccountSnapshots(client: client)
     }
 
@@ -185,6 +187,11 @@ struct AccountsView: View {
             HStack {
                 if connection.needsReconnect {
                     NavigationLink("Reconnect") {
+                        BankLinkView(reconnectConnection: connection)
+                    }
+                    .buttonStyle(.bordered)
+                } else if connection.provider == .plaid {
+                    NavigationLink("Enable holdings") {
                         BankLinkView(reconnectConnection: connection)
                     }
                     .buttonStyle(.bordered)

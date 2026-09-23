@@ -20,10 +20,8 @@ export async function createPlaidLinkToken(options: {
   const body: Record<string, unknown> = {
     user: { client_user_id: options.userId },
     client_name: "Budget Tracker",
-    products: ["transactions", "investments"],
     country_codes: ["US"],
     language: "en",
-    transactions: { days_requested: 730 },
   };
 
   const webhook = plaidWebhookUrl();
@@ -33,7 +31,12 @@ export async function createPlaidLinkToken(options: {
   if (redirectUri) body.redirect_uri = redirectUri;
 
   if (options.accessToken) {
+    // Update mode: add Investments without re-requesting Transactions.
     body.access_token = options.accessToken;
+    body.additional_consented_products = ["investments"];
+  } else {
+    body.products = ["transactions", "investments"];
+    body.transactions = { days_requested: 730 };
   }
 
   return await plaidRequest<LinkTokenResponse>("/link/token/create", body);

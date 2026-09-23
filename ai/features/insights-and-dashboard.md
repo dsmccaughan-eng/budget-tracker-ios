@@ -9,6 +9,9 @@
 - **Net Worth charts** (overall, Cash / Investments / Debts, and each account): Daily or Monthly (1st of month) interval toggle
 - Dashboard loads budgets on first unlock (does not wait for the Budgets tab or Plaid sync)
 - Investment history is an **accumulation curve**: dated contributions/withdrawals/transfers, bank “Investments” outflows inferred when needed, market P/L between snapshots, today pinned to live value; internal buys/sells are ignored
+- Net Worth / Accounts **↻** must call `InvestmentStore.syncFromPlaid` (not only `loadAll`); account detail shows sync errors
+- Existing bank links may need **Enable holdings** (update-mode Link with `additional_consented_products: investments`)
+- Robinhood **crypto** is often missing from Plaid Investments — show that in sync summary when holdings come back empty
 - Insights may use Gemini when it materially helps; keep deterministic fallbacks
 - Smart features must not override user categorization rules
 

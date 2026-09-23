@@ -10,8 +10,8 @@ final class InvestmentStore: ObservableObject {
     @Published var errorMessage: String?
     @Published private(set) var lastSyncSummary: String?
 
-    func loadAll(client: SupabaseClient) async {
-        errorMessage = nil
+    func loadAll(client: SupabaseClient, clearsError: Bool = true) async {
+        if clearsError { errorMessage = nil }
         do {
             securities = try await SupabaseService.shared.fetchInvestmentSecurities(client: client)
             holdings = try await SupabaseService.shared.fetchInvestmentHoldings(client: client)
@@ -28,10 +28,25 @@ final class InvestmentStore: ObservableObject {
 
         do {
             let result = try await SupabaseService.shared.syncPlaidInvestments(client: client)
-            lastSyncSummary = "Synced \(result.holdings) holdings and \(result.transactions) investment transactions."
-            await loadAll(client: client)
+            await loadAll(client: client, clearsError: false)
+            if let errorMessage {
+                lastSyncSummary = nil
+                return
+            }
+            if result.holdings == 0, result.transactions == 0, result.skippedItems > 0 {
+                lastSyncSummary =
+                    "Investments not enabled for \(result.skippedItems) bank connection(s). Tap Enable holdings on Accounts for Principal/Robinhood."
+                errorMessage = lastSyncSummary
+            } else if result.holdings == 0, result.transactions == 0, result.itemsProcessed > 0 {
+                lastSyncSummary =
+                    "Bank responded but returned no holdings. Robinhood crypto is often not included by Plaid."
+            } else {
+                lastSyncSummary =
+                    "Synced \(result.holdings) holdings and \(result.transactions) investment transactions."
+            }
         } catch {
             errorMessage = error.localizedDescription
+            lastSyncSummary = nil
         }
     }
 

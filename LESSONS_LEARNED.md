@@ -1,6 +1,6 @@
 # Lessons Learned
 
-Last updated: 2026-08-18
+Last updated: 2026-09-23
 
 Purpose
 - Capture resolved issues and proven fixes so future agents do not re-open solved problems.
@@ -400,4 +400,12 @@ Entry format
 - **Fix pattern:** Build a dated accumulation series: apply contributions/withdrawals (including inferred bank Investments outflows) on their dates, interpolate unexplained P/L between snapshot marks, and pin today to the live balance. Ignore buys/sells. Do not treat missing Plaid history as “balance was always today’s value.”
 - **Guardrails:** Do not count security trades as NAV changes; do not replace today’s live point; keep cash/loan reconstruction unchanged.
 - **Verification:** `InvestmentHistoryEngineTests` (pre-snapshot stairs, sign-independent contributions, inferred bank inflows, market interpolation); `NetWorthHistoryEngineTests` investment group/overall series.
+
+### 2026-09-23 — Holdings empty / refresh felt broken for Principal and Robinhood
+- **Symptom:** Net Worth ↻ and account refresh did not populate holdings; Principal stayed flat; Robinhood Individual looked short (crypto missing).
+- **Root cause:** (1) Net Worth/Accounts refresh only reloaded holdings from Supabase (`loadAll`) and did not always surface a dedicated investments sync with errors. (2) `InvestmentHolding` / `InvestmentTransaction` used strict Double decoding — PostgREST `numeric` as strings can fail the whole fetch, leaving empty holdings with a hidden error. (3) Update-mode Link still sent `products` instead of `additional_consented_products: ["investments"]`, so existing Principal/Robinhood Items often never gained Investments. (4) Robinhood crypto frequently is not returned by Plaid Investments at all.
+- **Fix pattern:** Flexible numeric decoding; Net Worth/Accounts ↻ call `syncFromPlaid`; show sync errors/summaries on Net Worth and account detail; update-mode Link requests `additional_consented_products: ["investments"]`; Accounts shows **Enable holdings** for active Plaid connections.
+- **Guardrails:** Do not treat empty Robinhood holdings as a decode bug when Plaid omits crypto; do not require login_required to offer Enable holdings.
+- **Verification:** `InvestmentModelsDecodingTests`; pull-to-refresh on investment account shows holdings or an actionable message; Enable holdings → sync returns holdings for Principal brokerage/401k when Plaid supports it.
+
 
